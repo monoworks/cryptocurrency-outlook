@@ -1,6 +1,7 @@
 'use client';
 
 import { TrendAnalysis, TimeframeAnalysis } from '@/lib/types';
+import HelpTip from './HelpTip';
 
 const LABELS: Record<string, string> = {
   uptrend: '上昇トレンド',
@@ -29,7 +30,7 @@ interface Props {
 export default function TrendBadge({ trend, timeframeDetails }: Props) {
   return (
     <div className="bg-gray-800 rounded-lg p-4">
-      <h2 className="text-lg font-bold text-white mb-3">② トレンド判定（統合）</h2>
+      <h2 className="text-lg font-bold text-white mb-3">② トレンド判定（統合）<HelpTip text="複数の時間足の分析を組み合わせた、現在の相場の方向性です" /></h2>
       <div className="flex items-center gap-3 mb-3">
         <span className={`px-3 py-1 rounded text-white font-bold ${COLORS[trend.direction]}`}>
           {LABELS[trend.direction]}
@@ -39,14 +40,14 @@ export default function TrendBadge({ trend, timeframeDetails }: Props) {
         </span>
       </div>
       <div className="grid grid-cols-2 gap-2 text-sm mb-3">
-        <div className="text-gray-400">MA配列: <span className="text-gray-200">{trend.maAlignment || 'N/A'}</span></div>
+        <div className="text-gray-400">MA配列<HelpTip text="移動平均線の並び順です。短期>中期>長期なら上昇、逆なら下落傾向" />: <span className="text-gray-200">{trend.maAlignment || 'N/A'}</span></div>
         <div className="text-gray-400">
-          高値切り上げ: <span className={trend.higherHighs ? 'text-green-400' : 'text-red-400'}>
+          高値切り上げ<HelpTip text="直近の山が前の山より高くなっているかどうか。上昇トレンドの特徴です" />: <span className={trend.higherHighs ? 'text-green-400' : 'text-red-400'}>
             {trend.higherHighs ? 'はい' : 'いいえ'}
           </span>
         </div>
         <div className="text-gray-400">
-          安値切り上げ: <span className={trend.higherLows ? 'text-green-400' : 'text-red-400'}>
+          安値切り上げ<HelpTip text="直近の谷が前の谷より高くなっているかどうか。上昇トレンドの特徴です" />: <span className={trend.higherLows ? 'text-green-400' : 'text-red-400'}>
             {trend.higherLows ? 'はい' : 'いいえ'}
           </span>
         </div>

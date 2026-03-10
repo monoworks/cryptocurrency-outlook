@@ -1,6 +1,7 @@
 'use client';
 
 import { PriceLevel } from '@/lib/types';
+import HelpTip from './HelpTip';
 
 function fmt(n: number): string {
   return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -15,7 +16,7 @@ export default function SRLevels({ levels, currentPrice }: { levels: PriceLevel[
       <h2 className="text-lg font-bold text-white mb-3">③ サポート / レジスタンス</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <h3 className="text-sm text-red-400 font-semibold mb-2">レジスタンス</h3>
+          <h3 className="text-sm text-red-400 font-semibold mb-2">レジスタンス<HelpTip text="価格が上昇した時に「天井」となりやすい価格帯です。何度も跳ね返されているほど強力です" /></h3>
           {resistances.length === 0 ? (
             <p className="text-gray-500 text-sm">検出なし</p>
           ) : (
@@ -33,7 +34,7 @@ export default function SRLevels({ levels, currentPrice }: { levels: PriceLevel[
           )}
         </div>
         <div>
-          <h3 className="text-sm text-green-400 font-semibold mb-2">サポート</h3>
+          <h3 className="text-sm text-green-400 font-semibold mb-2">サポート<HelpTip text="価格が下落した時に「床」となりやすい価格帯です。何度も反発しているほど強力です" /></h3>
           {supports.length === 0 ? (
             <p className="text-gray-500 text-sm">検出なし</p>
           ) : (

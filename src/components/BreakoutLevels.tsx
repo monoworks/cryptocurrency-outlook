@@ -1,6 +1,7 @@
 'use client';
 
 import { BreakoutLevel } from '@/lib/types';
+import HelpTip from './HelpTip';
 
 function fmt(n: number): string {
   return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -9,7 +10,7 @@ function fmt(n: number): string {
 export default function BreakoutLevels({ levels }: { levels: BreakoutLevel[] }) {
   return (
     <div className="bg-gray-800 rounded-lg p-4">
-      <h2 className="text-lg font-bold text-white mb-3">⑤ 重要分岐点</h2>
+      <h2 className="text-lg font-bold text-white mb-3">⑤ 重要分岐点<HelpTip text="この価格を超えるか割り込むかで、相場の方向が大きく変わる可能性がある重要な価格です" /></h2>
       {levels.length === 0 ? (
         <p className="text-gray-500 text-sm">分岐点が検出されませんでした</p>
       ) : (

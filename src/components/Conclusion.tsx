@@ -1,6 +1,7 @@
 'use client';
 
 import { SignalConclusion, CandlePattern, DerivativesAnalysis, IndicatorValues } from '@/lib/types';
+import HelpTip from './HelpTip';
 
 const CONCLUSION_CONFIG: Record<SignalConclusion, { label: string; color: string; bg: string }> = {
   enter_long: { label: 'ロングエントリー推奨', color: 'text-green-400', bg: 'bg-green-900/30 border-green-500' },
@@ -32,7 +33,7 @@ export default function Conclusion({ conclusion, reason, patterns, derivatives, 
       <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
         {/* Patterns */}
         <div>
-          <h4 className="text-gray-400 font-semibold mb-1">ローソク足パターン</h4>
+          <h4 className="text-gray-400 font-semibold mb-1">ローソク足パターン<HelpTip text="チャートの形から読み取れる、次の値動きのヒントです" /></h4>
           {patterns.length === 0 ? (
             <p className="text-gray-500">特筆なし</p>
           ) : (
@@ -46,7 +47,7 @@ export default function Conclusion({ conclusion, reason, patterns, derivatives, 
 
         {/* Derivatives */}
         <div>
-          <h4 className="text-gray-400 font-semibold mb-1">デリバティブ</h4>
+          <h4 className="text-gray-400 font-semibold mb-1">デリバティブ<HelpTip text="先物・オプション市場の情報から読み取れる、トレーダーたちの心理です" /></h4>
           <div className="text-gray-300">{derivatives.oiPriceDescription}</div>
           <div className="text-gray-400 mt-1">
             Funding: <span className={derivatives.fundingBias === 'long_heavy' ? 'text-yellow-400' : derivatives.fundingBias === 'short_heavy' ? 'text-blue-400' : 'text-gray-300'}>
@@ -57,7 +58,7 @@ export default function Conclusion({ conclusion, reason, patterns, derivatives, 
 
         {/* Key Indicators */}
         <div>
-          <h4 className="text-gray-400 font-semibold mb-1">主要指標</h4>
+          <h4 className="text-gray-400 font-semibold mb-1">主要指標<HelpTip text="RSI（買われすぎ/売られすぎ）、MACD（勢い）、ADX（トレンドの強さ）を示します" /></h4>
           <div className="text-gray-300">RSI: {indicators.rsi?.toFixed(1) ?? 'N/A'}</div>
           <div className="text-gray-300">
             MACD: {indicators.macd ? (indicators.macd.histogram > 0 ? '強気' : '弱気') : 'N/A'}
