@@ -91,14 +91,14 @@ ${resistances.length > 0 ? resistances.map((r) => `- $${formatNum(r.price)} (強
 ### サポート
 ${supports.length > 0 ? supports.map((s) => `- $${formatNum(s.price)} (強度: ${s.strength}/5, タッチ: ${s.touchCount}回)`).join('\n') : '- なし'}
 
-## ⑤ PR比較 (Long vs Short)
-### ロング
+## ⑤ PR比較 (Long vs Short) ※指値ベース
+### ロング（押し目買い: サポート付近エントリー）
 - エントリー: $${formatNum(longSetup.entry)}
 - 損切り: $${formatNum(longSetup.stopLoss)} (${longSetup.riskPercent}%)
 - 利確: $${formatNum(longSetup.target)} (${longSetup.rewardPercent}%)
 - PR比: ${longSetup.riskRewardRatio}
 
-### ショート
+### ショート（戻り売り: レジスタンス付近エントリー）
 - エントリー: $${formatNum(shortSetup.entry)}
 - 損切り: $${formatNum(shortSetup.stopLoss)} (${shortSetup.riskPercent}%)
 - 利確: $${formatNum(shortSetup.target)} (${shortSetup.rewardPercent}%)

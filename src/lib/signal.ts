@@ -49,14 +49,15 @@ function buildTradeSetup(
   nearestResistance: number
 ): TradeSetup {
   if (direction === 'long') {
-    const entry = currentPrice;
+    // 押し目買い: サポート付近で指値エントリー
+    const entry = nearestSupport;
     const stopLoss = nearestSupport * 0.998;
     const target = nearestResistance;
     const risk = entry - stopLoss;
     const reward = target - entry;
     return {
       direction: 'long',
-      entry,
+      entry: Math.round(entry * 100) / 100,
       stopLoss: Math.round(stopLoss * 100) / 100,
       target: Math.round(target * 100) / 100,
       riskRewardRatio: risk > 0 ? Math.round((reward / risk) * 100) / 100 : 0,
@@ -64,14 +65,15 @@ function buildTradeSetup(
       rewardPercent: Math.round(((target - entry) / entry) * 10000) / 100,
     };
   } else {
-    const entry = currentPrice;
+    // 戻り売り: レジスタンス付近で指値エントリー
+    const entry = nearestResistance;
     const stopLoss = nearestResistance * 1.002;
     const target = nearestSupport;
     const risk = stopLoss - entry;
     const reward = entry - target;
     return {
       direction: 'short',
-      entry,
+      entry: Math.round(entry * 100) / 100,
       stopLoss: Math.round(stopLoss * 100) / 100,
       target: Math.round(target * 100) / 100,
       riskRewardRatio: risk > 0 ? Math.round((reward / risk) * 100) / 100 : 0,
