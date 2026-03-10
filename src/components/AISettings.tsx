@@ -49,7 +49,10 @@ export default function AISettings({ settings, onSave, onClear }: Props) {
   return (
     <div className="bg-gray-800 rounded-lg p-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold text-white">AI分析設定</h2>
+        <div>
+          <h2 className="text-lg font-bold text-white">AI分析設定</h2>
+          <p className="text-xs text-yellow-400/80 mt-0.5">※ 利用には各社のAPIキーが必要です（従量課金）</p>
+        </div>
         <div className="flex items-center gap-2">
           {settings ? (
             <>
@@ -72,6 +75,11 @@ export default function AISettings({ settings, onSave, onClear }: Props) {
 
       {open && (
         <div className="mt-3 space-y-3">
+          <div className="bg-yellow-900/20 border border-yellow-600/40 rounded-lg p-3 text-xs text-yellow-300 space-y-1">
+            <p className="font-semibold">⚠ 従量課金に関するご注意</p>
+            <p>AI分析は外部API（OpenAI / Anthropic）を利用するため、<span className="font-bold">リクエストごとに料金が発生します</span>。</p>
+            <p>APIキーの取得方法や料金体系は各社の公式サイトをご確認ください。少額の利用上限を設定し、利用状況を確認しながらお使いになることをおすすめします。</p>
+          </div>
           <p className="text-xs text-gray-400">
             APIキーはブラウザのlocalStorageにのみ保存されます。サーバーには保存しません。
           </p>
