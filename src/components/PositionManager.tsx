@@ -22,14 +22,16 @@ export default function PositionManager({ positions, onRemove }: Props) {
   // Total P&L across all positions
   let totalPnl = 0;
   let totalInvested = 0;
-  let allHavePrices = true;
+  let totalInvestedAll = 0;
+  let connectedCount = 0;
 
   for (const pos of positions) {
+    totalInvestedAll += pos.amount;
     const livePrice = livePrices[pos.symbol.toUpperCase()];
     if (livePrice == null) {
-      allHavePrices = false;
       continue;
     }
+    connectedCount++;
     const posSize = pos.amount * pos.leverage;
     const pnl = pos.direction === 'long'
       ? posSize * (livePrice - pos.entry) / pos.entry
@@ -48,11 +50,20 @@ export default function PositionManager({ positions, onRemove }: Props) {
         <span className="text-sm font-normal text-gray-400 ml-2">({positions.length}件)</span>
       </h2>
 
-      {/* Total P&L summary */}
-      {allHavePrices && totalInvested > 0 && (
-        <div className={`rounded-lg p-3 mb-4 ${totalPnl >= 0 ? 'bg-green-900/20 border border-green-700/30' : 'bg-red-900/20 border border-red-700/30'}`}>
+      {/* Total summary */}
+      <div className="rounded-lg p-3 mb-4 bg-gray-700/30 border border-gray-600/30">
+        <div className="flex justify-between items-baseline mb-1">
+          <span className="text-sm text-gray-400">合計投資金額</span>
+          <span className="text-white font-bold font-mono">${fmt(totalInvestedAll, 0)} USDT</span>
+        </div>
+        {connectedCount > 0 && (
           <div className="flex justify-between items-baseline">
-            <span className="text-sm text-gray-400">合計含み損益</span>
+            <span className="text-sm text-gray-400">
+              合計含み損益
+              {connectedCount < positions.length && (
+                <span className="text-xs text-gray-500 ml-1">({connectedCount}/{positions.length}件接続中)</span>
+              )}
+            </span>
             <div className="text-right">
               <span className={`text-lg font-bold font-mono ${totalPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                 {totalPnl >= 0 ? '+' : ''}{fmt(totalPnl)} USDT
@@ -62,8 +73,8 @@ export default function PositionManager({ positions, onRemove }: Props) {
               </span>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Position list */}
       <div className="space-y-2">
