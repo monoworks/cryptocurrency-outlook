@@ -1,10 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { TradeSetup } from '@/lib/types';
+import { TradeSetup, SavedPosition } from '@/lib/types';
 import HelpTip from './HelpTip';
 
-const LEVERAGE_OPTIONS = [1, 2, 3, 5, 10, 20, 25, 50];
+const LEVERAGE_OPTIONS = [1, 2, 3, 5, 10, 20, 25, 40];
 
 function fmt(n: number, d = 2): string {
   return n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -13,12 +13,17 @@ function fmt(n: number, d = 2): string {
 interface Props {
   longSetup: TradeSetup;
   shortSetup: TradeSetup;
+  symbol: string;
+  onSavePosition: (pos: Omit<SavedPosition, 'id' | 'createdAt'>) => boolean;
+  positionCount: number;
+  maxPositions: number;
 }
 
-export default function PositionSimulator({ longSetup, shortSetup }: Props) {
+export default function PositionSimulator({ longSetup, shortSetup, symbol, onSavePosition, positionCount, maxPositions }: Props) {
   const [amount, setAmount] = useState('1000');
   const [leverage, setLeverage] = useState(1);
   const [direction, setDirection] = useState<'long' | 'short'>('long');
+  const [saved, setSaved] = useState(false);
 
   const setup = direction === 'long' ? longSetup : shortSetup;
   const investAmount = parseFloat(amount) || 0;
@@ -29,7 +34,6 @@ export default function PositionSimulator({ longSetup, shortSetup }: Props) {
   const roi = investAmount > 0 ? (profitAtTarget / investAmount) * 100 : 0;
   const lossRoi = investAmount > 0 ? (lossAtStop / investAmount) * 100 : 0;
 
-  // Liquidation price (approximate, ignoring fees)
   let liquidationPrice: number | null = null;
   if (leverage > 1) {
     if (direction === 'long') {
@@ -38,6 +42,24 @@ export default function PositionSimulator({ longSetup, shortSetup }: Props) {
       liquidationPrice = setup.entry * (1 + 1 / leverage);
     }
   }
+
+  const isFull = positionCount >= maxPositions;
+
+  const handleSave = () => {
+    const ok = onSavePosition({
+      symbol,
+      direction,
+      entry: setup.entry,
+      stopLoss: setup.stopLoss,
+      target: setup.target,
+      amount: investAmount,
+      leverage,
+    });
+    if (ok) {
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    }
+  };
 
   return (
     <div className="bg-gray-800 rounded-lg p-4">
@@ -152,6 +174,26 @@ export default function PositionSimulator({ longSetup, shortSetup }: Props) {
               )}
             </div>
           )}
+
+          {/* Save position button */}
+          <div className="border-t border-gray-700 pt-3">
+            <button
+              onClick={handleSave}
+              disabled={isFull || saved}
+              className={`w-full py-2 rounded text-sm font-medium transition-colors ${
+                saved
+                  ? 'bg-green-700 text-white'
+                  : isFull
+                  ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                  : 'bg-blue-600 hover:bg-blue-700 text-white'
+              }`}
+            >
+              {saved ? '登録しました' : isFull ? `ポジション上限（${maxPositions}件）に達しています` : 'このポジションを登録'}
+            </button>
+            <p className="text-xs text-gray-500 mt-1 text-center">
+              登録するとリアルタイムで含み損益を確認できます（{positionCount}/{maxPositions}件）
+            </p>
+          </div>
 
           {/* Disclaimer */}
           <p className="text-xs text-gray-600 mt-2">

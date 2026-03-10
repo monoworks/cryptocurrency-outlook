@@ -3,12 +3,14 @@
 import { useState } from 'react';
 import { AnalysisResult, Timeframe } from '@/lib/types';
 import { buildAnalysisPrompt } from '@/lib/prompt-builder';
+import { useSavedPositions } from '@/hooks/useSavedPositions';
 import SymbolInput from '@/components/SymbolInput';
 import MarketSummary from '@/components/MarketSummary';
 import TrendBadge from '@/components/TrendBadge';
 import SRLevels from '@/components/SRLevels';
 import PRComparison from '@/components/PRComparison';
 import PositionSimulator from '@/components/PositionSimulator';
+import PositionManager from '@/components/PositionManager';
 import BreakoutLevels from '@/components/BreakoutLevels';
 import Conclusion from '@/components/Conclusion';
 // 将来用に残す
@@ -24,6 +26,8 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [currentSymbol, setCurrentSymbol] = useState('BTCUSDT');
+  const { positions, addPosition, removePosition, maxPositions } = useSavedPositions();
 
   // 将来用に残す（AI分析・画像アップロード）
   // const [aiSettings, setAiSettings] = useState<AISettingsType | null>(null);
@@ -47,6 +51,7 @@ export default function Home() {
     setLoading(true);
     setError(null);
     setResult(null);
+    setCurrentSymbol(symbol.toUpperCase());
 
     try {
       const tfParam = timeframes.join(',');
@@ -109,7 +114,14 @@ export default function Home() {
             <TrendBadge trend={result.trend} timeframeDetails={result.timeframeDetails} />
             <SRLevels levels={result.levels} currentPrice={result.marketSummary.currentPrice} />
             <PRComparison longSetup={result.longSetup} shortSetup={result.shortSetup} />
-            <PositionSimulator longSetup={result.longSetup} shortSetup={result.shortSetup} />
+            <PositionSimulator
+              longSetup={result.longSetup}
+              shortSetup={result.shortSetup}
+              symbol={currentSymbol}
+              onSavePosition={addPosition}
+              positionCount={positions.length}
+              maxPositions={maxPositions}
+            />
             <BreakoutLevels levels={result.breakoutLevels} />
             <Conclusion
               conclusion={result.conclusion}
@@ -130,6 +142,9 @@ export default function Home() {
             <CopyPrompt prompt={buildAnalysisPrompt(result)} />
           </div>
         )}
+
+        {/* Saved Positions (always visible if positions exist) */}
+        <PositionManager positions={positions} onRemove={removePosition} />
 
         {/* Footer */}
         <footer className="text-center text-xs text-gray-600 pt-8 pb-4">

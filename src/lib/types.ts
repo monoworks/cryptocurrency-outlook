@@ -204,3 +204,17 @@ export interface AISettings {
   apiKey: string;
   model: string;
 }
+
+// ===== Saved Position =====
+
+export interface SavedPosition {
+  id: string;
+  symbol: string;
+  direction: 'long' | 'short';
+  entry: number;
+  stopLoss: number;
+  target: number;
+  amount: number;
+  leverage: number;
+  createdAt: number;
+}
