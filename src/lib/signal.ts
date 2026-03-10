@@ -6,9 +6,12 @@ import {
   SignalConclusion,
   PriceLevel,
   TrendAnalysis,
+  TrendDirection,
+  TrendStrength,
   DerivativesAnalysis,
-  IndicatorValues,
-  CandlePattern,
+  Timeframe,
+  TimeframeAnalysis,
+  OHLCV,
 } from './types';
 import { calcIndicators } from './indicators';
 import { detectPatterns } from './patterns';
@@ -16,17 +19,26 @@ import { analyzeTrend } from './trend';
 import { detectSupportResistance } from './support-resistance';
 import { analyzeDerivatives } from './derivatives';
 
+// Weight for each timeframe (higher = more influence on combined result)
+const TIMEFRAME_WEIGHT: Record<Timeframe, number> = {
+  '5m': 1,
+  '15m': 1.5,
+  '1h': 2,
+  '4h': 3,
+  '1d': 4,
+};
+
 function findNearestSupport(levels: PriceLevel[], currentPrice: number): number {
   const supports = levels
     .filter((l) => l.type === 'support')
-    .sort((a, b) => b.price - a.price); // highest support first
+    .sort((a, b) => b.price - a.price);
   return supports.length > 0 ? supports[0].price : currentPrice * 0.97;
 }
 
 function findNearestResistance(levels: PriceLevel[], currentPrice: number): number {
   const resistances = levels
     .filter((l) => l.type === 'resistance')
-    .sort((a, b) => a.price - b.price); // lowest resistance first
+    .sort((a, b) => a.price - b.price);
   return resistances.length > 0 ? resistances[0].price : currentPrice * 1.03;
 }
 
@@ -38,7 +50,7 @@ function buildTradeSetup(
 ): TradeSetup {
   if (direction === 'long') {
     const entry = currentPrice;
-    const stopLoss = nearestSupport * 0.998; // slightly below support
+    const stopLoss = nearestSupport * 0.998;
     const target = nearestResistance;
     const risk = entry - stopLoss;
     const reward = target - entry;
@@ -53,7 +65,7 @@ function buildTradeSetup(
     };
   } else {
     const entry = currentPrice;
-    const stopLoss = nearestResistance * 1.002; // slightly above resistance
+    const stopLoss = nearestResistance * 1.002;
     const target = nearestSupport;
     const risk = stopLoss - entry;
     const reward = entry - target;
@@ -69,96 +81,234 @@ function buildTradeSetup(
   }
 }
 
+function analyzeTimeframe(
+  timeframe: Timeframe,
+  candles: OHLCV[],
+  currentPrice: number
+): TimeframeAnalysis {
+  const indicators = calcIndicators(candles);
+  const patterns = detectPatterns(candles);
+  const trend = analyzeTrend(candles, indicators);
+  const levels = detectSupportResistance(candles, currentPrice);
+  const recent20 = candles.slice(-20);
+  const recentHigh = Math.max(...recent20.map((c) => c.high));
+  const recentLow = Math.min(...recent20.map((c) => c.low));
+
+  return { timeframe, trend, indicators, patterns, levels, recentHigh, recentLow };
+}
+
+function combineTrends(details: TimeframeAnalysis[]): TrendAnalysis {
+  let uptrendWeight = 0;
+  let downtrendWeight = 0;
+  let totalWeight = 0;
+  let adxSum = 0;
+  let adxWeightSum = 0;
+
+  for (const d of details) {
+    const w = TIMEFRAME_WEIGHT[d.timeframe];
+    totalWeight += w;
+    if (d.trend.direction === 'uptrend') uptrendWeight += w;
+    if (d.trend.direction === 'downtrend') downtrendWeight += w;
+    if (d.indicators.adx != null) {
+      adxSum += d.indicators.adx * w;
+      adxWeightSum += w;
+    }
+  }
+
+  let direction: TrendDirection;
+  const upRatio = uptrendWeight / totalWeight;
+  const downRatio = downtrendWeight / totalWeight;
+  if (upRatio > 0.5) direction = 'uptrend';
+  else if (downRatio > 0.5) direction = 'downtrend';
+  else direction = 'range';
+
+  const avgAdx = adxWeightSum > 0 ? adxSum / adxWeightSum : 20;
+  let strength: TrendStrength;
+  if (avgAdx >= 30) strength = 'strong';
+  else if (avgAdx >= 20) strength = 'moderate';
+  else strength = 'weak';
+
+  // MA alignment from highest weighted timeframe
+  const primary = details[details.length - 1];
+
+  // Higher highs / higher lows: true if majority agree
+  const hhCount = details.filter((d) => d.trend.higherHighs).length;
+  const hlCount = details.filter((d) => d.trend.higherLows).length;
+
+  return {
+    direction,
+    strength,
+    maAlignment: primary.trend.maAlignment,
+    higherHighs: hhCount > details.length / 2,
+    higherLows: hlCount > details.length / 2,
+  };
+}
+
+function mergeLevels(details: TimeframeAnalysis[], currentPrice: number): PriceLevel[] {
+  const allLevels: PriceLevel[] = [];
+
+  for (const d of details) {
+    const tfWeight = TIMEFRAME_WEIGHT[d.timeframe];
+    for (const level of d.levels) {
+      allLevels.push({
+        ...level,
+        // Boost strength by timeframe weight (higher TF = stronger level)
+        strength: Math.min(5, Math.round(level.strength * (tfWeight / 2))),
+      });
+    }
+  }
+
+  // Cluster nearby levels (within 0.3%)
+  const threshold = currentPrice * 0.003;
+  const clustered: PriceLevel[] = [];
+
+  const sorted = allLevels.sort((a, b) => a.price - b.price);
+  for (const level of sorted) {
+    const existing = clustered.find((c) => Math.abs(c.price - level.price) < threshold && c.type === level.type);
+    if (existing) {
+      existing.strength = Math.min(5, existing.strength + 1);
+      existing.touchCount += level.touchCount;
+      existing.price = (existing.price + level.price) / 2; // average price
+    } else {
+      clustered.push({ ...level });
+    }
+  }
+
+  return clustered.sort((a, b) => b.strength - a.strength).slice(0, 15);
+}
+
 function determineConclusion(
   trend: TrendAnalysis,
   derivatives: DerivativesAnalysis,
-  indicators: IndicatorValues,
+  details: TimeframeAnalysis[],
   longSetup: TradeSetup,
-  shortSetup: TradeSetup,
-  patterns: CandlePattern[]
+  shortSetup: TradeSetup
 ): { conclusion: SignalConclusion; reason: string } {
   let bullishScore = 0;
   let bearishScore = 0;
+  let totalWeight = 0;
 
-  // Trend
-  if (trend.direction === 'uptrend') bullishScore += 2;
-  if (trend.direction === 'downtrend') bearishScore += 2;
+  // Per-timeframe weighted scoring
+  for (const d of details) {
+    const w = TIMEFRAME_WEIGHT[d.timeframe];
+    totalWeight += w;
 
-  // RSI
-  if (indicators.rsi != null) {
-    if (indicators.rsi < 30) bullishScore += 1; // oversold
-    if (indicators.rsi > 70) bearishScore += 1; // overbought
-    if (indicators.rsi > 50 && indicators.rsi < 70) bullishScore += 0.5;
-    if (indicators.rsi < 50 && indicators.rsi > 30) bearishScore += 0.5;
+    // Trend per TF
+    if (d.trend.direction === 'uptrend') bullishScore += 2 * w;
+    if (d.trend.direction === 'downtrend') bearishScore += 2 * w;
+
+    // RSI per TF
+    if (d.indicators.rsi != null) {
+      if (d.indicators.rsi < 30) bullishScore += 1 * w;
+      if (d.indicators.rsi > 70) bearishScore += 1 * w;
+      if (d.indicators.rsi > 50 && d.indicators.rsi < 70) bullishScore += 0.5 * w;
+      if (d.indicators.rsi < 50 && d.indicators.rsi > 30) bearishScore += 0.5 * w;
+    }
+
+    // MACD per TF
+    if (d.indicators.macd) {
+      if (d.indicators.macd.histogram > 0) bullishScore += 1 * w;
+      else bearishScore += 1 * w;
+    }
+
+    // Patterns per TF
+    for (const p of d.patterns) {
+      if (p.signal === 'bullish') bullishScore += 0.5 * w;
+      if (p.signal === 'bearish') bearishScore += 0.5 * w;
+    }
   }
 
-  // MACD
-  if (indicators.macd) {
-    if (indicators.macd.histogram > 0) bullishScore += 1;
-    else bearishScore += 1;
-  }
+  // Normalize by total weight
+  bullishScore /= totalWeight;
+  bearishScore /= totalWeight;
 
-  // Derivatives
+  // Derivatives (not per-TF, add directly)
   if (derivatives.oiPriceSignal === 'new_longs') bullishScore += 1;
   if (derivatives.oiPriceSignal === 'new_shorts') bearishScore += 1;
   if (derivatives.oiPriceSignal === 'short_cover') bullishScore += 0.5;
   if (derivatives.oiPriceSignal === 'long_liquidation') bearishScore += 0.5;
-
-  // Funding extreme = contrarian signal
   if (derivatives.fundingBias === 'long_heavy') bearishScore += 0.5;
   if (derivatives.fundingBias === 'short_heavy') bullishScore += 0.5;
 
-  // Patterns
-  for (const p of patterns) {
-    if (p.signal === 'bullish') bullishScore += 0.5;
-    if (p.signal === 'bearish') bearishScore += 0.5;
-  }
-
   const diff = bullishScore - bearishScore;
   const bestRR = Math.max(longSetup.riskRewardRatio, shortSetup.riskRewardRatio);
+
+  // Build timeframe agreement description
+  const tfLabels = details.map((d) => {
+    const dir = d.trend.direction === 'uptrend' ? '↑' : d.trend.direction === 'downtrend' ? '↓' : '→';
+    return `${d.timeframe}${dir}`;
+  }).join(' / ');
 
   let conclusion: SignalConclusion;
   let reason: string;
 
   if (Math.abs(diff) < 1) {
     conclusion = 'skip';
-    reason = `強気/弱気シグナルが拮抗 (強気${bullishScore.toFixed(1)} vs 弱気${bearishScore.toFixed(1)})。明確な方向性が出るまで見送り推奨。`;
+    reason = `強気/弱気シグナルが拮抗 (強気${bullishScore.toFixed(1)} vs 弱気${bearishScore.toFixed(1)})。[${tfLabels}] 明確な方向性が出るまで見送り推奨。`;
   } else if (bestRR < 1.5) {
     conclusion = 'wait';
-    reason = `方向性はあるが、現在のPR比(${bestRR})が低い。引きつけてからのエントリー推奨。`;
+    reason = `方向性はあるが、現在のPR比(${bestRR})が低い。[${tfLabels}] 引きつけてからのエントリー推奨。`;
   } else if (diff >= 2) {
     conclusion = 'enter_long';
-    reason = `強気シグナル優勢 (${bullishScore.toFixed(1)} vs ${bearishScore.toFixed(1)})。ロングのPR比${longSetup.riskRewardRatio}。`;
+    reason = `強気シグナル優勢 (${bullishScore.toFixed(1)} vs ${bearishScore.toFixed(1)})。[${tfLabels}] ロングのPR比${longSetup.riskRewardRatio}。`;
   } else if (diff <= -2) {
     conclusion = 'enter_short';
-    reason = `弱気シグナル優勢 (弱気${bearishScore.toFixed(1)} vs 強気${bullishScore.toFixed(1)})。ショートのPR比${shortSetup.riskRewardRatio}。`;
+    reason = `弱気シグナル優勢 (弱気${bearishScore.toFixed(1)} vs 強気${bullishScore.toFixed(1)})。[${tfLabels}] ショートのPR比${shortSetup.riskRewardRatio}。`;
   } else if (diff > 0) {
     conclusion = 'wait';
-    reason = `やや強気だが確信度不十分 (${bullishScore.toFixed(1)} vs ${bearishScore.toFixed(1)})。押し目を待ってロング検討。`;
+    reason = `やや強気だが確信度不十分 (${bullishScore.toFixed(1)} vs ${bearishScore.toFixed(1)})。[${tfLabels}] 押し目を待ってロング検討。`;
   } else {
     conclusion = 'wait';
-    reason = `やや弱気だが確信度不十分 (弱気${bearishScore.toFixed(1)} vs 強気${bullishScore.toFixed(1)})。戻りを待ってショート検討。`;
+    reason = `やや弱気だが確信度不十分 (弱気${bearishScore.toFixed(1)} vs 強気${bullishScore.toFixed(1)})。[${tfLabels}] 戻りを待ってショート検討。`;
   }
 
   return { conclusion, reason };
 }
 
-export function generateSignal(data: MarketData): AnalysisResult {
-  const { candles, ticker } = data;
+export interface MultiTimeframeInput {
+  symbol: string;
+  ticker: MarketData['ticker'];
+  openInterest: MarketData['openInterest'];
+  fundingRate: MarketData['fundingRate'];
+  premiumIndex: MarketData['premiumIndex'];
+  candlesByTimeframe: { timeframe: Timeframe; candles: OHLCV[] }[];
+}
+
+export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
+  const { ticker, candlesByTimeframe } = input;
   const currentPrice = ticker.lastPrice;
 
-  // Calculate all analyses
-  const indicators = calcIndicators(candles);
-  const patterns = detectPatterns(candles);
-  const trend = analyzeTrend(candles, indicators);
-  const levels = detectSupportResistance(candles, currentPrice);
-  const derivatives = analyzeDerivatives(data);
+  // Sort timeframes by weight (lowest first, so primary = last = highest)
+  const sortedTf = [...candlesByTimeframe].sort(
+    (a, b) => TIMEFRAME_WEIGHT[a.timeframe] - TIMEFRAME_WEIGHT[b.timeframe]
+  );
 
-  // Find key levels
+  // Analyze each timeframe
+  const details: TimeframeAnalysis[] = sortedTf.map((tf) =>
+    analyzeTimeframe(tf.timeframe, tf.candles, currentPrice)
+  );
+
+  // Combine trend across timeframes
+  const trend = combineTrends(details);
+
+  // Merge S/R levels from all timeframes
+  const levels = mergeLevels(details, currentPrice);
+
+  // Derivatives (same across all timeframes)
+  const derivativesData: MarketData = {
+    symbol: input.symbol,
+    timeframe: sortedTf[sortedTf.length - 1].timeframe,
+    ticker: input.ticker,
+    candles: sortedTf[sortedTf.length - 1].candles,
+    openInterest: input.openInterest,
+    fundingRate: input.fundingRate,
+    premiumIndex: input.premiumIndex,
+  };
+  const derivatives = analyzeDerivatives(derivativesData);
+
+  // Trade setups from merged levels
   const nearestSupport = findNearestSupport(levels, currentPrice);
   const nearestResistance = findNearestResistance(levels, currentPrice);
-
-  // Build trade setups
   const longSetup = buildTradeSetup('long', currentPrice, nearestSupport, nearestResistance);
   const shortSetup = buildTradeSetup('short', currentPrice, nearestSupport, nearestResistance);
 
@@ -186,30 +336,30 @@ export function generateSignal(data: MarketData): AnalysisResult {
   const { conclusion, reason } = determineConclusion(
     trend,
     derivatives,
-    indicators,
+    details,
     longSetup,
-    shortSetup,
-    patterns
+    shortSetup
   );
 
-  // Recent high/low
-  const recent20 = candles.slice(-20);
-  const recentHigh = Math.max(...recent20.map((c) => c.high));
-  const recentLow = Math.min(...recent20.map((c) => c.low));
+  // Use primary (highest weight) timeframe for top-level indicators/patterns
+  const primary = details[details.length - 1];
+  const recentHigh = Math.max(...details.map((d) => d.recentHigh));
+  const recentLow = Math.min(...details.map((d) => d.recentLow));
 
   return {
     marketSummary: {
-      symbol: data.symbol,
-      timeframe: data.timeframe,
+      symbol: input.symbol,
+      timeframes: sortedTf.map((t) => t.timeframe),
       currentPrice,
       priceChangePercent: ticker.priceChangePercent,
       volume24h: ticker.quoteVolume,
-      openInterest: data.openInterest.openInterest,
-      fundingRate: data.fundingRate.fundingRate,
+      openInterest: input.openInterest.openInterest,
+      fundingRate: input.fundingRate.fundingRate,
       premium: derivatives.premium,
       recentHigh,
       recentLow,
     },
+    timeframeDetails: details,
     trend,
     levels,
     longSetup,
@@ -217,8 +367,8 @@ export function generateSignal(data: MarketData): AnalysisResult {
     breakoutLevels,
     conclusion,
     conclusionReason: reason,
-    indicators,
-    patterns,
+    indicators: primary.indicators,
+    patterns: primary.patterns,
     derivatives,
   };
 }

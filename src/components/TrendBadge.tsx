@@ -1,6 +1,6 @@
 'use client';
 
-import { TrendAnalysis } from '@/lib/types';
+import { TrendAnalysis, TimeframeAnalysis } from '@/lib/types';
 
 const LABELS: Record<string, string> = {
   uptrend: '上昇トレンド',
@@ -17,10 +17,19 @@ const COLORS: Record<string, string> = {
   range: 'bg-yellow-600',
 };
 
-export default function TrendBadge({ trend }: { trend: TrendAnalysis }) {
+const TF_LABELS: Record<string, string> = {
+  '5m': '5分足', '15m': '15分足', '1h': '1時間足', '4h': '4時間足', '1d': '日足',
+};
+
+interface Props {
+  trend: TrendAnalysis;
+  timeframeDetails?: TimeframeAnalysis[];
+}
+
+export default function TrendBadge({ trend, timeframeDetails }: Props) {
   return (
     <div className="bg-gray-800 rounded-lg p-4">
-      <h2 className="text-lg font-bold text-white mb-3">② トレンド判定</h2>
+      <h2 className="text-lg font-bold text-white mb-3">② トレンド判定（統合）</h2>
       <div className="flex items-center gap-3 mb-3">
         <span className={`px-3 py-1 rounded text-white font-bold ${COLORS[trend.direction]}`}>
           {LABELS[trend.direction]}
@@ -29,7 +38,7 @@ export default function TrendBadge({ trend }: { trend: TrendAnalysis }) {
           強度: <span className="text-gray-200">{LABELS[trend.strength]}</span>
         </span>
       </div>
-      <div className="grid grid-cols-2 gap-2 text-sm">
+      <div className="grid grid-cols-2 gap-2 text-sm mb-3">
         <div className="text-gray-400">MA配列: <span className="text-gray-200">{trend.maAlignment || 'N/A'}</span></div>
         <div className="text-gray-400">
           高値切り上げ: <span className={trend.higherHighs ? 'text-green-400' : 'text-red-400'}>
@@ -42,6 +51,30 @@ export default function TrendBadge({ trend }: { trend: TrendAnalysis }) {
           </span>
         </div>
       </div>
+
+      {/* Per-timeframe breakdown */}
+      {timeframeDetails && timeframeDetails.length > 1 && (
+        <div className="border-t border-gray-700 pt-3 mt-3">
+          <div className="text-sm text-gray-400 mb-2">各時間足のトレンド:</div>
+          <div className="flex flex-wrap gap-2">
+            {timeframeDetails.map((d) => (
+              <div key={d.timeframe} className="flex items-center gap-1.5 bg-gray-700 rounded px-2 py-1">
+                <span className="text-xs text-gray-300">{TF_LABELS[d.timeframe] || d.timeframe}</span>
+                <span className={`text-xs font-bold ${
+                  d.trend.direction === 'uptrend' ? 'text-green-400' :
+                  d.trend.direction === 'downtrend' ? 'text-red-400' :
+                  'text-yellow-400'
+                }`}>
+                  {d.trend.direction === 'uptrend' ? '↑' : d.trend.direction === 'downtrend' ? '↓' : '→'}
+                </span>
+                <span className="text-xs text-gray-500">
+                  RSI {d.indicators.rsi?.toFixed(0) ?? '-'}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

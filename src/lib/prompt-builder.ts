@@ -9,20 +9,44 @@ function formatPercent(n: number): string {
   return `${sign}${n.toFixed(4)}%`;
 }
 
+const TIMEFRAME_LABELS: Record<string, string> = {
+  '5m': '5分足', '15m': '15分足', '1h': '1時間足', '4h': '4時間足', '1d': '日足',
+};
+const TREND_LABELS: Record<string, string> = {
+  uptrend: '上昇トレンド', downtrend: '下落トレンド', range: 'レンジ',
+};
+const STRENGTH_LABELS: Record<string, string> = {
+  strong: '強い', moderate: '普通', weak: '弱い',
+};
+
 export function buildAnalysisPrompt(result: AnalysisResult): string {
-  const { marketSummary: ms, trend, levels, longSetup, shortSetup, breakoutLevels, derivatives, indicators, patterns } = result;
+  const { marketSummary: ms, trend, levels, longSetup, shortSetup, breakoutLevels, derivatives, indicators, patterns, timeframeDetails } = result;
 
   const supports = levels.filter((l) => l.type === 'support').sort((a, b) => b.price - a.price);
   const resistances = levels.filter((l) => l.type === 'resistance').sort((a, b) => a.price - b.price);
 
-  const trendLabel = { uptrend: '上昇トレンド', downtrend: '下落トレンド', range: 'レンジ' }[trend.direction];
-  const strengthLabel = { strong: '強い', moderate: '普通', weak: '弱い' }[trend.strength];
+  // Per-timeframe breakdown
+  const tfBreakdown = timeframeDetails.map((d) => {
+    const tfLabel = TIMEFRAME_LABELS[d.timeframe] || d.timeframe;
+    const trendLabel = TREND_LABELS[d.trend.direction];
+    const strengthLabel = STRENGTH_LABELS[d.trend.strength];
+    const rsi = d.indicators.rsi?.toFixed(1) ?? 'N/A';
+    const macdHist = d.indicators.macd ? d.indicators.macd.histogram.toFixed(2) : 'N/A';
+    const patternText = d.patterns.length > 0
+      ? d.patterns.map((p) => p.label).join(', ')
+      : 'なし';
+    return `### ${tfLabel}
+- トレンド: ${trendLabel} (${strengthLabel})
+- RSI: ${rsi} / MACD Hist: ${macdHist}
+- パターン: ${patternText}
+- 高値切り上げ: ${d.trend.higherHighs ? 'はい' : 'いいえ'} / 安値切り上げ: ${d.trend.higherLows ? 'はい' : 'いいえ'}`;
+  }).join('\n\n');
 
-  return `# 暗号通貨トレード分析データ
+  return `# 暗号通貨トレード分析データ (マルチタイムフレーム)
 
 ## ① マーケットデータ要約
 - シンボル: ${ms.symbol}
-- 時間足: ${ms.timeframe}
+- 分析時間足: ${ms.timeframes.map((tf) => TIMEFRAME_LABELS[tf] || tf).join(', ')}
 - 現在価格: $${formatNum(ms.currentPrice)}
 - 前日比: ${ms.priceChangePercent >= 0 ? '+' : ''}${ms.priceChangePercent.toFixed(2)}%
 - 24h出来高: $${formatNum(ms.volume24h, 0)}
@@ -32,14 +56,18 @@ export function buildAnalysisPrompt(result: AnalysisResult): string {
 - 直近高値: $${formatNum(ms.recentHigh)}
 - 直近安値: $${formatNum(ms.recentLow)}
 
-## ② トレンド判定
-- 方向: ${trendLabel}
-- 強度: ${strengthLabel}
+## ② 各時間足の分析
+
+${tfBreakdown}
+
+## ③ 統合トレンド判定
+- 方向: ${TREND_LABELS[trend.direction]}
+- 強度: ${STRENGTH_LABELS[trend.strength]}
 - MA配列: ${trend.maAlignment}
 - 高値切り上げ: ${trend.higherHighs ? 'はい' : 'いいえ'}
 - 安値切り上げ: ${trend.higherLows ? 'はい' : 'いいえ'}
 
-## テクニカル指標
+## プライマリ時間足テクニカル指標
 - RSI(14): ${indicators.rsi?.toFixed(1) ?? 'N/A'}
 - MACD: ${indicators.macd ? `MACD=${indicators.macd.macd.toFixed(2)}, Signal=${indicators.macd.signal.toFixed(2)}, Hist=${indicators.macd.histogram.toFixed(2)}` : 'N/A'}
 - EMA20: ${indicators.ema20 ? `$${formatNum(indicators.ema20)}` : 'N/A'}
@@ -56,14 +84,14 @@ ${patterns.length > 0 ? patterns.map((p) => `- ${p.label} (${p.signal === 'bulli
 - Funding偏り: ${derivatives.fundingBias === 'long_heavy' ? 'ロング偏り' : derivatives.fundingBias === 'short_heavy' ? 'ショート偏り' : '中立'}
 - Premium: ${derivatives.premiumSignal === 'bullish' ? '強気' : derivatives.premiumSignal === 'bearish' ? '弱気' : '中立'} (${derivatives.premium.toFixed(4)}%)
 
-## ③ サポート/レジスタンス
+## ④ サポート/レジスタンス (統合)
 ### レジスタンス
 ${resistances.length > 0 ? resistances.map((r) => `- $${formatNum(r.price)} (強度: ${r.strength}/5, タッチ: ${r.touchCount}回)`).join('\n') : '- なし'}
 
 ### サポート
 ${supports.length > 0 ? supports.map((s) => `- $${formatNum(s.price)} (強度: ${s.strength}/5, タッチ: ${s.touchCount}回)`).join('\n') : '- なし'}
 
-## ④ PR比較 (Long vs Short)
+## ⑤ PR比較 (Long vs Short)
 ### ロング
 - エントリー: $${formatNum(longSetup.entry)}
 - 損切り: $${formatNum(longSetup.stopLoss)} (${longSetup.riskPercent}%)
@@ -76,19 +104,20 @@ ${supports.length > 0 ? supports.map((s) => `- $${formatNum(s.price)} (強度: $
 - 利確: $${formatNum(shortSetup.target)} (${shortSetup.rewardPercent}%)
 - PR比: ${shortSetup.riskRewardRatio}
 
-## ⑤ 重要分岐点
+## ⑥ 重要分岐点
 ${breakoutLevels.map((b) => `- $${formatNum(b.price)}: ${b.description}`).join('\n')}
 
-## ⑥ 結論
+## ⑦ 結論
 ${result.conclusionReason}
 
 ---
 上記のデータに基づいて、以下の観点でトレード判断のアドバイスをお願いします:
-1. 現在のマーケット状況の総合評価
-2. ロングとショートどちらが有利か、その根拠
-3. 具体的なエントリー戦略（今すぐ入るべきか、引きつけるべきか）
-4. 注意すべきリスク要因
-5. 重要な価格レベルと、そこを超えた/割れた場合の対応`;
+1. 各時間足の方向性の一致/不一致の評価
+2. 現在のマーケット状況の総合評価
+3. ロングとショートどちらが有利か、その根拠
+4. 具体的なエントリー戦略（今すぐ入るべきか、引きつけるべきか）
+5. 注意すべきリスク要因
+6. 重要な価格レベルと、そこを超えた/割れた場合の対応`;
 }
 
 export function buildImageAnalysisPrompt(): string {

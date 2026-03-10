@@ -14,13 +14,23 @@ const TIMEFRAMES: { value: Timeframe; label: string }[] = [
 const POPULAR_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'XRPUSDT', 'DOGEUSDT'];
 
 interface Props {
-  onAnalyze: (symbol: string, timeframe: Timeframe) => void;
+  onAnalyze: (symbol: string, timeframes: Timeframe[]) => void;
   loading: boolean;
 }
 
 export default function SymbolInput({ onAnalyze, loading }: Props) {
   const [symbol, setSymbol] = useState('BTCUSDT');
-  const [timeframe, setTimeframe] = useState<Timeframe>('4h');
+  const [selectedTimeframes, setSelectedTimeframes] = useState<Timeframe[]>(['1h', '4h', '1d']);
+
+  const toggleTimeframe = (tf: Timeframe) => {
+    setSelectedTimeframes((prev) => {
+      if (prev.includes(tf)) {
+        if (prev.length <= 1) return prev; // at least 1 must be selected
+        return prev.filter((t) => t !== tf);
+      }
+      return [...prev, tf];
+    });
+  };
 
   return (
     <div className="bg-gray-800 rounded-lg p-4 space-y-4">
@@ -35,21 +45,9 @@ export default function SymbolInput({ onAnalyze, loading }: Props) {
             placeholder="例: BTCUSDT"
           />
         </div>
-        <div>
-          <label className="block text-sm text-gray-400 mb-1">時間足</label>
-          <select
-            value={timeframe}
-            onChange={(e) => setTimeframe(e.target.value as Timeframe)}
-            className="bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
-          >
-            {TIMEFRAMES.map((tf) => (
-              <option key={tf.value} value={tf.value}>{tf.label}</option>
-            ))}
-          </select>
-        </div>
         <button
-          onClick={() => onAnalyze(symbol, timeframe)}
-          disabled={loading || !symbol}
+          onClick={() => onAnalyze(symbol, selectedTimeframes)}
+          disabled={loading || !symbol || selectedTimeframes.length === 0}
           className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white px-6 py-2 rounded font-medium transition-colors"
         >
           {loading ? '分析中...' : '分析開始'}
@@ -65,6 +63,27 @@ export default function SymbolInput({ onAnalyze, loading }: Props) {
             {s}
           </button>
         ))}
+      </div>
+      <div>
+        <label className="block text-sm text-gray-400 mb-2">時間足（複数選択可）</label>
+        <div className="flex gap-2 flex-wrap">
+          {TIMEFRAMES.map((tf) => {
+            const selected = selectedTimeframes.includes(tf.value);
+            return (
+              <button
+                key={tf.value}
+                onClick={() => toggleTimeframe(tf.value)}
+                className={`text-sm px-4 py-1.5 rounded border transition-colors ${
+                  selected
+                    ? 'bg-blue-600 border-blue-500 text-white'
+                    : 'bg-gray-700 border-gray-600 text-gray-400 hover:border-gray-500'
+                }`}
+              >
+                {tf.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

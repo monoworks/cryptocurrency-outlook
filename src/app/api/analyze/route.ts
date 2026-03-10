@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getMarketData } from '@/lib/binance';
+import { getKlines, getTicker, getOpenInterest, getFundingRate, getPremiumIndex } from '@/lib/binance';
 import { generateSignal } from '@/lib/signal';
 import { Timeframe } from '@/lib/types';
 
@@ -10,18 +10,43 @@ const VALID_TIMEFRAMES: Timeframe[] = ['5m', '15m', '1h', '4h', '1d'];
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
   const symbol = searchParams.get('symbol');
-  const timeframe = searchParams.get('timeframe') as Timeframe | null;
+  const timeframesParam = searchParams.get('timeframes');
 
   if (!symbol) {
     return NextResponse.json({ error: 'symbol パラメータが必要です' }, { status: 400 });
   }
-  if (!timeframe || !VALID_TIMEFRAMES.includes(timeframe)) {
-    return NextResponse.json({ error: `timeframe は ${VALID_TIMEFRAMES.join(', ')} のいずれかを指定してください` }, { status: 400 });
+  if (!timeframesParam) {
+    return NextResponse.json({ error: 'timeframes パラメータが必要です (例: 1h,4h,1d)' }, { status: 400 });
+  }
+
+  const timeframes = timeframesParam.split(',') as Timeframe[];
+  const invalid = timeframes.filter((tf) => !VALID_TIMEFRAMES.includes(tf));
+  if (invalid.length > 0) {
+    return NextResponse.json(
+      { error: `無効な時間足: ${invalid.join(', ')}。${VALID_TIMEFRAMES.join(', ')} から選択してください` },
+      { status: 400 }
+    );
   }
 
   try {
-    const data = await getMarketData(symbol, timeframe);
-    const result = generateSignal(data);
+    // Fetch candles for each timeframe + shared market data in parallel
+    const [candlesResults, ticker, openInterest, fundingRate, premiumIndex] = await Promise.all([
+      Promise.all(timeframes.map((tf) => getKlines(symbol, tf).then((candles) => ({ timeframe: tf, candles })))),
+      getTicker(symbol),
+      getOpenInterest(symbol),
+      getFundingRate(symbol),
+      getPremiumIndex(symbol),
+    ]);
+
+    const result = generateSignal({
+      symbol: symbol.toUpperCase(),
+      ticker,
+      openInterest,
+      fundingRate,
+      premiumIndex,
+      candlesByTimeframe: candlesResults,
+    });
+
     return NextResponse.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';

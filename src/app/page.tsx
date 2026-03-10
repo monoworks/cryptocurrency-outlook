@@ -24,7 +24,6 @@ export default function Home() {
   const [aiSettings, setAiSettings] = useState<AISettingsType | null>(null);
   const [imageBase64, setImageBase64] = useState<string | null>(null);
 
-  // Load AI settings from localStorage
   useEffect(() => {
     try {
       const stored = localStorage.getItem(AI_SETTINGS_KEY);
@@ -44,13 +43,14 @@ export default function Home() {
     localStorage.removeItem(AI_SETTINGS_KEY);
   }, []);
 
-  const handleAnalyze = async (symbol: string, timeframe: Timeframe) => {
+  const handleAnalyze = async (symbol: string, timeframes: Timeframe[]) => {
     setLoading(true);
     setError(null);
     setResult(null);
 
     try {
-      const res = await fetch(`/api/analyze?symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(timeframe)}`);
+      const tfParam = timeframes.join(',');
+      const res = await fetch(`/api/analyze?symbol=${encodeURIComponent(symbol)}&timeframes=${encodeURIComponent(tfParam)}`);
       const data = await res.json();
 
       if (!res.ok) {
@@ -106,7 +106,7 @@ export default function Home() {
         {result && (
           <div className="space-y-4">
             <MarketSummary data={result.marketSummary} />
-            <TrendBadge trend={result.trend} />
+            <TrendBadge trend={result.trend} timeframeDetails={result.timeframeDetails} />
             <SRLevels levels={result.levels} currentPrice={result.marketSummary.currentPrice} />
             <PRComparison longSetup={result.longSetup} shortSetup={result.shortSetup} />
             <BreakoutLevels levels={result.breakoutLevels} />

@@ -147,13 +147,25 @@ export interface BreakoutLevel {
   description: string;
 }
 
+// ===== Per-Timeframe Analysis =====
+
+export interface TimeframeAnalysis {
+  timeframe: Timeframe;
+  trend: TrendAnalysis;
+  indicators: IndicatorValues;
+  patterns: CandlePattern[];
+  levels: PriceLevel[];
+  recentHigh: number;
+  recentLow: number;
+}
+
 // ===== Full Analysis Result =====
 
 export interface AnalysisResult {
   // ① Market Data Summary
   marketSummary: {
     symbol: string;
-    timeframe: Timeframe;
+    timeframes: Timeframe[];
     currentPrice: number;
     priceChangePercent: number;
     volume24h: number;
@@ -163,9 +175,11 @@ export interface AnalysisResult {
     recentHigh: number;
     recentLow: number;
   };
-  // ② Trend Judgment
+  // Per-timeframe breakdown
+  timeframeDetails: TimeframeAnalysis[];
+  // ② Trend Judgment (combined)
   trend: TrendAnalysis;
-  // ③ Support / Resistance
+  // ③ Support / Resistance (merged)
   levels: PriceLevel[];
   // ④ PR Comparison
   longSetup: TradeSetup;
@@ -175,7 +189,7 @@ export interface AnalysisResult {
   // ⑥ Conclusion
   conclusion: SignalConclusion;
   conclusionReason: string;
-  // Extra
+  // Extra (from primary timeframe)
   indicators: IndicatorValues;
   patterns: CandlePattern[];
   derivatives: DerivativesAnalysis;
