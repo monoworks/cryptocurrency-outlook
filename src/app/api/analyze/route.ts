@@ -3,6 +3,8 @@ import { getMarketData } from '@/lib/binance';
 import { generateSignal } from '@/lib/signal';
 import { Timeframe } from '@/lib/types';
 
+export const preferredRegion = 'hnd1';
+
 const VALID_TIMEFRAMES: Timeframe[] = ['5m', '15m', '1h', '4h', '1d'];
 
 export async function GET(req: NextRequest) {
