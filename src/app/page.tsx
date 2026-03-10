@@ -8,6 +8,7 @@ import MarketSummary from '@/components/MarketSummary';
 import TrendBadge from '@/components/TrendBadge';
 import SRLevels from '@/components/SRLevels';
 import PRComparison from '@/components/PRComparison';
+import PositionSimulator from '@/components/PositionSimulator';
 import BreakoutLevels from '@/components/BreakoutLevels';
 import Conclusion from '@/components/Conclusion';
 // 将来用に残す
@@ -108,6 +109,7 @@ export default function Home() {
             <TrendBadge trend={result.trend} timeframeDetails={result.timeframeDetails} />
             <SRLevels levels={result.levels} currentPrice={result.marketSummary.currentPrice} />
             <PRComparison longSetup={result.longSetup} shortSetup={result.shortSetup} />
+            <PositionSimulator longSetup={result.longSetup} shortSetup={result.shortSetup} />
             <BreakoutLevels levels={result.breakoutLevels} />
             <Conclusion
               conclusion={result.conclusion}
