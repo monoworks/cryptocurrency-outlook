@@ -65,7 +65,7 @@ export default function PositionManager({ openPositions, closedPositions, onRemo
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-lg font-bold text-white">
-          登録ポジション
+          シミュレーションの登録ポジション
           <HelpTip text="登録したポジションの含み損益をリアルタイムで表示します。決済ボタンでポジションを確定できます" />
           <span className="text-sm font-normal text-gray-400 ml-2">({totalCount}件)</span>
         </h2>
