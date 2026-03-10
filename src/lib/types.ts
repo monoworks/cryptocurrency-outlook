@@ -217,4 +217,7 @@ export interface SavedPosition {
   amount: number;
   leverage: number;
   createdAt: number;
+  closedAt?: number;
+  closedPrice?: number;
+  closedPnl?: number;
 }

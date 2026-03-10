@@ -47,5 +47,36 @@ export function useSavedPositions() {
     setPositions(updated);
   }, []);
 
-  return { positions, addPosition, removePosition, maxPositions: MAX_POSITIONS };
+  const closePosition = useCallback((id: string, currentPrice: number) => {
+    const current = loadPositions();
+    const updated = current.map((p) => {
+      if (p.id !== id || p.closedAt) return p;
+      const posSize = p.amount * p.leverage;
+      const pnl = p.direction === 'long'
+        ? posSize * (currentPrice - p.entry) / p.entry
+        : posSize * (p.entry - currentPrice) / p.entry;
+      return { ...p, closedAt: Date.now(), closedPrice: currentPrice, closedPnl: pnl };
+    });
+    savePositions(updated);
+    setPositions(updated);
+  }, []);
+
+  const resetAll = useCallback(() => {
+    savePositions([]);
+    setPositions([]);
+  }, []);
+
+  const openPositions = positions.filter((p) => !p.closedAt);
+  const closedPositions = positions.filter((p) => !!p.closedAt);
+
+  return {
+    positions,
+    openPositions,
+    closedPositions,
+    addPosition,
+    removePosition,
+    closePosition,
+    resetAll,
+    maxPositions: MAX_POSITIONS,
+  };
 }
