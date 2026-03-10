@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { AnalysisResult, Timeframe, AISettings as AISettingsType } from '@/lib/types';
+import { useState } from 'react';
+import { AnalysisResult, Timeframe } from '@/lib/types';
 import { buildAnalysisPrompt } from '@/lib/prompt-builder';
 import SymbolInput from '@/components/SymbolInput';
 import MarketSummary from '@/components/MarketSummary';
@@ -10,38 +10,37 @@ import SRLevels from '@/components/SRLevels';
 import PRComparison from '@/components/PRComparison';
 import BreakoutLevels from '@/components/BreakoutLevels';
 import Conclusion from '@/components/Conclusion';
-import AISettings from '@/components/AISettings';
-import AIAnalysis from '@/components/AIAnalysis';
+// 将来用に残す
+// import AISettings from '@/components/AISettings';
+// import AIAnalysis from '@/components/AIAnalysis';
+// import ImageUpload from '@/components/ImageUpload';
 import CopyPrompt from '@/components/CopyPrompt';
-import ImageUpload from '@/components/ImageUpload';
 
-const AI_SETTINGS_KEY = 'crypto-signal-ai-settings';
+// 将来用に残す
+// const AI_SETTINGS_KEY = 'crypto-signal-ai-settings';
 
 export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AnalysisResult | null>(null);
-  const [aiSettings, setAiSettings] = useState<AISettingsType | null>(null);
-  const [imageBase64, setImageBase64] = useState<string | null>(null);
 
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(AI_SETTINGS_KEY);
-      if (stored) setAiSettings(JSON.parse(stored));
-    } catch {
-      // ignore
-    }
-  }, []);
-
-  const handleSaveAISettings = useCallback((settings: AISettingsType) => {
-    setAiSettings(settings);
-    localStorage.setItem(AI_SETTINGS_KEY, JSON.stringify(settings));
-  }, []);
-
-  const handleClearAISettings = useCallback(() => {
-    setAiSettings(null);
-    localStorage.removeItem(AI_SETTINGS_KEY);
-  }, []);
+  // 将来用に残す（AI分析・画像アップロード）
+  // const [aiSettings, setAiSettings] = useState<AISettingsType | null>(null);
+  // const [imageBase64, setImageBase64] = useState<string | null>(null);
+  // useEffect(() => {
+  //   try {
+  //     const stored = localStorage.getItem(AI_SETTINGS_KEY);
+  //     if (stored) setAiSettings(JSON.parse(stored));
+  //   } catch { /* ignore */ }
+  // }, []);
+  // const handleSaveAISettings = useCallback((settings: AISettingsType) => {
+  //   setAiSettings(settings);
+  //   localStorage.setItem(AI_SETTINGS_KEY, JSON.stringify(settings));
+  // }, []);
+  // const handleClearAISettings = useCallback(() => {
+  //   setAiSettings(null);
+  //   localStorage.removeItem(AI_SETTINGS_KEY);
+  // }, []);
 
   const handleAnalyze = async (symbol: string, timeframes: Timeframe[]) => {
     setLoading(true);
@@ -77,15 +76,15 @@ export default function Home() {
         {/* Input */}
         <SymbolInput onAnalyze={handleAnalyze} loading={loading} />
 
-        {/* AI Settings */}
-        <AISettings
+        {/* AI Settings - 将来用に非表示 */}
+        {/* <AISettings
           settings={aiSettings}
           onSave={handleSaveAISettings}
           onClear={handleClearAISettings}
-        />
+        /> */}
 
-        {/* Image Upload */}
-        <ImageUpload onImageSelect={setImageBase64} imageBase64={imageBase64} />
+        {/* Image Upload - 将来用に非表示 */}
+        {/* <ImageUpload onImageSelect={setImageBase64} imageBase64={imageBase64} /> */}
 
         {/* Error */}
         {error && (
@@ -118,12 +117,12 @@ export default function Home() {
               indicators={result.indicators}
             />
 
-            {/* AI Analysis */}
-            <AIAnalysis
+            {/* AI Analysis - 将来用に非表示 */}
+            {/* <AIAnalysis
               settings={aiSettings}
               analysisResult={result}
               imageBase64={imageBase64}
-            />
+            /> */}
 
             {/* Copy Prompt */}
             <CopyPrompt prompt={buildAnalysisPrompt(result)} />
