@@ -795,15 +795,31 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
   // Hierarchical analysis (daily → 4h → 1h → 15m)
   const hierarchical = buildHierarchicalAnalysis(details);
 
-  // Trade setups from merged levels (ATR-based SL/TP)
-  const primaryAtr = details[details.length - 1].indicators.atr;
-  const minTargetDistance = primaryAtr ? primaryAtr * 0.5 : currentPrice * 0.005;
+  // Weighted-average ATR across all timeframes (lower TFs get more weight for SL sizing)
+  // This prevents daily ATR from dominating when S/R levels are from shorter timeframes
+  let blendedAtr: number | null = null;
+  {
+    let atrSum = 0;
+    let atrWeightSum = 0;
+    for (const d of details) {
+      if (d.indicators.atr != null) {
+        // Invert weight: shorter TFs get more influence on SL (they define tighter levels)
+        const w = 1 / TIMEFRAME_WEIGHT[d.timeframe];
+        atrSum += d.indicators.atr * w;
+        atrWeightSum += w;
+      }
+    }
+    if (atrWeightSum > 0) blendedAtr = atrSum / atrWeightSum;
+  }
+
+  // Trade setups from merged levels
+  const minTargetDistance = blendedAtr ? blendedAtr * 0.5 : currentPrice * 0.005;
   const longEntry = findNearestSupport(levels, currentPrice);
   const longTarget = findTarget(levels, longEntry, 'long', minTargetDistance);
   const shortEntry = findNearestResistance(levels, currentPrice);
   const shortTarget = findTarget(levels, shortEntry, 'short', minTargetDistance);
-  const longSetup = buildTradeSetup('long', currentPrice, longEntry, longTarget, primaryAtr, levels);
-  const shortSetup = buildTradeSetup('short', currentPrice, shortEntry, shortTarget, primaryAtr, levels);
+  const longSetup = buildTradeSetup('long', currentPrice, longEntry, longTarget, blendedAtr, levels);
+  const shortSetup = buildTradeSetup('short', currentPrice, shortEntry, shortTarget, blendedAtr, levels);
 
   // Breakout levels (enhanced with volume breakout info)
   const breakoutLevels: BreakoutLevel[] = [];
