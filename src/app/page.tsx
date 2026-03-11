@@ -28,6 +28,7 @@ export default function Home() {
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [currentSymbol, setCurrentSymbol] = useState('BTCUSDT');
   const { pendingPositions, openPositions, closedPositions, addPosition, fillPosition, removePosition, closePosition, resetAll, maxPositions, positions } = useSavedPositions();
+  const [viewMode, setViewMode] = useState<'simple' | 'detail'>('simple');
 
   // 将来用に残す（AI分析・画像アップロード）
   // const [aiSettings, setAiSettings] = useState<AISettingsType | null>(null);
@@ -110,10 +111,36 @@ export default function Home() {
         {/* Results */}
         {result && (
           <div className="space-y-4">
-            <MarketSummary data={result.marketSummary} />
-            <TrendBadge trend={result.trend} timeframeDetails={result.timeframeDetails} />
-            <SRLevels levels={result.levels} currentPrice={result.marketSummary.currentPrice} />
+            {/* View mode toggle */}
+            <div className="flex items-center justify-between">
+              <div className="flex gap-1 bg-gray-800 rounded-lg p-1">
+                <button
+                  onClick={() => setViewMode('simple')}
+                  className={`px-4 py-1.5 rounded text-sm font-medium transition-colors ${
+                    viewMode === 'simple'
+                      ? 'bg-blue-600 text-white'
+                      : 'text-gray-400 hover:text-gray-200'
+                  }`}
+                >
+                  簡易版
+                </button>
+                <button
+                  onClick={() => setViewMode('detail')}
+                  className={`px-4 py-1.5 rounded text-sm font-medium transition-colors ${
+                    viewMode === 'detail'
+                      ? 'bg-blue-600 text-white'
+                      : 'text-gray-400 hover:text-gray-200'
+                  }`}
+                >
+                  詳細版
+                </button>
+              </div>
+            </div>
+
+            {/* Both modes: PR Comparison */}
             <PRComparison longSetup={result.longSetup} shortSetup={result.shortSetup} />
+
+            {/* Both modes: Position Simulator */}
             <PositionSimulator
               longSetup={result.longSetup}
               shortSetup={result.shortSetup}
@@ -122,37 +149,46 @@ export default function Home() {
               positionCount={positions.length}
               maxPositions={maxPositions}
             />
-            <BreakoutLevels levels={result.breakoutLevels} />
-            <Conclusion
-              conclusion={result.conclusion}
-              reason={result.conclusionReason}
-              patterns={result.patterns}
-              derivatives={result.derivatives}
-              indicators={result.indicators}
-              hierarchical={result.hierarchical}
-              falseBreakouts={result.timeframeDetails.flatMap((d) => d.falseBreakouts ?? [])}
-              wickRejections={result.timeframeDetails.flatMap((d) => d.wickRejections ?? [])}
-              volumeSpikes={result.timeframeDetails.flatMap((d) => d.volumeSpikes ?? [])}
-              confidence={result.confidence}
-              divergences={result.timeframeDetails.flatMap((d) => d.divergences ?? [])}
-              topTraderRatio={result.topTraderRatio}
-              marketRegime={result.marketRegime}
-              volumeProfile={result.volumeProfile}
-              liquidation={result.liquidation}
-              orderFlow={result.orderFlow}
-              divergenceAggregation={result.divergenceAggregation}
-              sentiment={result.sentiment}
-            />
 
-            {/* AI Analysis - 将来用に非表示 */}
-            {/* <AIAnalysis
-              settings={aiSettings}
-              analysisResult={result}
-              imageBase64={imageBase64}
-            /> */}
+            {/* Detail mode only */}
+            {viewMode === 'detail' && (
+              <>
+                <MarketSummary data={result.marketSummary} />
+                <TrendBadge trend={result.trend} timeframeDetails={result.timeframeDetails} />
+                <SRLevels levels={result.levels} currentPrice={result.marketSummary.currentPrice} />
+                <BreakoutLevels levels={result.breakoutLevels} />
+                <Conclusion
+                  conclusion={result.conclusion}
+                  reason={result.conclusionReason}
+                  patterns={result.patterns}
+                  derivatives={result.derivatives}
+                  indicators={result.indicators}
+                  hierarchical={result.hierarchical}
+                  falseBreakouts={result.timeframeDetails.flatMap((d) => d.falseBreakouts ?? [])}
+                  wickRejections={result.timeframeDetails.flatMap((d) => d.wickRejections ?? [])}
+                  volumeSpikes={result.timeframeDetails.flatMap((d) => d.volumeSpikes ?? [])}
+                  confidence={result.confidence}
+                  divergences={result.timeframeDetails.flatMap((d) => d.divergences ?? [])}
+                  topTraderRatio={result.topTraderRatio}
+                  marketRegime={result.marketRegime}
+                  volumeProfile={result.volumeProfile}
+                  liquidation={result.liquidation}
+                  orderFlow={result.orderFlow}
+                  divergenceAggregation={result.divergenceAggregation}
+                  sentiment={result.sentiment}
+                />
 
-            {/* Copy Prompt */}
-            <CopyPrompt prompt={buildAnalysisPrompt(result)} />
+                {/* AI Analysis - 将来用に非表示 */}
+                {/* <AIAnalysis
+                  settings={aiSettings}
+                  analysisResult={result}
+                  imageBase64={imageBase64}
+                /> */}
+
+                {/* Copy Prompt */}
+                <CopyPrompt prompt={buildAnalysisPrompt(result)} />
+              </>
+            )}
           </div>
         )}
 
