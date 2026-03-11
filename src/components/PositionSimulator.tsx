@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { TradeSetup, SavedPosition } from '@/lib/types';
 import HelpTip from './HelpTip';
 
@@ -25,33 +25,68 @@ export default function PositionSimulator({ longSetup, shortSetup, symbol, onSav
   const [direction, setDirection] = useState<'long' | 'short'>('long');
   const [saved, setSaved] = useState(false);
 
+  // Custom price inputs (string for editable inputs)
+  const [customEntry, setCustomEntry] = useState('');
+  const [customSL, setCustomSL] = useState('');
+  const [customTP, setCustomTP] = useState('');
+
   const setup = direction === 'long' ? longSetup : shortSetup;
+
+  // Sync custom prices when direction or setup changes
+  useEffect(() => {
+    setCustomEntry(setup.entry.toString());
+    setCustomSL(setup.stopLoss.toString());
+    setCustomTP(setup.target.toString());
+  }, [setup.entry, setup.stopLoss, setup.target]);
+
+  const entry = parseFloat(customEntry) || setup.entry;
+  const stopLoss = parseFloat(customSL) || setup.stopLoss;
+  const target = parseFloat(customTP) || setup.target;
+
   const investAmount = parseFloat(amount) || 0;
   const positionSize = investAmount * leverage;
 
-  const profitAtTarget = positionSize * setup.rewardPercent / 100;
-  const lossAtStop = positionSize * setup.riskPercent / 100;
+  // Recalculate profit/loss based on custom prices
+  const rewardPercent = direction === 'long'
+    ? ((target - entry) / entry) * 100
+    : ((entry - target) / entry) * 100;
+  const riskPercent = direction === 'long'
+    ? ((entry - stopLoss) / entry) * 100
+    : ((stopLoss - entry) / entry) * 100;
+
+  const profitAtTarget = positionSize * Math.abs(rewardPercent) / 100;
+  const lossAtStop = positionSize * Math.abs(riskPercent) / 100;
   const roi = investAmount > 0 ? (profitAtTarget / investAmount) * 100 : 0;
   const lossRoi = investAmount > 0 ? (lossAtStop / investAmount) * 100 : 0;
+  const rr = riskPercent > 0 ? Math.abs(rewardPercent) / riskPercent : 0;
 
   let liquidationPrice: number | null = null;
   if (leverage > 1) {
     if (direction === 'long') {
-      liquidationPrice = setup.entry * (1 - 1 / leverage);
+      liquidationPrice = entry * (1 - 1 / leverage);
     } else {
-      liquidationPrice = setup.entry * (1 + 1 / leverage);
+      liquidationPrice = entry * (1 + 1 / leverage);
     }
   }
 
   const isFull = positionCount >= maxPositions;
 
+  // Check if custom prices differ from defaults
+  const isCustomized = entry !== setup.entry || stopLoss !== setup.stopLoss || target !== setup.target;
+
+  const handleReset = () => {
+    setCustomEntry(setup.entry.toString());
+    setCustomSL(setup.stopLoss.toString());
+    setCustomTP(setup.target.toString());
+  };
+
   const handleSave = () => {
     const ok = onSavePosition({
       symbol,
       direction,
-      entry: setup.entry,
-      stopLoss: setup.stopLoss,
-      target: setup.target,
+      entry,
+      stopLoss,
+      target,
       amount: investAmount,
       leverage,
     });
@@ -61,11 +96,13 @@ export default function PositionSimulator({ longSetup, shortSetup, symbol, onSav
     }
   };
 
+  const inputClass = "w-full bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none text-sm font-mono";
+
   return (
     <div className="bg-gray-800 rounded-lg p-4">
       <h2 className="text-lg font-bold text-white mb-3">
         損益シミュレーター
-        <HelpTip text="分析結果のエントリー・損切り・利確価格を基に、投資金額に応じた損益を試算します。実際の取引では手数料やスリッページが発生します" />
+        <HelpTip text="分析結果のエントリー・損切り・利確価格を基に、投資金額に応じた損益を試算します。各価格は手動で変更可能です" />
       </h2>
 
       {/* Inputs */}
@@ -79,7 +116,7 @@ export default function PositionSimulator({ longSetup, shortSetup, symbol, onSav
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             min="0"
-            className="w-full bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none text-sm"
+            className={inputClass}
             placeholder="1000"
           />
         </div>
@@ -123,6 +160,58 @@ export default function PositionSimulator({ longSetup, shortSetup, symbol, onSav
         </button>
       </div>
 
+      {/* Price inputs */}
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        <div>
+          <label className="block text-xs text-gray-400 mb-1">
+            エントリー<HelpTip text="指値注文の約定価格です。分析結果を元に自動設定されますが変更可能です" />
+          </label>
+          <input
+            type="number"
+            value={customEntry}
+            onChange={(e) => setCustomEntry(e.target.value)}
+            step="any"
+            className={`${inputClass} ${entry !== setup.entry ? '!border-blue-500/60' : ''}`}
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-red-400/80 mb-1">
+            損切り<HelpTip text="この価格に達すると自動で損切り決済されます" />
+          </label>
+          <input
+            type="number"
+            value={customSL}
+            onChange={(e) => setCustomSL(e.target.value)}
+            step="any"
+            className={`${inputClass} ${stopLoss !== setup.stopLoss ? '!border-blue-500/60' : ''}`}
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-green-400/80 mb-1">
+            利確<HelpTip text="この価格に達すると自動で利確決済されます" />
+          </label>
+          <input
+            type="number"
+            value={customTP}
+            onChange={(e) => setCustomTP(e.target.value)}
+            step="any"
+            className={`${inputClass} ${target !== setup.target ? '!border-blue-500/60' : ''}`}
+          />
+        </div>
+      </div>
+
+      {/* Reset to defaults button */}
+      {isCustomized && (
+        <div className="mb-4">
+          <button
+            onClick={handleReset}
+            className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+          >
+            分析値にリセット（Entry: ${fmt(setup.entry)} / SL: ${fmt(setup.stopLoss)} / TP: ${fmt(setup.target)}）
+          </button>
+        </div>
+      )}
+
       {/* Results */}
       {investAmount > 0 && (
         <div className="space-y-3">
@@ -130,15 +219,15 @@ export default function PositionSimulator({ longSetup, shortSetup, symbol, onSav
           <div className="grid grid-cols-2 gap-2 text-sm">
             <div className="text-gray-400">ポジションサイズ<HelpTip text="実際に動かす金額です（投資金額×レバレッジ）" /></div>
             <div className="text-right font-mono text-gray-200">${fmt(positionSize, 0)}</div>
-            <div className="text-gray-400">エントリー価格</div>
-            <div className="text-right font-mono text-gray-200">${fmt(setup.entry)}</div>
+            <div className="text-gray-400">リスクリワード比</div>
+            <div className="text-right font-mono text-gray-200">1 : {fmt(rr, 1)}</div>
           </div>
 
           <div className="border-t border-gray-700 pt-3">
             {/* Profit scenario */}
             <div className="bg-green-900/20 border border-green-700/30 rounded-lg p-3 mb-2">
               <div className="text-xs text-green-400 mb-1">
-                利確時（${fmt(setup.target)}）<HelpTip text="目標価格に達した場合の利益です" />
+                利確時（${fmt(target)}）<HelpTip text="目標価格に達した場合の利益です" />
               </div>
               <div className="flex justify-between items-baseline">
                 <span className="text-green-400 text-xl font-bold font-mono">+${fmt(profitAtTarget)}</span>
@@ -149,7 +238,7 @@ export default function PositionSimulator({ longSetup, shortSetup, symbol, onSav
             {/* Loss scenario */}
             <div className="bg-red-900/20 border border-red-700/30 rounded-lg p-3">
               <div className="text-xs text-red-400 mb-1">
-                損切り時（${fmt(setup.stopLoss)}）<HelpTip text="損切りラインに達した場合の損失です" />
+                損切り時（${fmt(stopLoss)}）<HelpTip text="損切りラインに達した場合の損失です" />
               </div>
               <div className="flex justify-between items-baseline">
                 <span className="text-red-400 text-xl font-bold font-mono">-${fmt(lossAtStop)}</span>
