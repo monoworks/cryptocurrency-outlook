@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { AnalysisResult, Timeframe } from '@/lib/types';
 import { buildAnalysisPrompt } from '@/lib/prompt-builder';
 import { useSavedPositions } from '@/hooks/useSavedPositions';
+import { useLivePrice } from '@/hooks/useLivePrice';
 import SymbolInput from '@/components/SymbolInput';
 import MarketSummary from '@/components/MarketSummary';
 import TrendBadge from '@/components/TrendBadge';
@@ -29,6 +30,7 @@ export default function Home() {
   const [currentSymbol, setCurrentSymbol] = useState('BTCUSDT');
   const { pendingPositions, openPositions, closedPositions, addPosition, fillPosition, removePosition, closePosition, resetAll, maxPositions, positions } = useSavedPositions();
   const [viewMode, setViewMode] = useState<'simple' | 'detail'>('simple');
+  const livePrice = useLivePrice(result ? currentSymbol : null);
 
   // 将来用に残す（AI分析・画像アップロード）
   // const [aiSettings, setAiSettings] = useState<AISettingsType | null>(null);
@@ -139,6 +141,16 @@ export default function Home() {
 
             {/* Both modes: PR Comparison */}
             <PRComparison longSetup={result.longSetup} shortSetup={result.shortSetup} />
+
+            {/* Live Price */}
+            <div className="bg-gray-800 rounded-lg px-4 py-3 flex items-center justify-between">
+              <span className="text-sm text-gray-400">現在価格 ({currentSymbol})</span>
+              <span className="text-lg font-bold font-mono text-yellow-400">
+                {livePrice !== null
+                  ? `$${livePrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                  : '接続中...'}
+              </span>
+            </div>
 
             {/* Both modes: Position Simulator */}
             <PositionSimulator
