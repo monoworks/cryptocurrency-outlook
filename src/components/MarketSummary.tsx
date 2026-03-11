@@ -18,7 +18,7 @@ export default function MarketSummary({ data }: { data: AnalysisResult['marketSu
 
   return (
     <div className="bg-gray-800 rounded-lg p-4">
-      <h2 className="text-lg font-bold text-white mb-3">① マーケットデータ要約</h2>
+      <h2 className="text-lg font-bold text-white mb-3">マーケットデータ要約</h2>
       <div className="text-xs text-gray-400 mb-2">分析時間足: <span className="text-blue-400">{tfDisplay}</span></div>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
         <Item label="現在価格" help="今のこの通貨の取引価格です" value={`$${fmt(data.currentPrice)}`} />

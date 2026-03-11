@@ -13,7 +13,7 @@ export default function SRLevels({ levels, currentPrice }: { levels: PriceLevel[
 
   return (
     <div className="bg-gray-800 rounded-lg p-4">
-      <h2 className="text-lg font-bold text-white mb-3">③ サポート / レジスタンス</h2>
+      <h2 className="text-lg font-bold text-white mb-3">サポート / レジスタンス</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <h3 className="text-sm text-red-400 font-semibold mb-2">レジスタンス<HelpTip text="価格が上昇した時に「天井」となりやすい価格帯です。何度も跳ね返されているほど強力です" /></h3>

@@ -48,7 +48,7 @@ export default function PRComparison({ longSetup, shortSetup }: { longSetup: Tra
 
   return (
     <div className="bg-gray-800 rounded-lg p-4">
-      <h2 className="text-lg font-bold text-white mb-3">④ PR比較 (Long vs Short)<HelpTip text="指値ベースのPR比較です。ロングは押し目（サポート付近）、ショートは戻り（レジスタンス付近）でのエントリーを想定しています。PR比は利益÷リスクで、2以上が理想的です" /></h2>
+      <h2 className="text-lg font-bold text-white mb-3">PR比較 (Long vs Short)<HelpTip text="指値ベースのPR比較です。ロングは押し目（サポート付近）、ショートは戻り（レジスタンス付近）でのエントリーを想定しています。PR比は利益÷リスクで、2以上が理想的です" /></h2>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <SetupCard setup={longSetup} />
         <SetupCard setup={shortSetup} />

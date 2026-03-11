@@ -150,6 +150,17 @@ export default function Home() {
               maxPositions={maxPositions}
             />
 
+            {/* Both modes: Saved Positions */}
+            <PositionManager
+              pendingPositions={pendingPositions}
+              openPositions={openPositions}
+              closedPositions={closedPositions}
+              onRemove={removePosition}
+              onFill={fillPosition}
+              onClose={closePosition}
+              onResetAll={resetAll}
+            />
+
             {/* Detail mode only */}
             {viewMode === 'detail' && (
               <>
@@ -191,17 +202,6 @@ export default function Home() {
             )}
           </div>
         )}
-
-        {/* Saved Positions (always visible if positions exist) */}
-        <PositionManager
-          pendingPositions={pendingPositions}
-          openPositions={openPositions}
-          closedPositions={closedPositions}
-          onRemove={removePosition}
-          onFill={fillPosition}
-          onClose={closePosition}
-          onResetAll={resetAll}
-        />
 
         {/* Footer */}
         <footer className="text-center text-xs text-gray-600 pt-8 pb-4">

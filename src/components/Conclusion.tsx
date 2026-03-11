@@ -44,7 +44,7 @@ export default function Conclusion({ conclusion, reason, patterns, derivatives, 
 
   return (
     <div className="bg-gray-800 rounded-lg p-4">
-      <h2 className="text-lg font-bold text-white mb-3">⑥ 結論</h2>
+      <h2 className="text-lg font-bold text-white mb-3">結論</h2>
       <div className={`border rounded-lg p-4 ${config.bg}`}>
         <div className={`text-xl font-bold ${config.color} mb-2`}>{config.label}</div>
         <p className="text-gray-300 text-sm">{reason}</p>

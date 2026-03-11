@@ -30,7 +30,7 @@ interface Props {
 export default function TrendBadge({ trend, timeframeDetails }: Props) {
   return (
     <div className="bg-gray-800 rounded-lg p-4">
-      <h2 className="text-lg font-bold text-white mb-3">② トレンド判定（統合）<HelpTip text="複数の時間足の分析を組み合わせた、現在の相場の方向性です" /></h2>
+      <h2 className="text-lg font-bold text-white mb-3">トレンド判定（統合）<HelpTip text="複数の時間足の分析を組み合わせた、現在の相場の方向性です" /></h2>
       <div className="flex items-center gap-3 mb-3">
         <span className={`px-3 py-1 rounded text-white font-bold ${COLORS[trend.direction]}`}>
           {LABELS[trend.direction]}
