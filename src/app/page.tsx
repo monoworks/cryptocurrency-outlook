@@ -205,7 +205,7 @@ export default function Home() {
         )}
 
         {/* Footer */}
-        <footer className="text-center text-xs text-gray-600 pt-8 pb-4">
+        <footer className="text-center text-base font-semibold text-red-600 pt-8 pb-4">
           <p>データソース: Binance Futures | 投資助言ではありません</p>
         </footer>
       </div>
