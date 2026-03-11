@@ -84,6 +84,64 @@ function findTarget(
   }
 }
 
+/**
+ * Find structure-based stop-loss by looking for the next S/R level beyond entry.
+ * For longs: find the strongest support below entry → SL just below that.
+ * For shorts: find the strongest resistance above entry → SL just above that.
+ * ATR is used as a guardrail (min 0.3×ATR, max 1.5×ATR).
+ */
+function findStructureSL(
+  direction: 'long' | 'short',
+  entry: number,
+  atr: number | null,
+  levels: PriceLevel[],
+): number {
+  const buffer = entry * 0.001; // 0.1% buffer beyond the level
+  const atrMin = atr ? atr * 0.3 : entry * 0.005;
+  const atrMax = atr ? atr * 1.5 : entry * 0.03;
+
+  if (direction === 'long') {
+    // Look for support levels below entry (sorted by proximity, then strength)
+    const supports = levels
+      .filter((l) => l.type === 'support' && l.price < entry - atrMin * 0.3)
+      .sort((a, b) => {
+        // Prefer closer levels, but give bonus to stronger ones
+        const distA = entry - a.price;
+        const distB = entry - b.price;
+        return (distA - a.strength * entry * 0.001) - (distB - b.strength * entry * 0.001);
+      });
+
+    if (supports.length > 0) {
+      const slLevel = supports[0].price - buffer;
+      const distance = entry - slLevel;
+      // Clamp within ATR bounds
+      if (distance < atrMin) return entry - atrMin;
+      if (distance > atrMax) return entry - atrMax;
+      return slLevel;
+    }
+    // Fallback: use ATR-based SL
+    return entry - (atr ? atr * 0.7 : entry * 0.01);
+  } else {
+    // Look for resistance levels above entry
+    const resistances = levels
+      .filter((l) => l.type === 'resistance' && l.price > entry + atrMin * 0.3)
+      .sort((a, b) => {
+        const distA = a.price - entry;
+        const distB = b.price - entry;
+        return (distA - a.strength * entry * 0.001) - (distB - b.strength * entry * 0.001);
+      });
+
+    if (resistances.length > 0) {
+      const slLevel = resistances[0].price + buffer;
+      const distance = slLevel - entry;
+      if (distance < atrMin) return entry + atrMin;
+      if (distance > atrMax) return entry + atrMax;
+      return slLevel;
+    }
+    return entry + (atr ? atr * 0.7 : entry * 0.01);
+  }
+}
+
 function buildTradeSetup(
   direction: 'long' | 'short',
   currentPrice: number,
@@ -92,22 +150,21 @@ function buildTradeSetup(
   atr: number | null,
   levels: PriceLevel[],
 ): TradeSetup {
-  const slMultiplier = 1.5;
-  const slOffset = atr ? atr * slMultiplier : entry * 0.002;
-
   if (direction === 'long') {
-    const stopLoss = entry - slOffset;
+    const stopLoss = findStructureSL('long', entry, atr, levels);
     const risk = entry - stopLoss;
-    // If target is closer than SL, try to find a wider target for RR >= 1.5
+
+    // Find target: prefer S/R levels that give RR >= 2.0
     let finalTarget = target;
-    if (finalTarget - entry < risk * 1.5) {
-      const widerTarget = findTarget(levels, entry, 'long', risk * 1.5);
+    if (finalTarget - entry < risk * 2.0) {
+      const widerTarget = findTarget(levels, entry, 'long', risk * 2.0);
       if (widerTarget > finalTarget) finalTarget = widerTarget;
     }
-    // Fallback: if still too close, project target at 1.5x risk from entry
-    if (finalTarget - entry < risk) {
-      finalTarget = entry + risk * 1.5;
+    // Fallback: if still too close, project at 2.0x risk
+    if (finalTarget - entry < risk * 1.5) {
+      finalTarget = entry + risk * 2.0;
     }
+
     const reward = finalTarget - entry;
     return {
       direction: 'long',
@@ -119,16 +176,18 @@ function buildTradeSetup(
       rewardPercent: Math.round(((finalTarget - entry) / entry) * 10000) / 100,
     };
   } else {
-    const stopLoss = entry + slOffset;
+    const stopLoss = findStructureSL('short', entry, atr, levels);
     const risk = stopLoss - entry;
+
     let finalTarget = target;
-    if (entry - finalTarget < risk * 1.5) {
-      const widerTarget = findTarget(levels, entry, 'short', risk * 1.5);
+    if (entry - finalTarget < risk * 2.0) {
+      const widerTarget = findTarget(levels, entry, 'short', risk * 2.0);
       if (widerTarget < finalTarget) finalTarget = widerTarget;
     }
-    if (entry - finalTarget < risk) {
-      finalTarget = entry - risk * 1.5;
+    if (entry - finalTarget < risk * 1.5) {
+      finalTarget = entry - risk * 2.0;
     }
+
     const reward = entry - finalTarget;
     return {
       direction: 'short',
