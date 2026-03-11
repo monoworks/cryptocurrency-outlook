@@ -43,35 +43,64 @@ const TIMEFRAME_WEIGHT: Record<Timeframe, number> = {
 
 function findNearestSupport(levels: PriceLevel[], currentPrice: number): number {
   const supports = levels
-    .filter((l) => l.type === 'support')
-    .sort((a, b) => b.price - a.price);
+    .filter((l) => l.type === 'support' && l.price < currentPrice)
+    .sort((a, b) => b.price - a.price); // highest first (closest below)
   return supports.length > 0 ? supports[0].price : currentPrice * 0.97;
 }
 
 function findNearestResistance(levels: PriceLevel[], currentPrice: number): number {
   const resistances = levels
-    .filter((l) => l.type === 'resistance')
-    .sort((a, b) => a.price - b.price);
+    .filter((l) => l.type === 'resistance' && l.price > currentPrice)
+    .sort((a, b) => a.price - b.price); // lowest first (closest above)
   return resistances.length > 0 ? resistances[0].price : currentPrice * 1.03;
+}
+
+/**
+ * Find a wider target by looking past the nearest level.
+ * If the nearest target is too close (< minDistance), try the next S/R level
+ * or fall back to ATR-based target.
+ */
+function findTarget(
+  levels: PriceLevel[],
+  currentPrice: number,
+  direction: 'long' | 'short',
+  minDistance: number,
+): number {
+  if (direction === 'long') {
+    const targets = levels
+      .filter((l) => l.type === 'resistance' && l.price > currentPrice)
+      .sort((a, b) => a.price - b.price);
+    // Pick the first target that is at least minDistance away
+    const viable = targets.find((t) => t.price - currentPrice >= minDistance);
+    if (viable) return viable.price;
+    return targets.length > 0 ? targets[targets.length - 1].price : currentPrice * 1.03;
+  } else {
+    const targets = levels
+      .filter((l) => l.type === 'support' && l.price < currentPrice)
+      .sort((a, b) => b.price - a.price);
+    const viable = targets.find((t) => currentPrice - t.price >= minDistance);
+    if (viable) return viable.price;
+    return targets.length > 0 ? targets[targets.length - 1].price : currentPrice * 0.97;
+  }
 }
 
 function buildTradeSetup(
   direction: 'long' | 'short',
   currentPrice: number,
-  nearestSupport: number,
-  nearestResistance: number,
+  entry: number,
+  target: number,
   atr: number | null
 ): TradeSetup {
-  // Use 1.5x ATR for SL, fallback to 0.2% of entry if ATR unavailable
+  // ATR-based SL, but capped so SL distance does not exceed target distance
   const slMultiplier = 1.5;
+  const atrOffset = atr ? atr * slMultiplier : entry * 0.002;
 
   if (direction === 'long') {
-    const entry = nearestSupport;
-    const slOffset = atr ? atr * slMultiplier : entry * 0.002;
-    const stopLoss = entry - slOffset;
-    const target = nearestResistance;
-    const risk = entry - stopLoss;
     const reward = target - entry;
+    // Cap SL: use ATR offset but never more than reward distance (minimum RR = 1.0)
+    const slOffset = reward > 0 ? Math.min(atrOffset, reward) : atrOffset;
+    const stopLoss = entry - slOffset;
+    const risk = entry - stopLoss;
     return {
       direction: 'long',
       entry: Math.round(entry * 100) / 100,
@@ -82,12 +111,10 @@ function buildTradeSetup(
       rewardPercent: Math.round(((target - entry) / entry) * 10000) / 100,
     };
   } else {
-    const entry = nearestResistance;
-    const slOffset = atr ? atr * slMultiplier : entry * 0.002;
-    const stopLoss = entry + slOffset;
-    const target = nearestSupport;
-    const risk = stopLoss - entry;
     const reward = entry - target;
+    const slOffset = reward > 0 ? Math.min(atrOffset, reward) : atrOffset;
+    const stopLoss = entry + slOffset;
+    const risk = stopLoss - entry;
     return {
       direction: 'short',
       entry: Math.round(entry * 100) / 100,
@@ -755,10 +782,13 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
 
   // Trade setups from merged levels (ATR-based SL/TP)
   const primaryAtr = details[details.length - 1].indicators.atr;
-  const nearestSupport = findNearestSupport(levels, currentPrice);
-  const nearestResistance = findNearestResistance(levels, currentPrice);
-  const longSetup = buildTradeSetup('long', currentPrice, nearestSupport, nearestResistance, primaryAtr);
-  const shortSetup = buildTradeSetup('short', currentPrice, nearestSupport, nearestResistance, primaryAtr);
+  const minTargetDistance = primaryAtr ? primaryAtr * 0.5 : currentPrice * 0.005;
+  const longEntry = findNearestSupport(levels, currentPrice);
+  const longTarget = findTarget(levels, longEntry, 'long', minTargetDistance);
+  const shortEntry = findNearestResistance(levels, currentPrice);
+  const shortTarget = findTarget(levels, shortEntry, 'short', minTargetDistance);
+  const longSetup = buildTradeSetup('long', currentPrice, longEntry, longTarget, primaryAtr);
+  const shortSetup = buildTradeSetup('short', currentPrice, shortEntry, shortTarget, primaryAtr);
 
   // Breakout levels (enhanced with volume breakout info)
   const breakoutLevels: BreakoutLevel[] = [];
