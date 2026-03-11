@@ -1,6 +1,6 @@
 'use client';
 
-import { SignalConclusion, CandlePattern, DerivativesAnalysis, IndicatorValues, HierarchicalAnalysis } from '@/lib/types';
+import { SignalConclusion, CandlePattern, DerivativesAnalysis, IndicatorValues, HierarchicalAnalysis, FalseBreakout, WickRejectionZone, VolumeSpike } from '@/lib/types';
 import HelpTip from './HelpTip';
 
 const CONCLUSION_CONFIG: Record<SignalConclusion, { label: string; color: string; bg: string }> = {
@@ -17,9 +17,12 @@ interface Props {
   derivatives: DerivativesAnalysis;
   indicators: IndicatorValues;
   hierarchical?: HierarchicalAnalysis;
+  falseBreakouts?: FalseBreakout[];
+  wickRejections?: WickRejectionZone[];
+  volumeSpikes?: VolumeSpike[];
 }
 
-export default function Conclusion({ conclusion, reason, patterns, derivatives, indicators, hierarchical }: Props) {
+export default function Conclusion({ conclusion, reason, patterns, derivatives, indicators, hierarchical, falseBreakouts, wickRejections, volumeSpikes }: Props) {
   const config = CONCLUSION_CONFIG[conclusion];
 
   return (
@@ -104,8 +107,54 @@ export default function Conclusion({ conclusion, reason, patterns, derivatives, 
             MACD: {indicators.macd ? (indicators.macd.histogram > 0 ? '強気' : '弱気') : 'N/A'}
           </div>
           <div className="text-gray-300">ADX: {indicators.adx?.toFixed(1) ?? 'N/A'}</div>
+          {indicators.stochRsi && (
+            <div className={`${indicators.stochRsi.k < 20 ? 'text-green-400' : indicators.stochRsi.k > 80 ? 'text-red-400' : 'text-gray-300'}`}>
+              StochRSI: K={indicators.stochRsi.k.toFixed(0)} D={indicators.stochRsi.d.toFixed(0)}
+              {indicators.stochRsi.k < 20 ? ' (売られすぎ)' : indicators.stochRsi.k > 80 ? ' (買われすぎ)' : ''}
+            </div>
+          )}
+          {indicators.bollingerBands && (
+            <div className="text-gray-300 text-xs mt-1">
+              BB: {indicators.bollingerBands.lower.toFixed(0)}-{indicators.bollingerBands.upper.toFixed(0)}
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Additional signals row */}
+      {((falseBreakouts && falseBreakouts.length > 0) || (wickRejections && wickRejections.length > 0) || (volumeSpikes && volumeSpikes.length > 0)) && (
+        <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm border-t border-gray-700 pt-3">
+          {/* False Breakouts */}
+          {falseBreakouts && falseBreakouts.length > 0 && (
+            <div>
+              <h4 className="text-orange-400 font-semibold mb-1">ダマシ検出<HelpTip text="S/Rレベルを一旦抜けたがヒゲで戻された（偽ブレイク）パターンです" /></h4>
+              {falseBreakouts.map((fb, i) => (
+                <div key={i} className="text-gray-300 text-xs">{fb.description}</div>
+              ))}
+            </div>
+          )}
+
+          {/* Wick Rejections */}
+          {wickRejections && wickRejections.length > 0 && (
+            <div>
+              <h4 className="text-purple-400 font-semibold mb-1">ヒゲ否定ゾーン<HelpTip text="何度もヒゲで否定されている価格帯。売り/買い圧力が集中しています" /></h4>
+              {wickRejections.map((wr, i) => (
+                <div key={i} className={`text-xs ${wr.side === 'upper' ? 'text-red-300' : 'text-green-300'}`}>{wr.description}</div>
+              ))}
+            </div>
+          )}
+
+          {/* Volume Spikes */}
+          {volumeSpikes && volumeSpikes.length > 0 && (
+            <div>
+              <h4 className="text-cyan-400 font-semibold mb-1">出来高スパイク<HelpTip text="平均の2倍以上の出来高が発生。大口の参入や重要な値動きのサインです" /></h4>
+              {volumeSpikes.map((vs, i) => (
+                <div key={i} className={`text-xs ${vs.priceDirection === 'up' ? 'text-green-300' : 'text-red-300'}`}>{vs.description}</div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

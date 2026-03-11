@@ -57,6 +57,7 @@ export interface MarketData {
 
 export interface IndicatorValues {
   rsi: number | null;
+  stochRsi: { k: number; d: number } | null;
   macd: { macd: number; signal: number; histogram: number } | null;
   sma20: number | null;
   sma50: number | null;
@@ -66,6 +67,28 @@ export interface IndicatorValues {
   vwap: number | null;
   bollingerBands: { upper: number; middle: number; lower: number } | null;
   adx: number | null;
+}
+
+// ===== False Breakout / Wick Rejection =====
+
+export interface FalseBreakout {
+  level: number;
+  direction: 'upside_fakeout' | 'downside_fakeout';
+  description: string;
+}
+
+export interface WickRejectionZone {
+  price: number;
+  count: number;
+  side: 'upper' | 'lower';
+  description: string;
+}
+
+export interface VolumeSpike {
+  time: number;
+  volumeRatio: number;
+  priceDirection: 'up' | 'down';
+  description: string;
 }
 
 // ===== Candlestick Patterns =====
@@ -79,7 +102,17 @@ export type PatternType =
   | 'long_upper_shadow'
   | 'long_lower_shadow'
   | 'consecutive_bullish'
-  | 'consecutive_bearish';
+  | 'consecutive_bearish'
+  // Chart formations
+  | 'double_top'
+  | 'double_bottom'
+  | 'ascending_triangle'
+  | 'descending_triangle'
+  | 'symmetrical_triangle'
+  | 'bull_flag'
+  | 'bear_flag'
+  | 'rising_wedge'
+  | 'falling_wedge';
 
 export interface CandlePattern {
   type: PatternType;
@@ -214,6 +247,9 @@ export interface TimeframeAnalysis {
   pullback?: PullbackAnalysis;
   prevDayHigh?: number;
   prevDayLow?: number;
+  falseBreakouts?: FalseBreakout[];
+  wickRejections?: WickRejectionZone[];
+  volumeSpikes?: VolumeSpike[];
 }
 
 // ===== Full Analysis Result =====

@@ -43,6 +43,21 @@ export function buildAnalysisPrompt(result: AnalysisResult): string {
     if (d.volumeBreakouts && d.volumeBreakouts.length > 0) {
       extra += `\n- 出来高ブレイク: ${d.volumeBreakouts.map((vb) => vb.description).join(', ')}`;
     }
+    if (d.falseBreakouts && d.falseBreakouts.length > 0) {
+      extra += `\n- ダマシ検出: ${d.falseBreakouts.map((fb) => fb.description).join(', ')}`;
+    }
+    if (d.wickRejections && d.wickRejections.length > 0) {
+      extra += `\n- ヒゲ否定ゾーン: ${d.wickRejections.map((wr) => wr.description).join(', ')}`;
+    }
+    if (d.volumeSpikes && d.volumeSpikes.length > 0) {
+      extra += `\n- 出来高スパイク: ${d.volumeSpikes.map((vs) => vs.description).join(', ')}`;
+    }
+    if (d.indicators.stochRsi) {
+      extra += `\n- StochRSI: K=${d.indicators.stochRsi.k.toFixed(1)} D=${d.indicators.stochRsi.d.toFixed(1)}`;
+    }
+    if (d.indicators.bollingerBands) {
+      extra += `\n- BB: ${d.indicators.bollingerBands.lower.toFixed(0)}-${d.indicators.bollingerBands.upper.toFixed(0)} (中央: ${d.indicators.bollingerBands.middle.toFixed(0)})`;
+    }
 
     return `### ${tfLabel}
 - トレンド: ${trendLabel} (${strengthLabel})
@@ -115,6 +130,8 @@ ${hierarchicalSection}
 - SMA200: ${indicators.sma200 ? `$${formatNum(indicators.sma200)}` : 'N/A'}
 - VWAP: ${indicators.vwap ? `$${formatNum(indicators.vwap)}` : 'N/A'}
 - ADX: ${indicators.adx?.toFixed(1) ?? 'N/A'}
+- StochRSI: ${indicators.stochRsi ? `K=${indicators.stochRsi.k.toFixed(1)} D=${indicators.stochRsi.d.toFixed(1)}${indicators.stochRsi.k < 20 ? ' (売られすぎ)' : indicators.stochRsi.k > 80 ? ' (買われすぎ)' : ''}` : 'N/A'}
+- BB: ${indicators.bollingerBands ? `${formatNum(indicators.bollingerBands.lower, 0)}-${formatNum(indicators.bollingerBands.upper, 0)}` : 'N/A'}
 
 ## ローソク足パターン
 ${patterns.length > 0 ? patterns.map((p) => `- ${p.label} (${p.signal === 'bullish' ? '強気' : p.signal === 'bearish' ? '弱気' : '中立'})`).join('\n') : '- 特筆すべきパターンなし'}

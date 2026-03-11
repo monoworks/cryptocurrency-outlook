@@ -130,6 +130,9 @@ export default function Home() {
               derivatives={result.derivatives}
               indicators={result.indicators}
               hierarchical={result.hierarchical}
+              falseBreakouts={result.timeframeDetails.flatMap((d) => d.falseBreakouts ?? [])}
+              wickRejections={result.timeframeDetails.flatMap((d) => d.wickRejections ?? [])}
+              volumeSpikes={result.timeframeDetails.flatMap((d) => d.volumeSpikes ?? [])}
             />
 
             {/* AI Analysis - 将来用に非表示 */}

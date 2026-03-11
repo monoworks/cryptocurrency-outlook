@@ -1,4 +1,4 @@
-import { RSI, MACD, SMA, EMA, BollingerBands, ADX } from 'technicalindicators';
+import { RSI, MACD, SMA, EMA, BollingerBands, ADX, StochasticRSI } from 'technicalindicators';
 import { OHLCV, IndicatorValues } from './types';
 
 export function calcIndicators(candles: OHLCV[]): IndicatorValues {
@@ -63,5 +63,21 @@ export function calcIndicators(candles: OHLCV[]): IndicatorValues {
   const adxValues = ADX.calculate({ high: highs, low: lows, close: closes, period: 14 });
   const adx = adxValues.length > 0 ? adxValues[adxValues.length - 1].adx : null;
 
-  return { rsi, macd, sma20, sma50, sma200, ema20, ema50, vwap, bollingerBands, adx };
+  // Stochastic RSI
+  let stochRsi: { k: number; d: number } | null = null;
+  if (closes.length >= 20) {
+    const stochRsiValues = StochasticRSI.calculate({
+      values: closes,
+      rsiPeriod: 14,
+      stochasticPeriod: 14,
+      kPeriod: 3,
+      dPeriod: 3,
+    });
+    const stochLatest = stochRsiValues.length > 0 ? stochRsiValues[stochRsiValues.length - 1] : null;
+    if (stochLatest && stochLatest.k != null && stochLatest.d != null) {
+      stochRsi = { k: stochLatest.k, d: stochLatest.d };
+    }
+  }
+
+  return { rsi, stochRsi, macd, sma20, sma50, sma200, ema20, ema50, vwap, bollingerBands, adx };
 }

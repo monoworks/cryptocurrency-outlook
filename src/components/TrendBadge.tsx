@@ -79,6 +79,12 @@ export default function TrendBadge({ trend, timeframeDetails }: Props) {
                 {d.volumeBreakouts && d.volumeBreakouts.length > 0 && (
                   <div className="text-xs text-orange-400 mt-0.5">出来高ブレイク検出</div>
                 )}
+                {d.falseBreakouts && d.falseBreakouts.length > 0 && (
+                  <div className="text-xs text-yellow-400 mt-0.5">ダマシ{d.falseBreakouts.length}件</div>
+                )}
+                {d.volumeSpikes && d.volumeSpikes.length > 0 && (
+                  <div className="text-xs text-cyan-400 mt-0.5">出来高スパイク{d.volumeSpikes.length}件</div>
+                )}
               </div>
             ))}
           </div>

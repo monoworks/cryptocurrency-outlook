@@ -17,7 +17,7 @@ import {
   MarketBias,
 } from './types';
 import { calcIndicators } from './indicators';
-import { detectPatterns } from './patterns';
+import { detectPatterns, detectFalseBreakouts, detectWickRejections, detectVolumeSpikes } from './patterns';
 import { analyzeTrend, analyzePullback, detectRetest } from './trend';
 import { detectSupportResistance, detectVolumeBreakouts } from './support-resistance';
 import { analyzeDerivatives } from './derivatives';
@@ -106,6 +106,15 @@ function analyzeTimeframe(
   let pullback = analyzePullback(candles, trend);
   pullback = detectRetest(candles, levels, pullback);
 
+  // False breakout detection
+  const falseBreakouts = detectFalseBreakouts(candles, levels);
+
+  // Wick rejection zones
+  const wickRejections = detectWickRejections(candles);
+
+  // Volume spikes
+  const volumeSpikes = detectVolumeSpikes(candles);
+
   // Previous day high/low (only meaningful for daily candles)
   let prevDayHigh: number | undefined;
   let prevDayLow: number | undefined;
@@ -121,6 +130,9 @@ function analyzeTimeframe(
     volumeBreakouts,
     pullback,
     prevDayHigh, prevDayLow,
+    falseBreakouts,
+    wickRejections,
+    volumeSpikes,
   };
 }
 
@@ -333,6 +345,37 @@ function determineConclusion(
         if (vb.direction === 'bullish') bullishScore += 1 * w;
         if (vb.direction === 'bearish') bearishScore += 1 * w;
       }
+    }
+
+    // False breakouts (counter-signal: fakeout upside = bearish, fakeout downside = bullish)
+    if (d.falseBreakouts) {
+      for (const fb of d.falseBreakouts) {
+        if (fb.direction === 'upside_fakeout') bearishScore += 0.5 * w;
+        if (fb.direction === 'downside_fakeout') bullishScore += 0.5 * w;
+      }
+    }
+
+    // Volume spikes in trend direction reinforce
+    if (d.volumeSpikes) {
+      for (const vs of d.volumeSpikes) {
+        const boost = Math.min(vs.volumeRatio / 4, 0.5); // cap at 0.5
+        if (vs.priceDirection === 'up') bullishScore += boost * w;
+        else bearishScore += boost * w;
+      }
+    }
+
+    // Bollinger Band extreme positions
+    if (d.indicators.bollingerBands) {
+      const bb = d.indicators.bollingerBands;
+      const price = d.recentHigh; // approximate current
+      if (price > bb.upper) bearishScore += 0.3 * w; // overbought
+      if (price < bb.lower) bullishScore += 0.3 * w; // oversold
+    }
+
+    // Stochastic RSI
+    if (d.indicators.stochRsi) {
+      if (d.indicators.stochRsi.k < 20 && d.indicators.stochRsi.d < 20) bullishScore += 0.5 * w;
+      if (d.indicators.stochRsi.k > 80 && d.indicators.stochRsi.d > 80) bearishScore += 0.5 * w;
     }
   }
 
