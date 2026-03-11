@@ -23,7 +23,16 @@ import CopyPrompt from '@/components/CopyPrompt';
 // 将来用に残す
 // const AI_SETTINGS_KEY = 'crypto-signal-ai-settings';
 
+type Theme = 'dark' | 'light' | 'soft';
+
+const themeConfig: Record<Theme, { bg: string; text: string; label: string; swatch: string }> = {
+  dark:  { bg: 'bg-gray-900', text: 'text-white',    label: '黒',       swatch: 'bg-gray-900' },
+  light: { bg: 'bg-white',    text: 'text-gray-900', label: '白',       swatch: 'bg-white' },
+  soft:  { bg: 'bg-amber-50', text: 'text-gray-800', label: 'やさしい', swatch: 'bg-amber-100' },
+};
+
 export default function Home() {
+  const [theme, setTheme] = useState<Theme>('dark');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AnalysisResult | null>(null);
@@ -74,11 +83,25 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen bg-gray-900 text-white">
+    <main className={`min-h-screen ${themeConfig[theme].bg} ${themeConfig[theme].text} transition-colors duration-300`}>
       <div className="max-w-5xl mx-auto px-4 py-6 space-y-4">
         {/* Header */}
-        <div className="text-center mb-6">
+        <div className="relative text-center mb-6">
           <h1 className="text-2xl font-bold">Cryptocurrency Outlook</h1>
+          <div className="absolute right-0 top-1/2 -translate-y-1/2 flex gap-1.5">
+            {(Object.keys(themeConfig) as Theme[]).map((key) => (
+              <button
+                key={key}
+                onClick={() => setTheme(key)}
+                title={themeConfig[key].label}
+                className={`w-7 h-7 rounded-full border-2 transition-all ${themeConfig[key].swatch} ${
+                  theme === key
+                    ? 'border-blue-500 scale-110 ring-2 ring-blue-400'
+                    : 'border-gray-500 hover:border-gray-300'
+                }`}
+              />
+            ))}
+          </div>
         </div>
 
         {/* Input */}
