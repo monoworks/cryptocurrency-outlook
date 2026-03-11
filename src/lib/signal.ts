@@ -217,6 +217,35 @@ function mergeLevels(details: TimeframeAnalysis[], currentPrice: number): PriceL
         strength: Math.min(5, Math.round(level.strength * (tfWeight / 2))),
       });
     }
+
+    // Inject VRVP levels (POC, VAH, VAL) as volume-backed S/R
+    if (d.volumeProfile && d.volumeProfile.poc > 0) {
+      const vp = d.volumeProfile;
+      const vpStrength = Math.min(5, Math.round(2 * (tfWeight / 2)));
+
+      // POC acts as both support and resistance (price magnet)
+      const pocType = vp.poc < currentPrice ? 'support' : 'resistance';
+      allLevels.push({
+        price: vp.poc,
+        strength: vpStrength,
+        type: pocType,
+        touchCount: 1,
+      });
+
+      // VAH = resistance when price is below, support when price is above
+      if (vp.valueAreaHigh < currentPrice) {
+        allLevels.push({ price: vp.valueAreaHigh, strength: Math.max(1, vpStrength - 1), type: 'support', touchCount: 1 });
+      } else {
+        allLevels.push({ price: vp.valueAreaHigh, strength: Math.max(1, vpStrength - 1), type: 'resistance', touchCount: 1 });
+      }
+
+      // VAL = support when price is above, resistance when price is below
+      if (vp.valueAreaLow > currentPrice) {
+        allLevels.push({ price: vp.valueAreaLow, strength: Math.max(1, vpStrength - 1), type: 'resistance', touchCount: 1 });
+      } else {
+        allLevels.push({ price: vp.valueAreaLow, strength: Math.max(1, vpStrength - 1), type: 'support', touchCount: 1 });
+      }
+    }
   }
 
   // Cluster nearby levels (within 0.3%)
