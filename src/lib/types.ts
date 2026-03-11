@@ -437,6 +437,9 @@ export interface AISettings {
 
 // ===== Saved Position =====
 
+export type PositionStatus = 'pending' | 'open' | 'closed';
+export type CloseReason = 'manual' | 'stop_loss' | 'take_profit';
+
 export interface SavedPosition {
   id: string;
   symbol: string;
@@ -446,8 +449,11 @@ export interface SavedPosition {
   target: number;
   amount: number;
   leverage: number;
+  status: PositionStatus;
   createdAt: number;
+  filledAt?: number;
   closedAt?: number;
   closedPrice?: number;
   closedPnl?: number;
+  closeReason?: CloseReason;
 }

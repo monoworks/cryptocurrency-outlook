@@ -14,7 +14,7 @@ interface Props {
   longSetup: TradeSetup;
   shortSetup: TradeSetup;
   symbol: string;
-  onSavePosition: (pos: Omit<SavedPosition, 'id' | 'createdAt'>) => boolean;
+  onSavePosition: (pos: Omit<SavedPosition, 'id' | 'createdAt' | 'status'>) => boolean;
   positionCount: number;
   maxPositions: number;
 }
@@ -188,10 +188,10 @@ export default function PositionSimulator({ longSetup, shortSetup, symbol, onSav
                   : 'bg-blue-600 hover:bg-blue-700 text-white'
               }`}
             >
-              {saved ? '登録しました' : isFull ? `ポジション上限（${maxPositions}件）に達しています` : 'このポジションを登録'}
+              {saved ? '指値注文を登録しました' : isFull ? `ポジション上限（${maxPositions}件）に達しています` : '指値注文として登録'}
             </button>
             <p className="text-xs text-gray-500 mt-1 text-center">
-              登録するとリアルタイムで含み損益を確認できます（{positionCount}/{maxPositions}件）
+              価格がエントリーに到達すると約定します。損切り/利確は自動執行されます（{positionCount}/{maxPositions}件）
             </p>
           </div>
 

@@ -27,7 +27,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [currentSymbol, setCurrentSymbol] = useState('BTCUSDT');
-  const { openPositions, closedPositions, addPosition, removePosition, closePosition, resetAll, maxPositions, positions } = useSavedPositions();
+  const { pendingPositions, openPositions, closedPositions, addPosition, fillPosition, removePosition, closePosition, resetAll, maxPositions, positions } = useSavedPositions();
 
   // 将来用に残す（AI分析・画像アップロード）
   // const [aiSettings, setAiSettings] = useState<AISettingsType | null>(null);
@@ -158,9 +158,11 @@ export default function Home() {
 
         {/* Saved Positions (always visible if positions exist) */}
         <PositionManager
+          pendingPositions={pendingPositions}
           openPositions={openPositions}
           closedPositions={closedPositions}
           onRemove={removePosition}
+          onFill={fillPosition}
           onClose={closePosition}
           onResetAll={resetAll}
         />

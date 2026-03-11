@@ -1,6 +1,7 @@
 'use client';
 
-import { SavedPosition } from '@/lib/types';
+import { useEffect, useRef } from 'react';
+import { SavedPosition, CloseReason } from '@/lib/types';
 import { useLivePrices } from '@/hooks/useLivePrice';
 import HelpTip from './HelpTip';
 
@@ -14,19 +15,82 @@ function fmtDate(ts: number): string {
     + ' ' + d.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
 }
 
+function closeReasonLabel(reason?: CloseReason): string {
+  if (!reason) return '';
+  switch (reason) {
+    case 'stop_loss': return '損切り';
+    case 'take_profit': return '利確';
+    case 'manual': return '手動決済';
+  }
+}
+
 interface Props {
+  pendingPositions: SavedPosition[];
   openPositions: SavedPosition[];
   closedPositions: SavedPosition[];
   onRemove: (id: string) => void;
-  onClose: (id: string, currentPrice: number) => void;
+  onFill: (id: string, fillPrice: number) => void;
+  onClose: (id: string, currentPrice: number, reason?: 'manual' | 'stop_loss' | 'take_profit') => void;
   onResetAll: () => void;
 }
 
-export default function PositionManager({ openPositions, closedPositions, onRemove, onClose, onResetAll }: Props) {
-  const symbols = openPositions.map((p) => p.symbol);
+export default function PositionManager({ pendingPositions, openPositions, closedPositions, onRemove, onFill, onClose, onResetAll }: Props) {
+  // Collect all symbols that need live prices (pending + open)
+  const activePositions = [...pendingPositions, ...openPositions];
+  const symbols = activePositions.map((p) => p.symbol);
   const livePrices = useLivePrices(symbols);
 
-  const totalCount = openPositions.length + closedPositions.length;
+  // Track which positions have already been auto-processed to avoid duplicate triggers
+  const processedRef = useRef<Set<string>>(new Set());
+
+  // Auto-fill pending orders and auto-trigger SL/TP
+  useEffect(() => {
+    // Check pending positions for entry fill
+    for (const pos of pendingPositions) {
+      const livePrice = livePrices[pos.symbol.toUpperCase()];
+      if (livePrice == null) continue;
+      if (processedRef.current.has(`fill-${pos.id}`)) continue;
+
+      // Long: entry is filled when price drops to or below entry
+      // Short: entry is filled when price rises to or above entry
+      const shouldFill = pos.direction === 'long'
+        ? livePrice <= pos.entry
+        : livePrice >= pos.entry;
+
+      if (shouldFill) {
+        processedRef.current.add(`fill-${pos.id}`);
+        onFill(pos.id, pos.entry);
+      }
+    }
+
+    // Check open positions for SL/TP
+    for (const pos of openPositions) {
+      const livePrice = livePrices[pos.symbol.toUpperCase()];
+      if (livePrice == null) continue;
+      if (processedRef.current.has(`close-${pos.id}`)) continue;
+
+      if (pos.direction === 'long') {
+        if (livePrice <= pos.stopLoss) {
+          processedRef.current.add(`close-${pos.id}`);
+          onClose(pos.id, pos.stopLoss, 'stop_loss');
+        } else if (livePrice >= pos.target) {
+          processedRef.current.add(`close-${pos.id}`);
+          onClose(pos.id, pos.target, 'take_profit');
+        }
+      } else {
+        // Short
+        if (livePrice >= pos.stopLoss) {
+          processedRef.current.add(`close-${pos.id}`);
+          onClose(pos.id, pos.stopLoss, 'stop_loss');
+        } else if (livePrice <= pos.target) {
+          processedRef.current.add(`close-${pos.id}`);
+          onClose(pos.id, pos.target, 'take_profit');
+        }
+      }
+    }
+  }, [livePrices, pendingPositions, openPositions, onFill, onClose]);
+
+  const totalCount = pendingPositions.length + openPositions.length + closedPositions.length;
   if (totalCount === 0) return null;
 
   // Unrealized P&L for open positions
@@ -56,8 +120,7 @@ export default function PositionManager({ openPositions, closedPositions, onRemo
   }
   const realizedRoi = totalClosedInvested > 0 ? (totalRealizedPnl / totalClosedInvested) * 100 : 0;
 
-  // Total invested across all
-  const totalInvestedAll = openPositions.reduce((s, p) => s + p.amount, 0)
+  const totalInvestedAll = activePositions.reduce((s, p) => s + p.amount, 0)
     + closedPositions.reduce((s, p) => s + p.amount, 0);
 
   return (
@@ -66,7 +129,7 @@ export default function PositionManager({ openPositions, closedPositions, onRemo
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-lg font-bold text-white">
           シミュレーションの登録ポジション
-          <HelpTip text="登録したポジションの含み損益をリアルタイムで表示します。決済ボタンでポジションを確定できます" />
+          <HelpTip text="指値注文としてポジションを登録します。価格がエントリー価格に達すると約定し、損切り/利確価格で自動決済されます" />
           <span className="text-sm font-normal text-gray-400 ml-2">({totalCount}件)</span>
         </h2>
         <button
@@ -117,10 +180,25 @@ export default function PositionManager({ openPositions, closedPositions, onRemo
         )}
       </div>
 
+      {/* Pending positions */}
+      {pendingPositions.length > 0 && (
+        <div className="space-y-2 mb-3">
+          <h3 className="text-xs text-yellow-500 font-medium uppercase tracking-wider">待機中 ({pendingPositions.length})</h3>
+          {pendingPositions.map((pos) => (
+            <PendingPositionRow
+              key={pos.id}
+              position={pos}
+              livePrice={livePrices[pos.symbol.toUpperCase()] ?? null}
+              onRemove={onRemove}
+            />
+          ))}
+        </div>
+      )}
+
       {/* Open positions */}
       {openPositions.length > 0 && (
         <div className="space-y-2 mb-3">
-          <h3 className="text-xs text-gray-500 font-medium uppercase tracking-wider">オープン ({openPositions.length})</h3>
+          <h3 className="text-xs text-blue-400 font-medium uppercase tracking-wider">オープン ({openPositions.length})</h3>
           {openPositions.map((pos) => (
             <OpenPositionRow
               key={pos.id}
@@ -146,11 +224,63 @@ export default function PositionManager({ openPositions, closedPositions, onRemo
   );
 }
 
+function PendingPositionRow({ position: pos, livePrice, onRemove }: {
+  position: SavedPosition;
+  livePrice: number | null;
+  onRemove: (id: string) => void;
+}) {
+  const isLong = pos.direction === 'long';
+  const dirLabel = isLong ? 'L' : 'S';
+  const dirColor = isLong ? 'text-green-400 bg-green-900/40' : 'text-red-400 bg-red-900/40';
+
+  // Distance to entry
+  let distanceLabel = '';
+  if (livePrice != null) {
+    const dist = ((pos.entry - livePrice) / livePrice) * 100;
+    distanceLabel = `現在 $${fmt(livePrice)} (${dist >= 0 ? '+' : ''}${fmt(dist)}%)`;
+  }
+
+  return (
+    <div className="flex items-center gap-2 bg-gray-750 rounded-lg p-2 border border-yellow-700/30 text-sm">
+      <span className={`${dirColor} px-1.5 py-0.5 rounded text-xs font-bold shrink-0`}>{dirLabel}</span>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="text-white font-medium text-xs">{pos.symbol}</span>
+          <span className="text-gray-500 text-xs">{pos.leverage}x</span>
+          <span className="text-gray-500 text-xs">${fmt(pos.amount, 0)}</span>
+          <span className="text-yellow-500/80 text-xs px-1.5 py-0.5 bg-yellow-900/30 rounded">指値待ち</span>
+        </div>
+        <div className="text-xs text-gray-500">
+          エントリー ${fmt(pos.entry)} / 損切 ${fmt(pos.stopLoss)} / 利確 ${fmt(pos.target)}
+        </div>
+      </div>
+
+      <div className="text-right shrink-0">
+        {livePrice != null ? (
+          <div className="text-xs text-gray-400 font-mono">{distanceLabel}</div>
+        ) : (
+          <div className="text-xs text-gray-500">接続中...</div>
+        )}
+      </div>
+
+      {/* Cancel button */}
+      <button
+        onClick={() => onRemove(pos.id)}
+        className="text-xs text-gray-400 hover:text-red-400 border border-gray-600 hover:border-red-500/50 rounded px-1.5 py-0.5 transition-colors shrink-0"
+        title="注文キャンセル"
+      >
+        取消
+      </button>
+    </div>
+  );
+}
+
 function OpenPositionRow({ position: pos, livePrice, onRemove, onClose }: {
   position: SavedPosition;
   livePrice: number | null;
   onRemove: (id: string) => void;
-  onClose: (id: string, currentPrice: number) => void;
+  onClose: (id: string, currentPrice: number, reason?: 'manual' | 'stop_loss' | 'take_profit') => void;
 }) {
   const posSize = pos.amount * pos.leverage;
   const isLong = pos.direction === 'long';
@@ -176,7 +306,7 @@ function OpenPositionRow({ position: pos, livePrice, onRemove, onClose }: {
           <span className="text-white font-medium text-xs">{pos.symbol}</span>
           <span className="text-gray-500 text-xs">{pos.leverage}x</span>
           <span className="text-gray-500 text-xs">${fmt(pos.amount, 0)}</span>
-          <span className="text-gray-600 text-xs">{fmtDate(pos.createdAt)}</span>
+          {pos.filledAt && <span className="text-gray-600 text-xs">約定 {fmtDate(pos.filledAt)}</span>}
         </div>
         <div className="text-xs text-gray-500">
           参入 ${fmt(pos.entry)} / 損切 ${fmt(pos.stopLoss)} / 利確 ${fmt(pos.target)}
@@ -202,7 +332,7 @@ function OpenPositionRow({ position: pos, livePrice, onRemove, onClose }: {
       {/* Close button */}
       {livePrice != null && (
         <button
-          onClick={() => onClose(pos.id, livePrice)}
+          onClick={() => onClose(pos.id, livePrice, 'manual')}
           className="text-xs text-yellow-500 hover:text-yellow-400 border border-yellow-600/50 hover:border-yellow-500 rounded px-1.5 py-0.5 transition-colors shrink-0"
           title="現在価格で決済"
         >
@@ -233,6 +363,7 @@ function ClosedPositionRow({ position: pos, onRemove }: {
   const dirLabel = isLong ? 'L' : 'S';
   const pnl = pos.closedPnl ?? 0;
   const pnlPercent = pos.amount > 0 ? (pnl / pos.amount) * 100 : 0;
+  const reason = closeReasonLabel(pos.closeReason);
 
   return (
     <div className="flex items-center gap-2 bg-gray-750 rounded-lg p-2 border border-gray-700/50 text-sm opacity-70">
@@ -243,7 +374,13 @@ function ClosedPositionRow({ position: pos, onRemove }: {
           <span className="text-gray-300 font-medium text-xs">{pos.symbol}</span>
           <span className="text-gray-500 text-xs">{pos.leverage}x</span>
           <span className="text-gray-500 text-xs">${fmt(pos.amount, 0)}</span>
-          <span className="text-gray-600 text-xs">{fmtDate(pos.createdAt)}</span>
+          {reason && (
+            <span className={`text-xs px-1.5 py-0.5 rounded ${
+              pos.closeReason === 'take_profit' ? 'text-green-400 bg-green-900/30' :
+              pos.closeReason === 'stop_loss' ? 'text-red-400 bg-red-900/30' :
+              'text-gray-400 bg-gray-700'
+            }`}>{reason}</span>
+          )}
         </div>
         <div className="text-xs text-gray-500">
           参入 ${fmt(pos.entry)} → 決済 ${fmt(pos.closedPrice ?? 0)}
