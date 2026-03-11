@@ -67,6 +67,32 @@ export interface IndicatorValues {
   vwap: number | null;
   bollingerBands: { upper: number; middle: number; lower: number } | null;
   adx: number | null;
+  atr: number | null;
+}
+
+// ===== Divergence =====
+
+export interface Divergence {
+  type: 'bullish' | 'bearish' | 'hidden_bullish' | 'hidden_bearish';
+  indicator: 'rsi' | 'macd';
+  description: string;
+}
+
+// ===== Signal Confidence =====
+
+export interface SignalConfidence {
+  score: number; // 0-100
+  label: string;
+  factors: { name: string; contribution: number; positive: boolean }[];
+}
+
+// ===== Top Trader Ratio =====
+
+export interface TopTraderRatio {
+  longAccount: number;
+  shortAccount: number;
+  longShortRatio: number;
+  timestamp: number;
 }
 
 // ===== False Breakout / Wick Rejection =====
@@ -250,6 +276,7 @@ export interface TimeframeAnalysis {
   falseBreakouts?: FalseBreakout[];
   wickRejections?: WickRejectionZone[];
   volumeSpikes?: VolumeSpike[];
+  divergences?: Divergence[];
 }
 
 // ===== Full Analysis Result =====
@@ -290,6 +317,10 @@ export interface AnalysisResult {
   derivatives: DerivativesAnalysis;
   // Hierarchical analysis
   hierarchical?: HierarchicalAnalysis;
+  // Signal confidence
+  confidence?: SignalConfidence;
+  // Top trader ratio
+  topTraderRatio?: TopTraderRatio;
 }
 
 // ===== AI =====

@@ -133,6 +133,9 @@ export default function Home() {
               falseBreakouts={result.timeframeDetails.flatMap((d) => d.falseBreakouts ?? [])}
               wickRejections={result.timeframeDetails.flatMap((d) => d.wickRejections ?? [])}
               volumeSpikes={result.timeframeDetails.flatMap((d) => d.volumeSpikes ?? [])}
+              confidence={result.confidence}
+              divergences={result.timeframeDetails.flatMap((d) => d.divergences ?? [])}
+              topTraderRatio={result.topTraderRatio}
             />
 
             {/* AI Analysis - 将来用に非表示 */}

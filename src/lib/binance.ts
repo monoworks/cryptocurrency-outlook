@@ -123,6 +123,22 @@ export async function getFundingHistory(symbol: string, limit = 20): Promise<{ t
   return data.map((d) => ({ time: d.fundingTime, rate: parseFloat(d.fundingRate) }));
 }
 
+export async function getTopTraderRatio(symbol: string): Promise<{ longAccount: number; shortAccount: number; longShortRatio: number; timestamp: number }> {
+  type RatioRaw = { symbol: string; longAccount: string; shortAccount: string; longShortRatio: string; timestamp: number };
+  const data = await fetchJSON<RatioRaw[]>('/futures/data/topLongShortAccountRatio', {
+    symbol: symbol.toUpperCase(),
+    period: '1h',
+    limit: '1',
+  });
+  const latest = data[0];
+  return {
+    longAccount: parseFloat(latest.longAccount),
+    shortAccount: parseFloat(latest.shortAccount),
+    longShortRatio: parseFloat(latest.longShortRatio),
+    timestamp: latest.timestamp,
+  };
+}
+
 export async function getMarketData(symbol: string, timeframe: Timeframe): Promise<MarketData> {
   const [candles, ticker, openInterest, fundingRate, premiumIndex] = await Promise.all([
     getKlines(symbol, timeframe),

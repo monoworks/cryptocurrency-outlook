@@ -1,6 +1,6 @@
 'use client';
 
-import { SignalConclusion, CandlePattern, DerivativesAnalysis, IndicatorValues, HierarchicalAnalysis, FalseBreakout, WickRejectionZone, VolumeSpike } from '@/lib/types';
+import { SignalConclusion, CandlePattern, DerivativesAnalysis, IndicatorValues, HierarchicalAnalysis, FalseBreakout, WickRejectionZone, VolumeSpike, SignalConfidence, Divergence, TopTraderRatio } from '@/lib/types';
 import HelpTip from './HelpTip';
 
 const CONCLUSION_CONFIG: Record<SignalConclusion, { label: string; color: string; bg: string }> = {
@@ -20,9 +20,12 @@ interface Props {
   falseBreakouts?: FalseBreakout[];
   wickRejections?: WickRejectionZone[];
   volumeSpikes?: VolumeSpike[];
+  confidence?: SignalConfidence;
+  divergences?: Divergence[];
+  topTraderRatio?: TopTraderRatio;
 }
 
-export default function Conclusion({ conclusion, reason, patterns, derivatives, indicators, hierarchical, falseBreakouts, wickRejections, volumeSpikes }: Props) {
+export default function Conclusion({ conclusion, reason, patterns, derivatives, indicators, hierarchical, falseBreakouts, wickRejections, volumeSpikes, confidence, divergences, topTraderRatio }: Props) {
   const config = CONCLUSION_CONFIG[conclusion];
 
   return (
@@ -32,6 +35,63 @@ export default function Conclusion({ conclusion, reason, patterns, derivatives, 
         <div className={`text-xl font-bold ${config.color} mb-2`}>{config.label}</div>
         <p className="text-gray-300 text-sm">{reason}</p>
       </div>
+
+      {/* Confidence Score */}
+      {confidence && (
+        <div className="mt-3 border border-gray-600 rounded-lg p-3">
+          <h4 className="text-gray-400 font-semibold text-sm mb-2">シグナル信頼度<HelpTip text="各種指標の一致度からシグナルの信頼性を0-100%で評価します" /></h4>
+          <div className="flex items-center gap-3 mb-2">
+            <div className="flex-1 bg-gray-700 rounded-full h-3">
+              <div
+                className={`h-3 rounded-full ${confidence.score >= 70 ? 'bg-green-500' : confidence.score >= 40 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                style={{ width: `${confidence.score}%` }}
+              />
+            </div>
+            <span className={`font-bold text-sm ${confidence.score >= 70 ? 'text-green-400' : confidence.score >= 40 ? 'text-yellow-400' : 'text-red-400'}`}>
+              {confidence.score}% ({confidence.label})
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {confidence.factors.map((f, i) => (
+              <span key={i} className={`text-xs px-2 py-0.5 rounded ${f.positive ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'}`}>
+                {f.positive ? '+' : '-'}{f.contribution} {f.name}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Divergences */}
+      {divergences && divergences.length > 0 && (
+        <div className="mt-3 border border-indigo-500/30 rounded-lg p-3 bg-indigo-900/10">
+          <h4 className="text-indigo-400 font-semibold text-sm mb-2">ダイバージェンス検出<HelpTip text="価格とRSI/MACDの方向が乖離しているパターン。トレンド転換の予兆となります" /></h4>
+          {divergences.map((d, i) => (
+            <div key={i} className={`text-xs mb-1 ${d.type.includes('bullish') ? 'text-green-300' : 'text-red-300'}`}>
+              {d.description}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Top Trader Ratio */}
+      {topTraderRatio && (
+        <div className="mt-3 border border-gray-600 rounded-lg p-3">
+          <h4 className="text-gray-400 font-semibold text-sm mb-2">トップトレーダー比率<HelpTip text="Binanceのトップトレーダーのロング/ショート口座比率です" /></h4>
+          <div className="flex items-center gap-4 text-sm">
+            <div className="flex-1">
+              <div className="flex justify-between mb-1">
+                <span className="text-green-400">Long {(topTraderRatio.longAccount * 100).toFixed(1)}%</span>
+                <span className="text-red-400">Short {(topTraderRatio.shortAccount * 100).toFixed(1)}%</span>
+              </div>
+              <div className="flex h-2 rounded-full overflow-hidden bg-gray-700">
+                <div className="bg-green-500" style={{ width: `${topTraderRatio.longAccount * 100}%` }} />
+                <div className="bg-red-500" style={{ width: `${topTraderRatio.shortAccount * 100}%` }} />
+              </div>
+            </div>
+            <span className="text-gray-300 text-xs">L/S比: {topTraderRatio.longShortRatio.toFixed(2)}</span>
+          </div>
+        </div>
+      )}
 
       {/* Hierarchical analysis */}
       {hierarchical && (

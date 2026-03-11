@@ -4,6 +4,7 @@ import {
   TradeSetup,
   BreakoutLevel,
   SignalConclusion,
+  SignalConfidence,
   PriceLevel,
   TrendAnalysis,
   TrendDirection,
@@ -15,12 +16,14 @@ import {
   OHLCV,
   HierarchicalAnalysis,
   MarketBias,
+  TopTraderRatio,
 } from './types';
 import { calcIndicators } from './indicators';
 import { detectPatterns, detectFalseBreakouts, detectWickRejections, detectVolumeSpikes } from './patterns';
 import { analyzeTrend, analyzePullback, detectRetest } from './trend';
 import { detectSupportResistance, detectVolumeBreakouts } from './support-resistance';
 import { analyzeDerivatives } from './derivatives';
+import { detectDivergences } from './divergence';
 
 // Weight for each timeframe (higher = more influence on combined result)
 const TIMEFRAME_WEIGHT: Record<Timeframe, number> = {
@@ -49,12 +52,16 @@ function buildTradeSetup(
   direction: 'long' | 'short',
   currentPrice: number,
   nearestSupport: number,
-  nearestResistance: number
+  nearestResistance: number,
+  atr: number | null
 ): TradeSetup {
+  // Use 1.5x ATR for SL, fallback to 0.2% of entry if ATR unavailable
+  const slMultiplier = 1.5;
+
   if (direction === 'long') {
-    // 押し目買い: サポート付近で指値エントリー
     const entry = nearestSupport;
-    const stopLoss = nearestSupport * 0.998;
+    const slOffset = atr ? atr * slMultiplier : entry * 0.002;
+    const stopLoss = entry - slOffset;
     const target = nearestResistance;
     const risk = entry - stopLoss;
     const reward = target - entry;
@@ -68,9 +75,9 @@ function buildTradeSetup(
       rewardPercent: Math.round(((target - entry) / entry) * 10000) / 100,
     };
   } else {
-    // 戻り売り: レジスタンス付近で指値エントリー
     const entry = nearestResistance;
-    const stopLoss = nearestResistance * 1.002;
+    const slOffset = atr ? atr * slMultiplier : entry * 0.002;
+    const stopLoss = entry + slOffset;
     const target = nearestSupport;
     const risk = stopLoss - entry;
     const reward = entry - target;
@@ -115,6 +122,9 @@ function analyzeTimeframe(
   // Volume spikes
   const volumeSpikes = detectVolumeSpikes(candles);
 
+  // Divergence detection (RSI / MACD)
+  const divergences = detectDivergences(candles);
+
   // Previous day high/low (only meaningful for daily candles)
   let prevDayHigh: number | undefined;
   let prevDayLow: number | undefined;
@@ -133,6 +143,7 @@ function analyzeTimeframe(
     falseBreakouts,
     wickRejections,
     volumeSpikes,
+    divergences,
   };
 }
 
@@ -377,6 +388,16 @@ function determineConclusion(
       if (d.indicators.stochRsi.k < 20 && d.indicators.stochRsi.d < 20) bullishScore += 0.5 * w;
       if (d.indicators.stochRsi.k > 80 && d.indicators.stochRsi.d > 80) bearishScore += 0.5 * w;
     }
+
+    // Divergences
+    if (d.divergences) {
+      for (const div of d.divergences) {
+        if (div.type === 'bullish') bullishScore += 1.5 * w;
+        if (div.type === 'bearish') bearishScore += 1.5 * w;
+        if (div.type === 'hidden_bullish') bullishScore += 0.8 * w;
+        if (div.type === 'hidden_bearish') bearishScore += 0.8 * w;
+      }
+    }
   }
 
   // Normalize by total weight
@@ -455,6 +476,116 @@ function determineConclusion(
   return { conclusion, reason };
 }
 
+function calcConfidence(
+  trend: TrendAnalysis,
+  details: TimeframeAnalysis[],
+  derivatives: DerivativesAnalysis,
+  longSetup: TradeSetup,
+  shortSetup: TradeSetup,
+  hierarchical?: HierarchicalAnalysis,
+  topTraderRatio?: TopTraderRatio,
+): SignalConfidence {
+  const factors: SignalConfidence['factors'] = [];
+  let score = 50; // base
+
+  // 1. Timeframe alignment (up to +20 / -10)
+  const directions = details.map((d) => d.trend.direction);
+  const allSame = directions.every((d) => d === directions[0]);
+  const majorityUp = directions.filter((d) => d === 'uptrend').length > directions.length / 2;
+  const majorityDown = directions.filter((d) => d === 'downtrend').length > directions.length / 2;
+  if (allSame && directions[0] !== 'range') {
+    score += 20;
+    factors.push({ name: '全時間足一致', contribution: 20, positive: true });
+  } else if (majorityUp || majorityDown) {
+    score += 10;
+    factors.push({ name: '多数時間足一致', contribution: 10, positive: true });
+  } else {
+    score -= 10;
+    factors.push({ name: '時間足不一致', contribution: 10, positive: false });
+  }
+
+  // 2. Trend strength (+10 or -5)
+  if (trend.strength === 'strong') {
+    score += 10;
+    factors.push({ name: 'トレンド強い', contribution: 10, positive: true });
+  } else if (trend.strength === 'weak') {
+    score -= 5;
+    factors.push({ name: 'トレンド弱い', contribution: 5, positive: false });
+  }
+
+  // 3. Risk/Reward ratio (+10 if good)
+  const bestRR = Math.max(longSetup.riskRewardRatio, shortSetup.riskRewardRatio);
+  if (bestRR >= 3) {
+    score += 10;
+    factors.push({ name: 'RR比良好 (≥3)', contribution: 10, positive: true });
+  } else if (bestRR >= 2) {
+    score += 5;
+    factors.push({ name: 'RR比まずまず (≥2)', contribution: 5, positive: true });
+  } else if (bestRR < 1.5) {
+    score -= 5;
+    factors.push({ name: 'RR比不良 (<1.5)', contribution: 5, positive: false });
+  }
+
+  // 4. Divergences (+10 for confirming, -5 for conflicting)
+  const allDivs = details.flatMap((d) => d.divergences ?? []);
+  const bullishDivs = allDivs.filter((d) => d.type === 'bullish' || d.type === 'hidden_bullish');
+  const bearishDivs = allDivs.filter((d) => d.type === 'bearish' || d.type === 'hidden_bearish');
+  if (bullishDivs.length > 0 && trend.direction === 'downtrend') {
+    score += 10;
+    factors.push({ name: '強気ダイバージェンス（反転示唆）', contribution: 10, positive: true });
+  }
+  if (bearishDivs.length > 0 && trend.direction === 'uptrend') {
+    score += 10;
+    factors.push({ name: '弱気ダイバージェンス（反転示唆）', contribution: 10, positive: true });
+  }
+
+  // 5. Derivatives confirmation (+5 or -5)
+  if (derivatives.oiPriceSignal === 'new_longs' && trend.direction === 'uptrend') {
+    score += 5;
+    factors.push({ name: 'OI×価格がトレンド確認', contribution: 5, positive: true });
+  } else if (derivatives.oiPriceSignal === 'new_shorts' && trend.direction === 'downtrend') {
+    score += 5;
+    factors.push({ name: 'OI×価格がトレンド確認', contribution: 5, positive: true });
+  }
+  if (derivatives.fundingTrend?.isOverheated) {
+    score -= 5;
+    factors.push({ name: 'Funding過熱', contribution: 5, positive: false });
+  }
+
+  // 6. Top trader ratio (+5 if aligned)
+  if (topTraderRatio) {
+    if (topTraderRatio.longShortRatio > 1.5 && trend.direction === 'uptrend') {
+      score += 5;
+      factors.push({ name: 'トップトレーダーがロング優勢', contribution: 5, positive: true });
+    } else if (topTraderRatio.longShortRatio < 0.67 && trend.direction === 'downtrend') {
+      score += 5;
+      factors.push({ name: 'トップトレーダーがショート優勢', contribution: 5, positive: true });
+    }
+  }
+
+  // 7. Hierarchical alignment (+5)
+  if (hierarchical) {
+    const bullBias = hierarchical.dailyBias === 'bullish' || hierarchical.dailyBias === 'strongly_bullish';
+    const bearBias = hierarchical.dailyBias === 'bearish' || hierarchical.dailyBias === 'strongly_bearish';
+    if ((bullBias && trend.direction === 'uptrend') || (bearBias && trend.direction === 'downtrend')) {
+      score += 5;
+      factors.push({ name: '階層分析がトレンド確認', contribution: 5, positive: true });
+    }
+  }
+
+  // Clamp 0-100
+  score = Math.max(0, Math.min(100, score));
+
+  let label: string;
+  if (score >= 80) label = '非常に高い';
+  else if (score >= 60) label = '高い';
+  else if (score >= 40) label = '中程度';
+  else if (score >= 20) label = '低い';
+  else label = '非常に低い';
+
+  return { score, label, factors };
+}
+
 export interface MultiTimeframeInput {
   symbol: string;
   ticker: MarketData['ticker'];
@@ -463,6 +594,7 @@ export interface MultiTimeframeInput {
   premiumIndex: MarketData['premiumIndex'];
   candlesByTimeframe: { timeframe: Timeframe; candles: OHLCV[] }[];
   derivativesHistory?: DerivativesHistory;
+  topTraderRatio?: TopTraderRatio;
 }
 
 export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
@@ -500,11 +632,12 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
   // Hierarchical analysis (daily → 4h → 1h → 15m)
   const hierarchical = buildHierarchicalAnalysis(details);
 
-  // Trade setups from merged levels
+  // Trade setups from merged levels (ATR-based SL/TP)
+  const primaryAtr = details[details.length - 1].indicators.atr;
   const nearestSupport = findNearestSupport(levels, currentPrice);
   const nearestResistance = findNearestResistance(levels, currentPrice);
-  const longSetup = buildTradeSetup('long', currentPrice, nearestSupport, nearestResistance);
-  const shortSetup = buildTradeSetup('short', currentPrice, nearestSupport, nearestResistance);
+  const longSetup = buildTradeSetup('long', currentPrice, nearestSupport, nearestResistance, primaryAtr);
+  const shortSetup = buildTradeSetup('short', currentPrice, nearestSupport, nearestResistance, primaryAtr);
 
   // Breakout levels (enhanced with volume breakout info)
   const breakoutLevels: BreakoutLevel[] = [];
@@ -547,6 +680,9 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
   const prevDayHigh = dailyAnalysis?.prevDayHigh;
   const prevDayLow = dailyAnalysis?.prevDayLow;
 
+  // Confidence scoring
+  const confidence = calcConfidence(trend, details, derivatives, longSetup, shortSetup, hierarchical, input.topTraderRatio);
+
   // Use primary (highest weight) timeframe for top-level indicators/patterns
   const primary = details[details.length - 1];
   const recentHigh = Math.max(...details.map((d) => d.recentHigh));
@@ -579,5 +715,7 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
     patterns: primary.patterns,
     derivatives,
     hierarchical,
+    confidence,
+    topTraderRatio: input.topTraderRatio,
   };
 }

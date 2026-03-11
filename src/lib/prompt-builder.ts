@@ -58,6 +58,9 @@ export function buildAnalysisPrompt(result: AnalysisResult): string {
     if (d.indicators.bollingerBands) {
       extra += `\n- BB: ${d.indicators.bollingerBands.lower.toFixed(0)}-${d.indicators.bollingerBands.upper.toFixed(0)} (中央: ${d.indicators.bollingerBands.middle.toFixed(0)})`;
     }
+    if (d.divergences && d.divergences.length > 0) {
+      extra += `\n- ダイバージェンス: ${d.divergences.map((dv) => dv.description).join(', ')}`;
+    }
 
     return `### ${tfLabel}
 - トレンド: ${trendLabel} (${strengthLabel})
@@ -132,6 +135,7 @@ ${hierarchicalSection}
 - ADX: ${indicators.adx?.toFixed(1) ?? 'N/A'}
 - StochRSI: ${indicators.stochRsi ? `K=${indicators.stochRsi.k.toFixed(1)} D=${indicators.stochRsi.d.toFixed(1)}${indicators.stochRsi.k < 20 ? ' (売られすぎ)' : indicators.stochRsi.k > 80 ? ' (買われすぎ)' : ''}` : 'N/A'}
 - BB: ${indicators.bollingerBands ? `${formatNum(indicators.bollingerBands.lower, 0)}-${formatNum(indicators.bollingerBands.upper, 0)}` : 'N/A'}
+- ATR(14): ${indicators.atr ? `$${formatNum(indicators.atr)}` : 'N/A'}
 
 ## ローソク足パターン
 ${patterns.length > 0 ? patterns.map((p) => `- ${p.label} (${p.signal === 'bullish' ? '強気' : p.signal === 'bearish' ? '弱気' : '中立'})`).join('\n') : '- 特筆すべきパターンなし'}
@@ -161,6 +165,15 @@ ${supports.length > 0 ? supports.map((s) => `- $${formatNum(s.price)} (強度: $
 
 ## ⑥ 重要分岐点
 ${breakoutLevels.map((b) => `- $${formatNum(b.price)}: ${b.description}`).join('\n')}
+
+${result.confidence ? `## シグナル信頼度
+- スコア: ${result.confidence.score}% (${result.confidence.label})
+- 要因: ${result.confidence.factors.map((f) => `${f.positive ? '+' : '-'}${f.contribution} ${f.name}`).join(', ')}` : ''}
+
+${result.topTraderRatio ? `## トップトレーダーL/S比率
+- ロング口座: ${(result.topTraderRatio.longAccount * 100).toFixed(1)}%
+- ショート口座: ${(result.topTraderRatio.shortAccount * 100).toFixed(1)}%
+- L/S比: ${result.topTraderRatio.longShortRatio.toFixed(2)}` : ''}
 
 ## ⑦ 結論
 ${result.conclusionReason}

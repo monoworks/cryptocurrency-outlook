@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getKlines, getTicker, getOpenInterest, getFundingRate, getPremiumIndex, getOIHistory, getFundingHistory } from '@/lib/binance';
+import { getKlines, getTicker, getOpenInterest, getFundingRate, getPremiumIndex, getOIHistory, getFundingHistory, getTopTraderRatio } from '@/lib/binance';
 import { generateSignal } from '@/lib/signal';
 import { Timeframe } from '@/lib/types';
 
@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
 
   try {
     // Fetch candles for each timeframe + shared market data + derivatives history in parallel
-    const [candlesResults, ticker, openInterest, fundingRate, premiumIndex, oiHistory, fundingHistory] = await Promise.all([
+    const [candlesResults, ticker, openInterest, fundingRate, premiumIndex, oiHistory, fundingHistory, topTraderRatio] = await Promise.all([
       Promise.all(timeframes.map((tf) => getKlines(symbol, tf).then((candles) => ({ timeframe: tf, candles })))),
       getTicker(symbol),
       getOpenInterest(symbol),
@@ -38,6 +38,7 @@ export async function GET(req: NextRequest) {
       getPremiumIndex(symbol),
       getOIHistory(symbol, '1h', 24).catch(() => []),
       getFundingHistory(symbol, 20).catch(() => []),
+      getTopTraderRatio(symbol).catch(() => null),
     ]);
 
     const result = generateSignal({
@@ -50,6 +51,7 @@ export async function GET(req: NextRequest) {
       derivativesHistory: (oiHistory.length > 0 || fundingHistory.length > 0)
         ? { oiHistory, fundingHistory }
         : undefined,
+      topTraderRatio: topTraderRatio ?? undefined,
     });
 
     return NextResponse.json(result);
