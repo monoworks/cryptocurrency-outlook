@@ -78,8 +78,7 @@ export default function Home() {
       <div className="max-w-5xl mx-auto px-4 py-6 space-y-4">
         {/* Header */}
         <div className="text-center mb-6">
-          <h1 className="text-2xl font-bold">Crypto Trading Signal Calculator</h1>
-          <p className="text-gray-400 text-sm mt-1">暗号通貨トレーディングシグナル計算機</p>
+          <h1 className="text-2xl font-bold">Cryptocurrency Outlook</h1>
         </div>
 
         {/* Input */}
