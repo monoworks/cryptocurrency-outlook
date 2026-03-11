@@ -1,6 +1,6 @@
 'use client';
 
-import { SignalConclusion, CandlePattern, DerivativesAnalysis, IndicatorValues, HierarchicalAnalysis, FalseBreakout, WickRejectionZone, VolumeSpike, SignalConfidence, Divergence, TopTraderRatio, MarketRegimeAnalysis, VolumeProfileAnalysis, LiquidationAnalysis, OrderFlowAnalysis, DivergenceAggregation, SentimentAnalysis } from '@/lib/types';
+import { SignalConclusion, CandlePattern, DerivativesAnalysis, IndicatorValues, HierarchicalAnalysis, FalseBreakout, WickRejectionZone, VolumeSpike, SignalConfidence, Divergence, TopTraderRatio, MarketRegimeAnalysis, VolumeProfileAnalysis, LiquidationAnalysis, OrderFlowAnalysis, DivergenceAggregation, SentimentAnalysis, Timeframe } from '@/lib/types';
 import HelpTip from './HelpTip';
 
 const CONCLUSION_CONFIG: Record<SignalConclusion, { label: string; color: string; bg: string }> = {
@@ -33,13 +33,14 @@ interface Props {
   topTraderRatio?: TopTraderRatio;
   marketRegime?: MarketRegimeAnalysis;
   volumeProfile?: VolumeProfileAnalysis;
+  timeframeVolumeProfiles?: { timeframe: Timeframe; profile: VolumeProfileAnalysis }[];
   liquidation?: LiquidationAnalysis;
   orderFlow?: OrderFlowAnalysis;
   divergenceAggregation?: DivergenceAggregation;
   sentiment?: SentimentAnalysis;
 }
 
-export default function Conclusion({ conclusion, reason, patterns, derivatives, indicators, hierarchical, falseBreakouts, wickRejections, volumeSpikes, confidence, divergences, topTraderRatio, marketRegime, volumeProfile, liquidation, orderFlow, divergenceAggregation, sentiment }: Props) {
+export default function Conclusion({ conclusion, reason, patterns, derivatives, indicators, hierarchical, falseBreakouts, wickRejections, volumeSpikes, confidence, divergences, topTraderRatio, marketRegime, volumeProfile, timeframeVolumeProfiles, liquidation, orderFlow, divergenceAggregation, sentiment }: Props) {
   const config = CONCLUSION_CONFIG[conclusion];
 
   return (
@@ -121,7 +122,23 @@ export default function Conclusion({ conclusion, reason, patterns, derivatives, 
       {/* Volume Profile + Order Flow + Divergence Aggregation row */}
       {(volumeProfile || orderFlow || divergenceAggregation) && (
         <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
-          {volumeProfile && (
+          {(timeframeVolumeProfiles && timeframeVolumeProfiles.length > 0) ? (
+            <div className="border border-gray-600 rounded-lg p-3">
+              <h4 className="text-gray-400 font-semibold text-sm mb-2">VRVP (各足)<HelpTip text="時間足別の価格帯別出来高。各足でPOC・Value Areaを算出し、多足一致で信頼度が上がります" /></h4>
+              <div className="space-y-1.5">
+                {timeframeVolumeProfiles.map(({ timeframe, profile }) => (
+                  <div key={timeframe} className="flex items-center gap-2 text-xs">
+                    <span className="text-gray-500 w-8 shrink-0">{timeframe}</span>
+                    <span className="text-gray-300">POC ${profile.poc.toFixed(0)}</span>
+                    <span className="text-gray-500">VA ${profile.valueAreaLow.toFixed(0)}-${profile.valueAreaHigh.toFixed(0)}</span>
+                    <span className={`${profile.currentPriceVsVA === 'above' ? 'text-green-400' : profile.currentPriceVsVA === 'below' ? 'text-red-400' : 'text-yellow-400'}`}>
+                      {profile.currentPriceVsVA === 'above' ? 'VA上' : profile.currentPriceVsVA === 'below' ? 'VA下' : 'VA内'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : volumeProfile ? (
             <div className="border border-gray-600 rounded-lg p-3">
               <h4 className="text-gray-400 font-semibold text-sm mb-1">Volume Profile<HelpTip text="価格帯別出来高。POC(最大出来高)とValue Area(70%出来高帯)を示します" /></h4>
               <div className="text-xs text-gray-300">POC: ${volumeProfile.poc.toFixed(0)}</div>
@@ -130,7 +147,7 @@ export default function Conclusion({ conclusion, reason, patterns, derivatives, 
                 {volumeProfile.currentPriceVsVA === 'above' ? 'VA上方' : volumeProfile.currentPriceVsVA === 'below' ? 'VA下方' : 'VA内'}
               </div>
             </div>
-          )}
+          ) : null}
           {orderFlow && (
             <div className="border border-gray-600 rounded-lg p-3">
               <h4 className="text-gray-400 font-semibold text-sm mb-1">オーダーフロー<HelpTip text="Taker買い/売りの比率から短期の需給バランスを推定します" /></h4>

@@ -132,6 +132,9 @@ function analyzeTimeframe(
   // Divergence detection (RSI / MACD)
   const divergences = detectDivergences(candles);
 
+  // Volume profile (VRVP) per timeframe
+  const volumeProfile = buildVolumeProfile(candles);
+
   // Previous day high/low (only meaningful for daily candles)
   let prevDayHigh: number | undefined;
   let prevDayLow: number | undefined;
@@ -151,6 +154,7 @@ function analyzeTimeframe(
     wickRejections,
     volumeSpikes,
     divergences,
+    volumeProfile,
   };
 }
 
@@ -407,6 +411,19 @@ function determineConclusion(
         if (div.type === 'hidden_bearish') bearishScore += 0.8 * w;
       }
     }
+
+    // VRVP: price position relative to Value Area
+    if (d.volumeProfile) {
+      const vp = d.volumeProfile;
+      if (vp.currentPriceVsVA === 'above') {
+        // Price above VA: bullish momentum (continuation) but overextension risk
+        bullishScore += 0.3 * w;
+      } else if (vp.currentPriceVsVA === 'below') {
+        // Price below VA: bearish momentum but potential mean reversion
+        bearishScore += 0.3 * w;
+      }
+      // Price near POC in ranging market suggests consolidation (no directional bias)
+    }
   }
 
   // Normalize by total weight
@@ -582,7 +599,19 @@ function calcConfidence(
     }
   }
 
-  // 7. Hierarchical alignment (+5)
+  // 7. VRVP multi-timeframe consistency (+5 if majority agree on VA position)
+  const vpPositions = details.map((d) => d.volumeProfile?.currentPriceVsVA).filter(Boolean);
+  if (vpPositions.length >= 2) {
+    const aboveCount = vpPositions.filter((p) => p === 'above').length;
+    const belowCount = vpPositions.filter((p) => p === 'below').length;
+    const majorityThreshold = vpPositions.length / 2;
+    if (aboveCount > majorityThreshold || belowCount > majorityThreshold) {
+      score += 5;
+      factors.push({ name: 'VRVP方向一致', contribution: 5, positive: true });
+    }
+  }
+
+  // 8. Hierarchical alignment (+5)
   if (hierarchical) {
     const bullBias = hierarchical.dailyBias === 'bullish' || hierarchical.dailyBias === 'strongly_bullish';
     const bearBias = hierarchical.dailyBias === 'bearish' || hierarchical.dailyBias === 'strongly_bearish';
@@ -767,8 +796,13 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
     trend.direction,
   );
 
-  // Volume profile (from primary timeframe candles)
+  // Volume profile (from primary timeframe candles — kept for backward compat)
   const volumeProfile = buildVolumeProfile(sortedTf[sortedTf.length - 1].candles);
+
+  // Per-timeframe volume profiles (VRVP)
+  const timeframeVolumeProfiles = details
+    .filter((d) => d.volumeProfile != null)
+    .map((d) => ({ timeframe: d.timeframe, profile: d.volumeProfile! }));
 
   // Liquidation level estimation
   const liquidation = estimateLiquidationLevels(
@@ -816,6 +850,7 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
     topTraderRatio: input.topTraderRatio,
     marketRegime,
     volumeProfile,
+    timeframeVolumeProfiles,
     liquidation,
     orderFlow,
     divergenceAggregation,

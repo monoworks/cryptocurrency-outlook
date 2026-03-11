@@ -367,6 +367,7 @@ export interface TimeframeAnalysis {
   wickRejections?: WickRejectionZone[];
   volumeSpikes?: VolumeSpike[];
   divergences?: Divergence[];
+  volumeProfile?: VolumeProfileAnalysis;
 }
 
 // ===== Full Analysis Result =====
@@ -413,8 +414,10 @@ export interface AnalysisResult {
   topTraderRatio?: TopTraderRatio;
   // Market regime
   marketRegime?: MarketRegimeAnalysis;
-  // Volume profile
+  // Volume profile (primary timeframe)
   volumeProfile?: VolumeProfileAnalysis;
+  // Volume profile per timeframe (VRVP)
+  timeframeVolumeProfiles?: { timeframe: Timeframe; profile: VolumeProfileAnalysis }[];
   // Liquidation levels
   liquidation?: LiquidationAnalysis;
   // Order flow

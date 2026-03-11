@@ -183,6 +183,7 @@ export default function Home() {
                   topTraderRatio={result.topTraderRatio}
                   marketRegime={result.marketRegime}
                   volumeProfile={result.volumeProfile}
+                  timeframeVolumeProfiles={result.timeframeVolumeProfiles}
                   liquidation={result.liquidation}
                   orderFlow={result.orderFlow}
                   divergenceAggregation={result.divergenceAggregation}
