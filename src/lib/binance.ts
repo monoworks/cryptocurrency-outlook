@@ -28,6 +28,11 @@ async function fetchJSON<T>(endpoint: string, params: Record<string, string> = {
 }
 
 export async function getKlines(symbol: string, interval: Timeframe, limit = 200): Promise<OHLCV[]> {
+  const { candles } = await getKlinesWithTakerVolume(symbol, interval, limit);
+  return candles;
+}
+
+export async function getKlinesWithTakerVolume(symbol: string, interval: Timeframe, limit = 200): Promise<{ candles: OHLCV[]; takerBuyVolumes: number[] }> {
   type KlineRaw = [number, string, string, string, string, string, number, string, number, string, string, string];
   const data = await fetchJSON<KlineRaw[]>('/fapi/v1/klines', {
     symbol: symbol.toUpperCase(),
@@ -35,7 +40,7 @@ export async function getKlines(symbol: string, interval: Timeframe, limit = 200
     limit: String(limit),
   });
 
-  return data.map((k) => ({
+  const candles = data.map((k) => ({
     time: k[0],
     open: parseFloat(k[1]),
     high: parseFloat(k[2]),
@@ -43,6 +48,10 @@ export async function getKlines(symbol: string, interval: Timeframe, limit = 200
     close: parseFloat(k[4]),
     volume: parseFloat(k[5]),
   }));
+
+  const takerBuyVolumes = data.map((k) => parseFloat(k[9]));
+
+  return { candles, takerBuyVolumes };
 }
 
 export async function getTicker(symbol: string): Promise<TickerData> {

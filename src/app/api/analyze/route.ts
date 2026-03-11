@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getKlines, getTicker, getOpenInterest, getFundingRate, getPremiumIndex, getOIHistory, getFundingHistory, getTopTraderRatio } from '@/lib/binance';
+import { getKlinesWithTakerVolume, getTicker, getOpenInterest, getFundingRate, getPremiumIndex, getOIHistory, getFundingHistory, getTopTraderRatio } from '@/lib/binance';
 import { generateSignal } from '@/lib/signal';
 import { Timeframe } from '@/lib/types';
+import { fetchFearGreedIndex } from '@/lib/sentiment';
 
 export const preferredRegion = 'hnd1';
 
@@ -29,9 +30,11 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // Fetch candles for each timeframe + shared market data + derivatives history in parallel
-    const [candlesResults, ticker, openInterest, fundingRate, premiumIndex, oiHistory, fundingHistory, topTraderRatio] = await Promise.all([
-      Promise.all(timeframes.map((tf) => getKlines(symbol, tf).then((candles) => ({ timeframe: tf, candles })))),
+    // Fetch candles (with taker volume) for each timeframe + shared market data in parallel
+    const [candlesResults, ticker, openInterest, fundingRate, premiumIndex, oiHistory, fundingHistory, topTraderRatio, fearGreed] = await Promise.all([
+      Promise.all(timeframes.map((tf) =>
+        getKlinesWithTakerVolume(symbol, tf).then((r) => ({ timeframe: tf, candles: r.candles, takerBuyVolumes: r.takerBuyVolumes }))
+      )),
       getTicker(symbol),
       getOpenInterest(symbol),
       getFundingRate(symbol),
@@ -39,6 +42,7 @@ export async function GET(req: NextRequest) {
       getOIHistory(symbol, '1h', 24).catch(() => []),
       getFundingHistory(symbol, 20).catch(() => []),
       getTopTraderRatio(symbol).catch(() => null),
+      fetchFearGreedIndex().catch(() => null),
     ]);
 
     const result = generateSignal({
@@ -52,6 +56,7 @@ export async function GET(req: NextRequest) {
         ? { oiHistory, fundingHistory }
         : undefined,
       topTraderRatio: topTraderRatio ?? undefined,
+      fearGreed: fearGreed ?? undefined,
     });
 
     return NextResponse.json(result);

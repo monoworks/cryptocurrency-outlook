@@ -17,6 +17,8 @@ import {
   HierarchicalAnalysis,
   MarketBias,
   TopTraderRatio,
+  DivergenceAggregation,
+  FearGreedData,
 } from './types';
 import { calcIndicators } from './indicators';
 import { detectPatterns, detectFalseBreakouts, detectWickRejections, detectVolumeSpikes } from './patterns';
@@ -24,6 +26,11 @@ import { analyzeTrend, analyzePullback, detectRetest } from './trend';
 import { detectSupportResistance, detectVolumeBreakouts } from './support-resistance';
 import { analyzeDerivatives } from './derivatives';
 import { detectDivergences } from './divergence';
+import { classifyMarketRegime } from './market-regime';
+import { buildVolumeProfile } from './volume-profile';
+import { estimateLiquidationLevels } from './liquidation';
+import { analyzeOrderFlow } from './order-flow';
+import { analyzeSentiment } from './sentiment';
 
 // Weight for each timeframe (higher = more influence on combined result)
 const TIMEFRAME_WEIGHT: Record<Timeframe, number> = {
@@ -316,6 +323,8 @@ function determineConclusion(
   longSetup: TradeSetup,
   shortSetup: TradeSetup,
   hierarchical?: HierarchicalAnalysis,
+  orderFlowData?: { imbalance: number },
+  sentimentSignal?: string,
 ): { conclusion: SignalConclusion; reason: string } {
   let bullishScore = 0;
   let bearishScore = 0;
@@ -435,6 +444,16 @@ function determineConclusion(
     else if (hierarchical.dailyBias === 'strongly_bearish') bearishScore += 1;
     else if (hierarchical.dailyBias === 'bearish') bearishScore += 0.5;
   }
+
+  // Order flow imbalance
+  if (orderFlowData) {
+    if (orderFlowData.imbalance > 0.06) bullishScore += 0.5;
+    else if (orderFlowData.imbalance < -0.06) bearishScore += 0.5;
+  }
+
+  // Sentiment contrarian signal
+  if (sentimentSignal === 'contrarian_bullish') bullishScore += 0.3;
+  else if (sentimentSignal === 'contrarian_bearish') bearishScore += 0.3;
 
   const diff = bullishScore - bearishScore;
   const bestRR = Math.max(longSetup.riskRewardRatio, shortSetup.riskRewardRatio);
@@ -586,15 +605,59 @@ function calcConfidence(
   return { score, label, factors };
 }
 
+/**
+ * Aggregate divergences from all timeframes with weighting.
+ */
+function aggregateDivergences(details: TimeframeAnalysis[]): DivergenceAggregation {
+  let bullishCount = 0;
+  let bearishCount = 0;
+  let weightedBullish = 0;
+  let weightedBearish = 0;
+
+  for (const d of details) {
+    const w = TIMEFRAME_WEIGHT[d.timeframe];
+    if (!d.divergences) continue;
+    for (const div of d.divergences) {
+      if (div.type === 'bullish' || div.type === 'hidden_bullish') {
+        bullishCount++;
+        weightedBullish += (div.type === 'bullish' ? 1.5 : 0.8) * w;
+      } else {
+        bearishCount++;
+        weightedBearish += (div.type === 'bearish' ? 1.5 : 0.8) * w;
+      }
+    }
+  }
+
+  const diff = weightedBullish - weightedBearish;
+  let netSignal: DivergenceAggregation['netSignal'];
+  if (diff > 1) netSignal = 'bullish';
+  else if (diff < -1) netSignal = 'bearish';
+  else netSignal = 'neutral';
+
+  const total = bullishCount + bearishCount;
+  let strength: DivergenceAggregation['strength'];
+  if (total >= 3 && Math.abs(diff) > 3) strength = 'strong';
+  else if (total >= 2 && Math.abs(diff) > 1) strength = 'moderate';
+  else strength = 'weak';
+
+  const label = netSignal === 'bullish' ? '強気' : netSignal === 'bearish' ? '弱気' : '中立';
+  const description = total > 0
+    ? `${total}件検出 (強気${bullishCount}/弱気${bearishCount}), 加重スコア: ${label} (${strength})`
+    : 'ダイバージェンスなし';
+
+  return { bullishCount, bearishCount, weightedBullish, weightedBearish, netSignal, strength, description };
+}
+
 export interface MultiTimeframeInput {
   symbol: string;
   ticker: MarketData['ticker'];
   openInterest: MarketData['openInterest'];
   fundingRate: MarketData['fundingRate'];
   premiumIndex: MarketData['premiumIndex'];
-  candlesByTimeframe: { timeframe: Timeframe; candles: OHLCV[] }[];
+  candlesByTimeframe: { timeframe: Timeframe; candles: OHLCV[]; takerBuyVolumes?: number[] }[];
   derivativesHistory?: DerivativesHistory;
   topTraderRatio?: TopTraderRatio;
+  fearGreed?: FearGreedData;
 }
 
 export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
@@ -665,6 +728,13 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
     });
   }
 
+  // Order flow from primary timeframe (computed early for scoring)
+  const primaryTfEarly = sortedTf[sortedTf.length - 1];
+  const orderFlowEarly = analyzeOrderFlow(primaryTfEarly.candles, primaryTfEarly.takerBuyVolumes);
+
+  // Sentiment (computed early for scoring)
+  const sentimentEarly = input.fearGreed ? analyzeSentiment(input.fearGreed) : undefined;
+
   // Conclusion
   const { conclusion, reason } = determineConclusion(
     trend,
@@ -673,6 +743,8 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
     longSetup,
     shortSetup,
     hierarchical,
+    { imbalance: orderFlowEarly.imbalance },
+    sentimentEarly?.signal,
   );
 
   // Previous day high/low from daily candles
@@ -687,6 +759,31 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
   const primary = details[details.length - 1];
   const recentHigh = Math.max(...details.map((d) => d.recentHigh));
   const recentLow = Math.min(...details.map((d) => d.recentLow));
+
+  // Market regime classification (from primary timeframe)
+  const marketRegime = classifyMarketRegime(
+    sortedTf[sortedTf.length - 1].candles,
+    primary.indicators,
+    trend.direction,
+  );
+
+  // Volume profile (from primary timeframe candles)
+  const volumeProfile = buildVolumeProfile(sortedTf[sortedTf.length - 1].candles);
+
+  // Liquidation level estimation
+  const liquidation = estimateLiquidationLevels(
+    sortedTf[sortedTf.length - 1].candles,
+    currentPrice,
+  );
+
+  // Reuse order flow and sentiment computed earlier for scoring
+  const orderFlow = orderFlowEarly;
+
+  // Divergence aggregation across all timeframes
+  const divergenceAggregation = aggregateDivergences(details);
+
+  // Reuse sentiment computed earlier
+  const sentiment = sentimentEarly;
 
   return {
     marketSummary: {
@@ -717,5 +814,11 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
     hierarchical,
     confidence,
     topTraderRatio: input.topTraderRatio,
+    marketRegime,
+    volumeProfile,
+    liquidation,
+    orderFlow,
+    divergenceAggregation,
+    sentiment,
   };
 }

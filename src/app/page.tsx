@@ -136,6 +136,12 @@ export default function Home() {
               confidence={result.confidence}
               divergences={result.timeframeDetails.flatMap((d) => d.divergences ?? [])}
               topTraderRatio={result.topTraderRatio}
+              marketRegime={result.marketRegime}
+              volumeProfile={result.volumeProfile}
+              liquidation={result.liquidation}
+              orderFlow={result.orderFlow}
+              divergenceAggregation={result.divergenceAggregation}
+              sentiment={result.sentiment}
             />
 
             {/* AI Analysis - 将来用に非表示 */}

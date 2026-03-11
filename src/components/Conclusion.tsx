@@ -1,6 +1,6 @@
 'use client';
 
-import { SignalConclusion, CandlePattern, DerivativesAnalysis, IndicatorValues, HierarchicalAnalysis, FalseBreakout, WickRejectionZone, VolumeSpike, SignalConfidence, Divergence, TopTraderRatio } from '@/lib/types';
+import { SignalConclusion, CandlePattern, DerivativesAnalysis, IndicatorValues, HierarchicalAnalysis, FalseBreakout, WickRejectionZone, VolumeSpike, SignalConfidence, Divergence, TopTraderRatio, MarketRegimeAnalysis, VolumeProfileAnalysis, LiquidationAnalysis, OrderFlowAnalysis, DivergenceAggregation, SentimentAnalysis } from '@/lib/types';
 import HelpTip from './HelpTip';
 
 const CONCLUSION_CONFIG: Record<SignalConclusion, { label: string; color: string; bg: string }> = {
@@ -8,6 +8,14 @@ const CONCLUSION_CONFIG: Record<SignalConclusion, { label: string; color: string
   enter_short: { label: 'ショートエントリー推奨', color: 'text-red-400', bg: 'bg-red-900/30 border-red-500' },
   wait: { label: '引きつけて待機', color: 'text-yellow-400', bg: 'bg-yellow-900/30 border-yellow-500' },
   skip: { label: '見送り推奨', color: 'text-gray-400', bg: 'bg-gray-700/30 border-gray-500' },
+};
+
+const REGIME_CONFIG: Record<string, { color: string; icon: string }> = {
+  trending_up: { color: 'text-green-400', icon: '📈' },
+  trending_down: { color: 'text-red-400', icon: '📉' },
+  ranging: { color: 'text-yellow-400', icon: '↔️' },
+  volatile: { color: 'text-orange-400', icon: '⚡' },
+  quiet: { color: 'text-blue-300', icon: '😴' },
 };
 
 interface Props {
@@ -23,9 +31,15 @@ interface Props {
   confidence?: SignalConfidence;
   divergences?: Divergence[];
   topTraderRatio?: TopTraderRatio;
+  marketRegime?: MarketRegimeAnalysis;
+  volumeProfile?: VolumeProfileAnalysis;
+  liquidation?: LiquidationAnalysis;
+  orderFlow?: OrderFlowAnalysis;
+  divergenceAggregation?: DivergenceAggregation;
+  sentiment?: SentimentAnalysis;
 }
 
-export default function Conclusion({ conclusion, reason, patterns, derivatives, indicators, hierarchical, falseBreakouts, wickRejections, volumeSpikes, confidence, divergences, topTraderRatio }: Props) {
+export default function Conclusion({ conclusion, reason, patterns, derivatives, indicators, hierarchical, falseBreakouts, wickRejections, volumeSpikes, confidence, divergences, topTraderRatio, marketRegime, volumeProfile, liquidation, orderFlow, divergenceAggregation, sentiment }: Props) {
   const config = CONCLUSION_CONFIG[conclusion];
 
   return (
@@ -35,6 +49,49 @@ export default function Conclusion({ conclusion, reason, patterns, derivatives, 
         <div className={`text-xl font-bold ${config.color} mb-2`}>{config.label}</div>
         <p className="text-gray-300 text-sm">{reason}</p>
       </div>
+
+      {/* Market Regime + Sentiment row */}
+      {(marketRegime || sentiment) && (
+        <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+          {marketRegime && (
+            <div className="border border-gray-600 rounded-lg p-3">
+              <h4 className="text-gray-400 font-semibold text-sm mb-1">マーケットレジーム<HelpTip text="現在の市場状態を分類。戦略選択の基盤となります" /></h4>
+              <div className={`text-sm font-bold ${REGIME_CONFIG[marketRegime.regime]?.color ?? 'text-gray-300'}`}>
+                {REGIME_CONFIG[marketRegime.regime]?.icon} {marketRegime.label}
+              </div>
+              <div className="text-xs text-gray-400 mt-1">{marketRegime.description}</div>
+              <div className="flex gap-2 mt-1 text-xs text-gray-500">
+                <span>BB幅: {marketRegime.bbWidth.toFixed(1)}%</span>
+                <span>ATR: {marketRegime.atrPercent.toFixed(2)}%</span>
+                <span>ADX: {marketRegime.adx.toFixed(0)}</span>
+              </div>
+            </div>
+          )}
+          {sentiment && (
+            <div className="border border-gray-600 rounded-lg p-3">
+              <h4 className="text-gray-400 font-semibold text-sm mb-1">センチメント<HelpTip text="Fear & Greed Index。極端な恐怖は買い、極端な貪欲は売りの逆張りシグナル" /></h4>
+              {sentiment.fearGreed ? (
+                <>
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="flex-1 bg-gray-700 rounded-full h-2">
+                      <div
+                        className={`h-2 rounded-full ${sentiment.fearGreed.value <= 25 ? 'bg-red-500' : sentiment.fearGreed.value <= 45 ? 'bg-orange-500' : sentiment.fearGreed.value <= 55 ? 'bg-yellow-500' : sentiment.fearGreed.value <= 75 ? 'bg-lime-500' : 'bg-green-500'}`}
+                        style={{ width: `${sentiment.fearGreed.value}%` }}
+                      />
+                    </div>
+                    <span className="text-sm font-bold text-gray-300">{sentiment.fearGreed.value}</span>
+                  </div>
+                  <div className={`text-xs ${sentiment.signal === 'contrarian_bullish' ? 'text-green-400' : sentiment.signal === 'contrarian_bearish' ? 'text-red-400' : 'text-gray-400'}`}>
+                    {sentiment.description}
+                  </div>
+                </>
+              ) : (
+                <div className="text-xs text-gray-500">{sentiment.description}</div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Confidence Score */}
       {confidence && (
@@ -61,7 +118,43 @@ export default function Conclusion({ conclusion, reason, patterns, derivatives, 
         </div>
       )}
 
-      {/* Divergences */}
+      {/* Volume Profile + Order Flow + Divergence Aggregation row */}
+      {(volumeProfile || orderFlow || divergenceAggregation) && (
+        <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
+          {volumeProfile && (
+            <div className="border border-gray-600 rounded-lg p-3">
+              <h4 className="text-gray-400 font-semibold text-sm mb-1">Volume Profile<HelpTip text="価格帯別出来高。POC(最大出来高)とValue Area(70%出来高帯)を示します" /></h4>
+              <div className="text-xs text-gray-300">POC: ${volumeProfile.poc.toFixed(0)}</div>
+              <div className="text-xs text-gray-300">VA: ${volumeProfile.valueAreaLow.toFixed(0)} - ${volumeProfile.valueAreaHigh.toFixed(0)}</div>
+              <div className={`text-xs mt-1 ${volumeProfile.currentPriceVsVA === 'above' ? 'text-green-400' : volumeProfile.currentPriceVsVA === 'below' ? 'text-red-400' : 'text-yellow-400'}`}>
+                {volumeProfile.currentPriceVsVA === 'above' ? 'VA上方' : volumeProfile.currentPriceVsVA === 'below' ? 'VA下方' : 'VA内'}
+              </div>
+            </div>
+          )}
+          {orderFlow && (
+            <div className="border border-gray-600 rounded-lg p-3">
+              <h4 className="text-gray-400 font-semibold text-sm mb-1">オーダーフロー<HelpTip text="Taker買い/売りの比率から短期の需給バランスを推定します" /></h4>
+              <div className="flex h-2 rounded-full overflow-hidden bg-gray-700 mb-1">
+                <div className="bg-green-500" style={{ width: `${orderFlow.takerBuyRatio * 100}%` }} />
+                <div className="bg-red-500" style={{ width: `${orderFlow.takerSellRatio * 100}%` }} />
+              </div>
+              <div className={`text-xs ${orderFlow.trend === 'buy_dominant' ? 'text-green-400' : orderFlow.trend === 'sell_dominant' ? 'text-red-400' : 'text-gray-400'}`}>
+                {orderFlow.description}
+              </div>
+            </div>
+          )}
+          {divergenceAggregation && (divergenceAggregation.bullishCount + divergenceAggregation.bearishCount > 0) && (
+            <div className="border border-gray-600 rounded-lg p-3">
+              <h4 className="text-gray-400 font-semibold text-sm mb-1">ダイバージェンス集約<HelpTip text="全時間足のダイバージェンスを加重集約した総合判定です" /></h4>
+              <div className={`text-xs ${divergenceAggregation.netSignal === 'bullish' ? 'text-green-400' : divergenceAggregation.netSignal === 'bearish' ? 'text-red-400' : 'text-gray-400'}`}>
+                {divergenceAggregation.description}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Divergences detail */}
       {divergences && divergences.length > 0 && (
         <div className="mt-3 border border-indigo-500/30 rounded-lg p-3 bg-indigo-900/10">
           <h4 className="text-indigo-400 font-semibold text-sm mb-2">ダイバージェンス検出<HelpTip text="価格とRSI/MACDの方向が乖離しているパターン。トレンド転換の予兆となります" /></h4>
@@ -89,6 +182,23 @@ export default function Conclusion({ conclusion, reason, patterns, derivatives, 
               </div>
             </div>
             <span className="text-gray-300 text-xs">L/S比: {topTraderRatio.longShortRatio.toFixed(2)}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Liquidation Levels */}
+      {liquidation && liquidation.levels.length > 0 && (
+        <div className="mt-3 border border-amber-500/30 rounded-lg p-3 bg-amber-900/10">
+          <h4 className="text-amber-400 font-semibold text-sm mb-2">清算レベル推定<HelpTip text="OIと価格帯から推定した清算集中ゾーン。価格が吸い寄せられやすい（磁石効果）" /></h4>
+          {liquidation.magnetZone && (
+            <div className="text-xs text-amber-300 mb-2">磁石ゾーン: {liquidation.magnetZone}</div>
+          )}
+          <div className="grid grid-cols-2 gap-1">
+            {liquidation.levels.slice(0, 6).map((l, i) => (
+              <div key={i} className={`text-xs ${l.side === 'long' ? 'text-red-300' : 'text-green-300'} ${l.intensity === 'high' ? 'font-bold' : ''}`}>
+                ${l.price.toFixed(0)} ({l.side === 'long' ? 'L' : 'S'} {l.leverage}x) {l.intensity === 'high' ? '!!!' : l.intensity === 'medium' ? '!!' : ''}
+              </div>
+            ))}
           </div>
         </div>
       )}

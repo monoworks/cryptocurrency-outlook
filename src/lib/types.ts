@@ -95,6 +95,96 @@ export interface TopTraderRatio {
   timestamp: number;
 }
 
+// ===== Market Regime =====
+
+export type MarketRegime = 'trending_up' | 'trending_down' | 'ranging' | 'volatile' | 'quiet';
+
+export interface MarketRegimeAnalysis {
+  regime: MarketRegime;
+  label: string;
+  description: string;
+  bbWidth: number;
+  atrPercent: number;
+  adx: number;
+  volatilityRank: 'high' | 'normal' | 'low';
+}
+
+// ===== Volume Profile =====
+
+export interface VolumeProfileLevel {
+  priceMin: number;
+  priceMax: number;
+  priceMid: number;
+  volume: number;
+  percentage: number;
+}
+
+export interface VolumeProfileAnalysis {
+  poc: number;
+  pocVolume: number;
+  valueAreaHigh: number;
+  valueAreaLow: number;
+  levels: VolumeProfileLevel[];
+  currentPriceVsVA: 'above' | 'inside' | 'below';
+  description: string;
+}
+
+// ===== Liquidation Levels =====
+
+export interface LiquidationLevel {
+  price: number;
+  side: 'long' | 'short';
+  leverage: number;
+  intensity: 'high' | 'medium' | 'low';
+  description: string;
+}
+
+export interface LiquidationAnalysis {
+  levels: LiquidationLevel[];
+  nearestLongLiq: number | null;
+  nearestShortLiq: number | null;
+  magnetZone: string | null;
+}
+
+// ===== Order Flow =====
+
+export interface OrderFlowAnalysis {
+  takerBuyRatio: number;
+  takerSellRatio: number;
+  imbalance: number;
+  recentImbalance: number;
+  trend: 'buy_dominant' | 'sell_dominant' | 'balanced';
+  description: string;
+}
+
+// ===== Divergence Aggregation =====
+
+export interface DivergenceAggregation {
+  bullishCount: number;
+  bearishCount: number;
+  weightedBullish: number;
+  weightedBearish: number;
+  netSignal: 'bullish' | 'bearish' | 'neutral';
+  strength: 'strong' | 'moderate' | 'weak';
+  description: string;
+}
+
+// ===== Sentiment =====
+
+export interface FearGreedData {
+  value: number;
+  label: string;
+  timestamp: number;
+  previousValue?: number;
+  change?: number;
+}
+
+export interface SentimentAnalysis {
+  fearGreed?: FearGreedData;
+  description: string;
+  signal: 'contrarian_bullish' | 'contrarian_bearish' | 'confirming' | 'neutral';
+}
+
 // ===== False Breakout / Wick Rejection =====
 
 export interface FalseBreakout {
@@ -321,6 +411,18 @@ export interface AnalysisResult {
   confidence?: SignalConfidence;
   // Top trader ratio
   topTraderRatio?: TopTraderRatio;
+  // Market regime
+  marketRegime?: MarketRegimeAnalysis;
+  // Volume profile
+  volumeProfile?: VolumeProfileAnalysis;
+  // Liquidation levels
+  liquidation?: LiquidationAnalysis;
+  // Order flow
+  orderFlow?: OrderFlowAnalysis;
+  // Divergence aggregation
+  divergenceAggregation?: DivergenceAggregation;
+  // Sentiment
+  sentiment?: SentimentAnalysis;
 }
 
 // ===== AI =====

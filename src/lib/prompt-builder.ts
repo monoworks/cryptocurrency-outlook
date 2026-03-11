@@ -175,6 +175,33 @@ ${result.topTraderRatio ? `## トップトレーダーL/S比率
 - ショート口座: ${(result.topTraderRatio.shortAccount * 100).toFixed(1)}%
 - L/S比: ${result.topTraderRatio.longShortRatio.toFixed(2)}` : ''}
 
+${result.marketRegime ? `## マーケットレジーム
+- 状態: ${result.marketRegime.label} (${result.marketRegime.regime})
+- ${result.marketRegime.description}
+- BB幅: ${result.marketRegime.bbWidth.toFixed(1)}%, ATR: ${result.marketRegime.atrPercent.toFixed(2)}%, ボラティリティ: ${result.marketRegime.volatilityRank === 'high' ? '高' : result.marketRegime.volatilityRank === 'low' ? '低' : '普通'}` : ''}
+
+${result.volumeProfile ? `## Volume Profile
+- POC (最大出来高価格): $${formatNum(result.volumeProfile.poc, 0)}
+- Value Area: $${formatNum(result.volumeProfile.valueAreaLow, 0)} - $${formatNum(result.volumeProfile.valueAreaHigh, 0)}
+- 現在価格: ${result.volumeProfile.currentPriceVsVA === 'above' ? 'VA上方' : result.volumeProfile.currentPriceVsVA === 'below' ? 'VA下方' : 'VA内'}` : ''}
+
+${result.liquidation && result.liquidation.levels.length > 0 ? `## 清算レベル推定
+${result.liquidation.magnetZone ? `- 磁石ゾーン: ${result.liquidation.magnetZone}` : ''}
+${result.liquidation.nearestLongLiq ? `- 最寄りロング清算: $${formatNum(result.liquidation.nearestLongLiq, 0)}` : ''}
+${result.liquidation.nearestShortLiq ? `- 最寄りショート清算: $${formatNum(result.liquidation.nearestShortLiq, 0)}` : ''}
+${result.liquidation.levels.slice(0, 6).map((l) => `- ${l.description}`).join('\n')}` : ''}
+
+${result.orderFlow ? `## オーダーフロー
+- ${result.orderFlow.description}
+- 全体不均衡: ${(result.orderFlow.imbalance * 100).toFixed(1)}%
+- 直近5本不均衡: ${(result.orderFlow.recentImbalance * 100).toFixed(1)}%` : ''}
+
+${result.divergenceAggregation && (result.divergenceAggregation.bullishCount + result.divergenceAggregation.bearishCount > 0) ? `## ダイバージェンス集約
+- ${result.divergenceAggregation.description}` : ''}
+
+${result.sentiment ? `## センチメント (Fear & Greed Index)
+- ${result.sentiment.description}` : ''}
+
 ## ⑦ 結論
 ${result.conclusionReason}
 
@@ -182,10 +209,11 @@ ${result.conclusionReason}
 上記のデータに基づいて、以下の観点でトレード判断のアドバイスをお願いします:
 1. 各時間足の方向性の一致/不一致の評価
 2. 現在のマーケット状況の総合評価（数値群の温度感を含む）
-3. ロングとショートどちらが有利か、その根拠
-4. 具体的なエントリー戦略（押し目買い/戻り売り、引きつけ位置）
-5. 注意すべきリスク要因（OI変化、Funding過熱など）
-6. 重要な価格レベルと、そこを超えた/割れた場合の対応`;
+3. マーケットレジームに適した戦略の提案
+4. ロングとショートどちらが有利か、その根拠
+5. 具体的なエントリー戦略（押し目買い/戻り売り、引きつけ位置、POC/VA基準）
+6. 注意すべきリスク要因（OI変化、Funding過熱、清算レベル、オーダーフロー偏り）
+7. 重要な価格レベルと、そこを超えた/割れた場合の対応`;
 }
 
 export function buildImageAnalysisPrompt(): string {
