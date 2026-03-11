@@ -1,6 +1,6 @@
 'use client';
 
-import { SignalConclusion, CandlePattern, DerivativesAnalysis, IndicatorValues } from '@/lib/types';
+import { SignalConclusion, CandlePattern, DerivativesAnalysis, IndicatorValues, HierarchicalAnalysis } from '@/lib/types';
 import HelpTip from './HelpTip';
 
 const CONCLUSION_CONFIG: Record<SignalConclusion, { label: string; color: string; bg: string }> = {
@@ -16,9 +16,10 @@ interface Props {
   patterns: CandlePattern[];
   derivatives: DerivativesAnalysis;
   indicators: IndicatorValues;
+  hierarchical?: HierarchicalAnalysis;
 }
 
-export default function Conclusion({ conclusion, reason, patterns, derivatives, indicators }: Props) {
+export default function Conclusion({ conclusion, reason, patterns, derivatives, indicators, hierarchical }: Props) {
   const config = CONCLUSION_CONFIG[conclusion];
 
   return (
@@ -28,6 +29,27 @@ export default function Conclusion({ conclusion, reason, patterns, derivatives, 
         <div className={`text-xl font-bold ${config.color} mb-2`}>{config.label}</div>
         <p className="text-gray-300 text-sm">{reason}</p>
       </div>
+
+      {/* Hierarchical analysis */}
+      {hierarchical && (
+        <div className="mt-3 border border-blue-500/30 rounded-lg p-3 bg-blue-900/10">
+          <h4 className="text-blue-400 font-semibold text-sm mb-2">階層的分析 (日足→4h→1h→15m)<HelpTip text="上位足から順に方向性を確認し、下位足で具体的なエントリー位置を決める分析手法です" /></h4>
+          <div className="text-sm text-gray-300 space-y-1">
+            <div>日足バイアス: <span className={
+              hierarchical.dailyBias.includes('bullish') ? 'text-green-400' :
+              hierarchical.dailyBias.includes('bearish') ? 'text-red-400' : 'text-gray-400'
+            }>
+              {hierarchical.dailyBias === 'strongly_bullish' ? '強い強気' :
+               hierarchical.dailyBias === 'bullish' ? '強気' :
+               hierarchical.dailyBias === 'strongly_bearish' ? '強い弱気' :
+               hierarchical.dailyBias === 'bearish' ? '弱気' : '中立'}
+            </span></div>
+            <div>4h波動: <span className="text-gray-200">{hierarchical.h4WavePosition}</span></div>
+            <div>1h戦略: <span className="text-yellow-300">{hierarchical.h1Strategy}</span></div>
+            <div>エントリー: <span className="text-gray-200">{hierarchical.entryTimeframe}</span></div>
+          </div>
+        </div>
+      )}
 
       {/* Extra details */}
       <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
@@ -53,7 +75,25 @@ export default function Conclusion({ conclusion, reason, patterns, derivatives, 
             Funding: <span className={derivatives.fundingBias === 'long_heavy' ? 'text-yellow-400' : derivatives.fundingBias === 'short_heavy' ? 'text-blue-400' : 'text-gray-300'}>
               {derivatives.fundingBias === 'long_heavy' ? 'ロング偏り' : derivatives.fundingBias === 'short_heavy' ? 'ショート偏り' : '中立'}
             </span>
+            {derivatives.fundingTrend && (
+              <span className="ml-1 text-xs">
+                ({derivatives.fundingTrend.trend === 'rising' ? '上昇傾向' : derivatives.fundingTrend.trend === 'falling' ? '低下傾向' : '横ばい'}
+                {derivatives.fundingTrend.isOverheated && ' ⚠過熱'})
+              </span>
+            )}
           </div>
+          {derivatives.oiChange && (
+            <div className="text-gray-400 mt-1">
+              OI変化: <span className={derivatives.oiChange.direction === 'increasing' ? 'text-green-400' : derivatives.oiChange.direction === 'decreasing' ? 'text-red-400' : 'text-gray-300'}>
+                {derivatives.oiChange.changePercent > 0 ? '+' : ''}{derivatives.oiChange.changePercent}%
+              </span>
+            </div>
+          )}
+          {derivatives.markOracleDivergence != null && Math.abs(derivatives.markOracleDivergence) > 0.001 && (
+            <div className="text-gray-400 mt-1">
+              Mark/Oracle乖離: <span className="text-gray-300">{derivatives.markOracleDivergence.toFixed(4)}%</span>
+            </div>
+          )}
         </div>
 
         {/* Key Indicators */}

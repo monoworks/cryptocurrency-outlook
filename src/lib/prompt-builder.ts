@@ -20,7 +20,7 @@ const STRENGTH_LABELS: Record<string, string> = {
 };
 
 export function buildAnalysisPrompt(result: AnalysisResult): string {
-  const { marketSummary: ms, trend, levels, longSetup, shortSetup, breakoutLevels, derivatives, indicators, patterns, timeframeDetails } = result;
+  const { marketSummary: ms, trend, levels, longSetup, shortSetup, breakoutLevels, derivatives, indicators, patterns, timeframeDetails, hierarchical } = result;
 
   const supports = levels.filter((l) => l.type === 'support').sort((a, b) => b.price - a.price);
   const resistances = levels.filter((l) => l.type === 'resistance').sort((a, b) => a.price - b.price);
@@ -35,12 +35,51 @@ export function buildAnalysisPrompt(result: AnalysisResult): string {
     const patternText = d.patterns.length > 0
       ? d.patterns.map((p) => p.label).join(', ')
       : 'なし';
+
+    let extra = '';
+    if (d.pullback) {
+      extra += `\n- 押し目/戻り: ${d.pullback.description}`;
+    }
+    if (d.volumeBreakouts && d.volumeBreakouts.length > 0) {
+      extra += `\n- 出来高ブレイク: ${d.volumeBreakouts.map((vb) => vb.description).join(', ')}`;
+    }
+
     return `### ${tfLabel}
 - トレンド: ${trendLabel} (${strengthLabel})
 - RSI: ${rsi} / MACD Hist: ${macdHist}
 - パターン: ${patternText}
-- 高値切り上げ: ${d.trend.higherHighs ? 'はい' : 'いいえ'} / 安値切り上げ: ${d.trend.higherLows ? 'はい' : 'いいえ'}`;
+- 高値切り上げ: ${d.trend.higherHighs ? 'はい' : 'いいえ'} / 安値切り上げ: ${d.trend.higherLows ? 'はい' : 'いいえ'}${extra}`;
   }).join('\n\n');
+
+  // Previous day info
+  const prevDayInfo = ms.prevDayHigh != null && ms.prevDayLow != null
+    ? `\n- 前日高値: $${formatNum(ms.prevDayHigh)} ${ms.currentPrice > ms.prevDayHigh ? '(上回っている→強気)' : '(下回っている)'}\n- 前日安値: $${formatNum(ms.prevDayLow)} ${ms.currentPrice < ms.prevDayLow ? '(下回っている→弱気)' : '(上回っている)'}`
+    : '';
+
+  // Hierarchical analysis
+  const hierarchicalSection = hierarchical
+    ? `\n## 階層的分析 (日足→4h→1h→15m)
+- 日足バイアス: ${hierarchical.dailyBias}
+- 4h波動: ${hierarchical.h4WavePosition}
+- 1h戦略: ${hierarchical.h1Strategy}
+- エントリー足: ${hierarchical.entryTimeframe}
+- 要約: ${hierarchical.description}`
+    : '';
+
+  // Enhanced derivatives
+  let derivativesText = `- OI × 価格: ${derivatives.oiPriceDescription}
+- Funding偏り: ${derivatives.fundingBias === 'long_heavy' ? 'ロング偏り' : derivatives.fundingBias === 'short_heavy' ? 'ショート偏り' : '中立'}
+- Premium: ${derivatives.premiumSignal === 'bullish' ? '強気' : derivatives.premiumSignal === 'bearish' ? '弱気' : '中立'} (${derivatives.premium.toFixed(4)}%)`;
+
+  if (derivatives.oiChange) {
+    derivativesText += `\n- OI変化: ${derivatives.oiChange.changePercent > 0 ? '+' : ''}${derivatives.oiChange.changePercent}% (${derivatives.oiChange.direction === 'increasing' ? '増加中' : derivatives.oiChange.direction === 'decreasing' ? '減少中' : '横ばい'})`;
+  }
+  if (derivatives.fundingTrend) {
+    derivativesText += `\n- Funding推移: ${derivatives.fundingTrend.trend === 'rising' ? '上昇傾向' : derivatives.fundingTrend.trend === 'falling' ? '低下傾向' : '横ばい'}${derivatives.fundingTrend.isOverheated ? ' (過熱注意)' : ''}`;
+  }
+  if (derivatives.markOracleDivergence != null) {
+    derivativesText += `\n- Mark/Oracle乖離: ${derivatives.markOracleDivergence.toFixed(4)}%`;
+  }
 
   return `# 暗号通貨トレード分析データ (マルチタイムフレーム)
 
@@ -54,7 +93,7 @@ export function buildAnalysisPrompt(result: AnalysisResult): string {
 - Funding Rate: ${formatPercent(ms.fundingRate)}
 - Premium: ${ms.premium.toFixed(4)}%
 - 直近高値: $${formatNum(ms.recentHigh)}
-- 直近安値: $${formatNum(ms.recentLow)}
+- 直近安値: $${formatNum(ms.recentLow)}${prevDayInfo}
 
 ## ② 各時間足の分析
 
@@ -66,6 +105,7 @@ ${tfBreakdown}
 - MA配列: ${trend.maAlignment}
 - 高値切り上げ: ${trend.higherHighs ? 'はい' : 'いいえ'}
 - 安値切り上げ: ${trend.higherLows ? 'はい' : 'いいえ'}
+${hierarchicalSection}
 
 ## プライマリ時間足テクニカル指標
 - RSI(14): ${indicators.rsi?.toFixed(1) ?? 'N/A'}
@@ -80,9 +120,7 @@ ${tfBreakdown}
 ${patterns.length > 0 ? patterns.map((p) => `- ${p.label} (${p.signal === 'bullish' ? '強気' : p.signal === 'bearish' ? '弱気' : '中立'})`).join('\n') : '- 特筆すべきパターンなし'}
 
 ## デリバティブ分析
-- OI × 価格: ${derivatives.oiPriceDescription}
-- Funding偏り: ${derivatives.fundingBias === 'long_heavy' ? 'ロング偏り' : derivatives.fundingBias === 'short_heavy' ? 'ショート偏り' : '中立'}
-- Premium: ${derivatives.premiumSignal === 'bullish' ? '強気' : derivatives.premiumSignal === 'bearish' ? '弱気' : '中立'} (${derivatives.premium.toFixed(4)}%)
+${derivativesText}
 
 ## ④ サポート/レジスタンス (統合)
 ### レジスタンス
@@ -113,10 +151,10 @@ ${result.conclusionReason}
 ---
 上記のデータに基づいて、以下の観点でトレード判断のアドバイスをお願いします:
 1. 各時間足の方向性の一致/不一致の評価
-2. 現在のマーケット状況の総合評価
+2. 現在のマーケット状況の総合評価（数値群の温度感を含む）
 3. ロングとショートどちらが有利か、その根拠
-4. 具体的なエントリー戦略（今すぐ入るべきか、引きつけるべきか）
-5. 注意すべきリスク要因
+4. 具体的なエントリー戦略（押し目買い/戻り売り、引きつけ位置）
+5. 注意すべきリスク要因（OI変化、Funding過熱など）
 6. 重要な価格レベルと、そこを超えた/割れた場合の対応`;
 }
 

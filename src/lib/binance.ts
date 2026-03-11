@@ -104,6 +104,25 @@ export async function getPremiumIndex(symbol: string): Promise<PremiumIndexData>
   };
 }
 
+export async function getOIHistory(symbol: string, period = '1h', limit = 24): Promise<{ time: number; oi: number }[]> {
+  type OIHistRaw = { symbol: string; sumOpenInterest: string; sumOpenInterestValue: string; timestamp: number };
+  const data = await fetchJSON<OIHistRaw[]>('/futures/data/openInterestHist', {
+    symbol: symbol.toUpperCase(),
+    period,
+    limit: String(limit),
+  });
+  return data.map((d) => ({ time: d.timestamp, oi: parseFloat(d.sumOpenInterest) }));
+}
+
+export async function getFundingHistory(symbol: string, limit = 20): Promise<{ time: number; rate: number }[]> {
+  type FundingRaw = { symbol: string; fundingRate: string; fundingTime: number; markPrice: string };
+  const data = await fetchJSON<FundingRaw[]>('/fapi/v1/fundingRate', {
+    symbol: symbol.toUpperCase(),
+    limit: String(limit),
+  });
+  return data.map((d) => ({ time: d.fundingTime, rate: parseFloat(d.fundingRate) }));
+}
+
 export async function getMarketData(symbol: string, timeframe: Timeframe): Promise<MarketData> {
   const [candles, ticker, openInterest, fundingRate, premiumIndex] = await Promise.all([
     getKlines(symbol, timeframe),

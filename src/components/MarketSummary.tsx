@@ -31,6 +31,14 @@ export default function MarketSummary({ data }: { data: AnalysisResult['marketSu
           valueClass={data.premium > 0 ? 'text-green-400' : data.premium < 0 ? 'text-red-400' : 'text-gray-200'} />
         <Item label="直近高値" help="分析期間内の最も高い価格です" value={`$${fmt(data.recentHigh)}`} />
         <Item label="直近安値" help="分析期間内の最も低い価格です" value={`$${fmt(data.recentLow)}`} />
+        {data.prevDayHigh != null && (
+          <Item label="前日高値" help="前日（日足）の最高値。現在値がここを上回れば強気" value={`$${fmt(data.prevDayHigh)}`}
+            valueClass={data.currentPrice > data.prevDayHigh ? 'text-green-400' : 'text-gray-200'} />
+        )}
+        {data.prevDayLow != null && (
+          <Item label="前日安値" help="前日（日足）の最安値。現在値がここを下回れば弱気" value={`$${fmt(data.prevDayLow)}`}
+            valueClass={data.currentPrice < data.prevDayLow ? 'text-red-400' : 'text-gray-200'} />
+        )}
       </div>
     </div>
   );

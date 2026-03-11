@@ -129,6 +129,7 @@ export default function Home() {
               patterns={result.patterns}
               derivatives={result.derivatives}
               indicators={result.indicators}
+              hierarchical={result.hierarchical}
             />
 
             {/* AI Analysis - 将来用に非表示 */}

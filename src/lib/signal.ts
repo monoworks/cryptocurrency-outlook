@@ -9,14 +9,17 @@ import {
   TrendDirection,
   TrendStrength,
   DerivativesAnalysis,
+  DerivativesHistory,
   Timeframe,
   TimeframeAnalysis,
   OHLCV,
+  HierarchicalAnalysis,
+  MarketBias,
 } from './types';
 import { calcIndicators } from './indicators';
 import { detectPatterns } from './patterns';
-import { analyzeTrend } from './trend';
-import { detectSupportResistance } from './support-resistance';
+import { analyzeTrend, analyzePullback, detectRetest } from './trend';
+import { detectSupportResistance, detectVolumeBreakouts } from './support-resistance';
 import { analyzeDerivatives } from './derivatives';
 
 // Weight for each timeframe (higher = more influence on combined result)
@@ -96,7 +99,29 @@ function analyzeTimeframe(
   const recentHigh = Math.max(...recent20.map((c) => c.high));
   const recentLow = Math.min(...recent20.map((c) => c.low));
 
-  return { timeframe, trend, indicators, patterns, levels, recentHigh, recentLow };
+  // Volume breakout detection
+  const volumeBreakouts = detectVolumeBreakouts(candles, levels);
+
+  // Pullback / Fibonacci analysis
+  let pullback = analyzePullback(candles, trend);
+  pullback = detectRetest(candles, levels, pullback);
+
+  // Previous day high/low (only meaningful for daily candles)
+  let prevDayHigh: number | undefined;
+  let prevDayLow: number | undefined;
+  if (timeframe === '1d' && candles.length >= 2) {
+    const prevCandle = candles[candles.length - 2];
+    prevDayHigh = prevCandle.high;
+    prevDayLow = prevCandle.low;
+  }
+
+  return {
+    timeframe, trend, indicators, patterns, levels,
+    recentHigh, recentLow,
+    volumeBreakouts,
+    pullback,
+    prevDayHigh, prevDayLow,
+  };
 }
 
 function combineTrends(details: TimeframeAnalysis[]): TrendAnalysis {
@@ -179,12 +204,95 @@ function mergeLevels(details: TimeframeAnalysis[], currentPrice: number): PriceL
   return clustered.sort((a, b) => b.strength - a.strength).slice(0, 15);
 }
 
+/**
+ * Hierarchical analysis: Daily → 4H → 1H → 15m
+ * Determines market bias from top-down perspective.
+ */
+function buildHierarchicalAnalysis(details: TimeframeAnalysis[]): HierarchicalAnalysis | undefined {
+  const byTf = new Map(details.map((d) => [d.timeframe, d]));
+  const daily = byTf.get('1d');
+  const h4 = byTf.get('4h');
+  const h1 = byTf.get('1h');
+  const m15 = byTf.get('15m');
+
+  if (!daily) return undefined;
+
+  // Step 1: Daily bias
+  let dailyBias: MarketBias = 'neutral';
+  const dTrend = daily.trend;
+  if (dTrend.direction === 'uptrend' && dTrend.strength === 'strong') dailyBias = 'strongly_bullish';
+  else if (dTrend.direction === 'uptrend') dailyBias = 'bullish';
+  else if (dTrend.direction === 'downtrend' && dTrend.strength === 'strong') dailyBias = 'strongly_bearish';
+  else if (dTrend.direction === 'downtrend') dailyBias = 'bearish';
+
+  // Step 2: 4H wave position
+  let h4WavePosition = '不明';
+  if (h4) {
+    const h4Trend = h4.trend;
+    if (h4Trend.higherHighs && h4Trend.higherLows) {
+      h4WavePosition = '高値安値切り上げ中（上昇波継続）';
+    } else if (!h4Trend.higherHighs && !h4Trend.higherLows) {
+      h4WavePosition = '高値安値切り下げ中（下落波継続）';
+    } else if (h4.pullback) {
+      h4WavePosition = `${h4.pullback.description}`;
+    } else {
+      h4WavePosition = h4Trend.direction === 'range' ? 'レンジ内推移' : '方向転換の可能性';
+    }
+  }
+
+  // Step 3: 1H strategy
+  let h1Strategy = '様子見';
+  if (h1) {
+    const bullish = dailyBias === 'bullish' || dailyBias === 'strongly_bullish';
+    const bearish = dailyBias === 'bearish' || dailyBias === 'strongly_bearish';
+
+    if (bullish && h1.pullback && h1.pullback.depth !== 'deep') {
+      h1Strategy = '押し目買い待ち';
+    } else if (bullish && h1.trend.direction === 'uptrend') {
+      h1Strategy = '上昇トレンド継続 — ブレイクアウト or 押し目買い';
+    } else if (bearish && h1.pullback && h1.pullback.depth !== 'deep') {
+      h1Strategy = '戻り売り待ち';
+    } else if (bearish && h1.trend.direction === 'downtrend') {
+      h1Strategy = '下落トレンド継続 — 戻り売り';
+    } else if (dailyBias === 'neutral') {
+      h1Strategy = 'レンジ戦略 — 上限売り/下限買い';
+    } else {
+      h1Strategy = '方向性と短期足が不一致 — 様子見推奨';
+    }
+  }
+
+  // Step 4: Entry timeframe summary
+  let entryTimeframe = '15分足で指値位置を確定';
+  if (m15 && m15.pullback?.retestDetected) {
+    entryTimeframe = `15分足リテスト確認済み — $${m15.pullback.retestLevel?.toLocaleString()} 付近`;
+  }
+
+  // Build description
+  const biasLabels: Record<MarketBias, string> = {
+    strongly_bullish: '強い強気',
+    bullish: '強気',
+    neutral: '中立',
+    bearish: '弱気',
+    strongly_bearish: '強い弱気',
+  };
+
+  const description = [
+    `日足: ${biasLabels[dailyBias]}`,
+    `4h: ${h4WavePosition}`,
+    `1h戦略: ${h1Strategy}`,
+    entryTimeframe,
+  ].join(' → ');
+
+  return { dailyBias, h4WavePosition, h1Strategy, entryTimeframe, description };
+}
+
 function determineConclusion(
   trend: TrendAnalysis,
   derivatives: DerivativesAnalysis,
   details: TimeframeAnalysis[],
   longSetup: TradeSetup,
-  shortSetup: TradeSetup
+  shortSetup: TradeSetup,
+  hierarchical?: HierarchicalAnalysis,
 ): { conclusion: SignalConclusion; reason: string } {
   let bullishScore = 0;
   let bearishScore = 0;
@@ -218,6 +326,14 @@ function determineConclusion(
       if (p.signal === 'bullish') bullishScore += 0.5 * w;
       if (p.signal === 'bearish') bearishScore += 0.5 * w;
     }
+
+    // Volume breakouts boost
+    if (d.volumeBreakouts) {
+      for (const vb of d.volumeBreakouts) {
+        if (vb.direction === 'bullish') bullishScore += 1 * w;
+        if (vb.direction === 'bearish') bearishScore += 1 * w;
+      }
+    }
   }
 
   // Normalize by total weight
@@ -231,6 +347,30 @@ function determineConclusion(
   if (derivatives.oiPriceSignal === 'long_liquidation') bearishScore += 0.5;
   if (derivatives.fundingBias === 'long_heavy') bearishScore += 0.5;
   if (derivatives.fundingBias === 'short_heavy') bullishScore += 0.5;
+
+  // OI change bonus (real data)
+  if (derivatives.oiChange) {
+    if (derivatives.oiChange.direction === 'increasing' && derivatives.oiPriceSignal === 'new_longs') {
+      bullishScore += 0.5;
+    }
+    if (derivatives.oiChange.direction === 'increasing' && derivatives.oiPriceSignal === 'new_shorts') {
+      bearishScore += 0.5;
+    }
+  }
+
+  // Funding trend overheating penalty
+  if (derivatives.fundingTrend?.isOverheated) {
+    if (derivatives.fundingTrend.current > 0) bearishScore += 0.5; // too many longs = bearish signal
+    else bullishScore += 0.5; // too many shorts = bullish signal
+  }
+
+  // Hierarchical bias bonus
+  if (hierarchical) {
+    if (hierarchical.dailyBias === 'strongly_bullish') bullishScore += 1;
+    else if (hierarchical.dailyBias === 'bullish') bullishScore += 0.5;
+    else if (hierarchical.dailyBias === 'strongly_bearish') bearishScore += 1;
+    else if (hierarchical.dailyBias === 'bearish') bearishScore += 0.5;
+  }
 
   const diff = bullishScore - bearishScore;
   const bestRR = Math.max(longSetup.riskRewardRatio, shortSetup.riskRewardRatio);
@@ -264,6 +404,11 @@ function determineConclusion(
     reason = `やや弱気だが確信度不十分 (弱気${bearishScore.toFixed(1)} vs 強気${bullishScore.toFixed(1)})。[${tfLabels}] 戻りを待ってショート検討。`;
   }
 
+  // Append hierarchical insight
+  if (hierarchical) {
+    reason += ` [階層分析: ${hierarchical.description}]`;
+  }
+
   return { conclusion, reason };
 }
 
@@ -274,6 +419,7 @@ export interface MultiTimeframeInput {
   fundingRate: MarketData['fundingRate'];
   premiumIndex: MarketData['premiumIndex'];
   candlesByTimeframe: { timeframe: Timeframe; candles: OHLCV[] }[];
+  derivativesHistory?: DerivativesHistory;
 }
 
 export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
@@ -306,7 +452,10 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
     fundingRate: input.fundingRate,
     premiumIndex: input.premiumIndex,
   };
-  const derivatives = analyzeDerivatives(derivativesData);
+  const derivatives = analyzeDerivatives(derivativesData, input.derivativesHistory);
+
+  // Hierarchical analysis (daily → 4h → 1h → 15m)
+  const hierarchical = buildHierarchicalAnalysis(details);
 
   // Trade setups from merged levels
   const nearestSupport = findNearestSupport(levels, currentPrice);
@@ -314,23 +463,29 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
   const longSetup = buildTradeSetup('long', currentPrice, nearestSupport, nearestResistance);
   const shortSetup = buildTradeSetup('short', currentPrice, nearestSupport, nearestResistance);
 
-  // Breakout levels
+  // Breakout levels (enhanced with volume breakout info)
   const breakoutLevels: BreakoutLevel[] = [];
   const resistances = levels.filter((l) => l.type === 'resistance').sort((a, b) => a.price - b.price);
   const supports = levels.filter((l) => l.type === 'support').sort((a, b) => b.price - a.price);
 
   if (resistances.length > 0) {
+    const volBreak = details.flatMap((d) => d.volumeBreakouts ?? []).find((vb) => vb.direction === 'bullish');
     breakoutLevels.push({
       price: resistances[0].price,
       direction: 'bullish_above',
-      description: `${resistances[0].price} を上抜けで強気継続`,
+      description: volBreak
+        ? `${resistances[0].price} を上抜けで強気継続（出来高${volBreak.volumeRatio}倍で確認済み）`
+        : `${resistances[0].price} を上抜けで強気継続`,
     });
   }
   if (supports.length > 0) {
+    const volBreak = details.flatMap((d) => d.volumeBreakouts ?? []).find((vb) => vb.direction === 'bearish');
     breakoutLevels.push({
       price: supports[0].price,
       direction: 'bearish_below',
-      description: `${supports[0].price} を割れで弱気転換`,
+      description: volBreak
+        ? `${supports[0].price} を割れで弱気転換（出来高${volBreak.volumeRatio}倍で確認済み）`
+        : `${supports[0].price} を割れで弱気転換`,
     });
   }
 
@@ -340,8 +495,14 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
     derivatives,
     details,
     longSetup,
-    shortSetup
+    shortSetup,
+    hierarchical,
   );
+
+  // Previous day high/low from daily candles
+  const dailyAnalysis = details.find((d) => d.timeframe === '1d');
+  const prevDayHigh = dailyAnalysis?.prevDayHigh;
+  const prevDayLow = dailyAnalysis?.prevDayLow;
 
   // Use primary (highest weight) timeframe for top-level indicators/patterns
   const primary = details[details.length - 1];
@@ -360,6 +521,8 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
       premium: derivatives.premium,
       recentHigh,
       recentLow,
+      prevDayHigh,
+      prevDayLow,
     },
     timeframeDetails: details,
     trend,
@@ -372,5 +535,6 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
     indicators: primary.indicators,
     patterns: primary.patterns,
     derivatives,
+    hierarchical,
   };
 }

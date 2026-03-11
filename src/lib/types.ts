@@ -118,6 +118,25 @@ export type OIPriceSignal =
   | 'long_liquidation' // OI↓ Price↓
   | 'neutral';
 
+export interface DerivativesHistory {
+  oiHistory: { time: number; oi: number }[];
+  fundingHistory: { time: number; rate: number }[];
+}
+
+export interface OIChange {
+  current: number;
+  previous: number;
+  changePercent: number;
+  direction: 'increasing' | 'decreasing' | 'stable';
+}
+
+export interface FundingTrend {
+  current: number;
+  average: number;
+  trend: 'rising' | 'falling' | 'stable';
+  isOverheated: boolean;
+}
+
 export interface DerivativesAnalysis {
   oiPriceSignal: OIPriceSignal;
   oiPriceDescription: string;
@@ -125,6 +144,9 @@ export interface DerivativesAnalysis {
   fundingRate: number;
   premium: number;
   premiumSignal: 'bullish' | 'bearish' | 'neutral';
+  oiChange?: OIChange;
+  fundingTrend?: FundingTrend;
+  markOracleDivergence?: number;
 }
 
 // ===== Trading Signal =====
@@ -147,6 +169,37 @@ export interface BreakoutLevel {
   description: string;
 }
 
+// ===== Volume Breakout =====
+
+export interface VolumeBreakout {
+  level: number;
+  direction: 'bullish' | 'bearish';
+  volumeRatio: number; // vs average
+  description: string;
+}
+
+// ===== Pullback / Retest =====
+
+export interface PullbackAnalysis {
+  fibLevel: number; // 0.236, 0.382, 0.5, 0.618, 0.786
+  depth: 'shallow' | 'moderate' | 'deep';
+  retestDetected: boolean;
+  retestLevel?: number;
+  description: string;
+}
+
+// ===== Hierarchical Analysis =====
+
+export type MarketBias = 'strongly_bullish' | 'bullish' | 'neutral' | 'bearish' | 'strongly_bearish';
+
+export interface HierarchicalAnalysis {
+  dailyBias: MarketBias;
+  h4WavePosition: string;
+  h1Strategy: string;
+  entryTimeframe: string;
+  description: string;
+}
+
 // ===== Per-Timeframe Analysis =====
 
 export interface TimeframeAnalysis {
@@ -157,6 +210,10 @@ export interface TimeframeAnalysis {
   levels: PriceLevel[];
   recentHigh: number;
   recentLow: number;
+  volumeBreakouts?: VolumeBreakout[];
+  pullback?: PullbackAnalysis;
+  prevDayHigh?: number;
+  prevDayLow?: number;
 }
 
 // ===== Full Analysis Result =====
@@ -174,6 +231,8 @@ export interface AnalysisResult {
     premium: number;
     recentHigh: number;
     recentLow: number;
+    prevDayHigh?: number;
+    prevDayLow?: number;
   };
   // Per-timeframe breakdown
   timeframeDetails: TimeframeAnalysis[];
@@ -193,6 +252,8 @@ export interface AnalysisResult {
   indicators: IndicatorValues;
   patterns: CandlePattern[];
   derivatives: DerivativesAnalysis;
+  // Hierarchical analysis
+  hierarchical?: HierarchicalAnalysis;
 }
 
 // ===== AI =====

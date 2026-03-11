@@ -59,18 +59,26 @@ export default function TrendBadge({ trend, timeframeDetails }: Props) {
           <div className="text-sm text-gray-400 mb-2">各時間足のトレンド:</div>
           <div className="flex flex-wrap gap-2">
             {timeframeDetails.map((d) => (
-              <div key={d.timeframe} className="flex items-center gap-1.5 bg-gray-700 rounded px-2 py-1">
-                <span className="text-xs text-gray-300">{TF_LABELS[d.timeframe] || d.timeframe}</span>
-                <span className={`text-xs font-bold ${
-                  d.trend.direction === 'uptrend' ? 'text-green-400' :
-                  d.trend.direction === 'downtrend' ? 'text-red-400' :
-                  'text-yellow-400'
-                }`}>
-                  {d.trend.direction === 'uptrend' ? '↑' : d.trend.direction === 'downtrend' ? '↓' : '→'}
-                </span>
-                <span className="text-xs text-gray-500">
-                  RSI {d.indicators.rsi?.toFixed(0) ?? '-'}
-                </span>
+              <div key={d.timeframe} className="bg-gray-700 rounded px-2 py-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-gray-300">{TF_LABELS[d.timeframe] || d.timeframe}</span>
+                  <span className={`text-xs font-bold ${
+                    d.trend.direction === 'uptrend' ? 'text-green-400' :
+                    d.trend.direction === 'downtrend' ? 'text-red-400' :
+                    'text-yellow-400'
+                  }`}>
+                    {d.trend.direction === 'uptrend' ? '↑' : d.trend.direction === 'downtrend' ? '↓' : '→'}
+                  </span>
+                  <span className="text-xs text-gray-500">
+                    RSI {d.indicators.rsi?.toFixed(0) ?? '-'}
+                  </span>
+                </div>
+                {d.pullback && (
+                  <div className="text-xs text-blue-400 mt-0.5">{d.pullback.depth === 'shallow' ? '浅い' : d.pullback.depth === 'moderate' ? '標準' : '深い'}押し目 ({(d.pullback.fibLevel * 100).toFixed(0)}%){d.pullback.retestDetected ? ' リテスト中' : ''}</div>
+                )}
+                {d.volumeBreakouts && d.volumeBreakouts.length > 0 && (
+                  <div className="text-xs text-orange-400 mt-0.5">出来高ブレイク検出</div>
+                )}
               </div>
             ))}
           </div>

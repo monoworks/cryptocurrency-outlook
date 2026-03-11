@@ -1,4 +1,4 @@
-import { OHLCV, IndicatorValues, TrendAnalysis, TrendDirection, TrendStrength } from './types';
+import { OHLCV, IndicatorValues, TrendAnalysis, TrendDirection, TrendStrength, PullbackAnalysis, PriceLevel } from './types';
 
 function detectSwings(candles: OHLCV[], lookback: number = 5): { highs: number[]; lows: number[] } {
   const swingHighs: number[] = [];
@@ -81,4 +81,93 @@ export function analyzeTrend(candles: OHLCV[], indicators: IndicatorValues): Tre
   }
 
   return { direction, strength, maAlignment, higherHighs, higherLows };
+}
+
+const FIB_LEVELS = [0.236, 0.382, 0.5, 0.618, 0.786] as const;
+
+/**
+ * Analyze pullback depth using Fibonacci retracement from the most recent swing.
+ */
+export function analyzePullback(candles: OHLCV[], trend: TrendAnalysis): PullbackAnalysis | undefined {
+  if (candles.length < 20) return undefined;
+
+  const swings = detectSwings(candles, 5);
+  const currentPrice = candles[candles.length - 1].close;
+
+  if (trend.direction === 'uptrend' && swings.highs.length >= 1 && swings.lows.length >= 1) {
+    const swingHigh = swings.highs[swings.highs.length - 1];
+    const swingLow = swings.lows[swings.lows.length - 1];
+    if (swingHigh <= swingLow) return undefined;
+
+    const range = swingHigh - swingLow;
+    const retracement = (swingHigh - currentPrice) / range;
+
+    if (retracement <= 0) return undefined; // Not pulling back
+
+    const closestFib = FIB_LEVELS.reduce((best, fib) =>
+      Math.abs(retracement - fib) < Math.abs(retracement - best) ? fib : best
+    );
+
+    const depth = closestFib <= 0.382 ? 'shallow' : closestFib <= 0.618 ? 'moderate' : 'deep';
+
+    return {
+      fibLevel: closestFib,
+      depth,
+      retestDetected: false,
+      description: `上昇波の${(closestFib * 100).toFixed(1)}%戻し付近（${depth === 'shallow' ? '浅い押し目' : depth === 'moderate' ? '標準的な押し目' : '深い押し目'}）`,
+    };
+  }
+
+  if (trend.direction === 'downtrend' && swings.highs.length >= 1 && swings.lows.length >= 1) {
+    const swingHigh = swings.highs[swings.highs.length - 1];
+    const swingLow = swings.lows[swings.lows.length - 1];
+    if (swingHigh <= swingLow) return undefined;
+
+    const range = swingHigh - swingLow;
+    const retracement = (currentPrice - swingLow) / range;
+
+    if (retracement <= 0) return undefined;
+
+    const closestFib = FIB_LEVELS.reduce((best, fib) =>
+      Math.abs(retracement - fib) < Math.abs(retracement - best) ? fib : best
+    );
+
+    const depth = closestFib <= 0.382 ? 'shallow' : closestFib <= 0.618 ? 'moderate' : 'deep';
+
+    return {
+      fibLevel: closestFib,
+      depth,
+      retestDetected: false,
+      description: `下落波の${(closestFib * 100).toFixed(1)}%戻し付近（${depth === 'shallow' ? '浅い戻り' : depth === 'moderate' ? '標準的な戻り' : '深い戻り'}）`,
+    };
+  }
+
+  return undefined;
+}
+
+/**
+ * Detect if price is retesting a recently broken S/R level.
+ */
+export function detectRetest(
+  candles: OHLCV[],
+  levels: PriceLevel[],
+  pullback: PullbackAnalysis | undefined
+): PullbackAnalysis | undefined {
+  if (!pullback || candles.length < 10) return pullback;
+
+  const currentPrice = candles[candles.length - 1].close;
+  const threshold = currentPrice * 0.003; // within 0.3%
+
+  for (const level of levels) {
+    if (Math.abs(currentPrice - level.price) < threshold) {
+      return {
+        ...pullback,
+        retestDetected: true,
+        retestLevel: level.price,
+        description: pullback.description + `。$${level.price.toLocaleString()}のリテスト中`,
+      };
+    }
+  }
+
+  return pullback;
 }

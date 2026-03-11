@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getKlines, getTicker, getOpenInterest, getFundingRate, getPremiumIndex } from '@/lib/binance';
+import { getKlines, getTicker, getOpenInterest, getFundingRate, getPremiumIndex, getOIHistory, getFundingHistory } from '@/lib/binance';
 import { generateSignal } from '@/lib/signal';
 import { Timeframe } from '@/lib/types';
 
@@ -29,13 +29,15 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // Fetch candles for each timeframe + shared market data in parallel
-    const [candlesResults, ticker, openInterest, fundingRate, premiumIndex] = await Promise.all([
+    // Fetch candles for each timeframe + shared market data + derivatives history in parallel
+    const [candlesResults, ticker, openInterest, fundingRate, premiumIndex, oiHistory, fundingHistory] = await Promise.all([
       Promise.all(timeframes.map((tf) => getKlines(symbol, tf).then((candles) => ({ timeframe: tf, candles })))),
       getTicker(symbol),
       getOpenInterest(symbol),
       getFundingRate(symbol),
       getPremiumIndex(symbol),
+      getOIHistory(symbol, '1h', 24).catch(() => []),
+      getFundingHistory(symbol, 20).catch(() => []),
     ]);
 
     const result = generateSignal({
@@ -45,6 +47,9 @@ export async function GET(req: NextRequest) {
       fundingRate,
       premiumIndex,
       candlesByTimeframe: candlesResults,
+      derivativesHistory: (oiHistory.length > 0 || fundingHistory.length > 0)
+        ? { oiHistory, fundingHistory }
+        : undefined,
     });
 
     return NextResponse.json(result);
