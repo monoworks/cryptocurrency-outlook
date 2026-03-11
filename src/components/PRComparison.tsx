@@ -43,12 +43,20 @@ function Row({ label, help, value, valueColor = 'text-gray-200', sub, subColor }
   );
 }
 
-export default function PRComparison({ longSetup, shortSetup }: { longSetup: TradeSetup; shortSetup: TradeSetup }) {
+export default function PRComparison({ longSetup, shortSetup, symbol, livePrice }: { longSetup: TradeSetup; shortSetup: TradeSetup; symbol?: string; livePrice?: number | null }) {
   const better = longSetup.riskRewardRatio >= shortSetup.riskRewardRatio ? 'long' : 'short';
 
   return (
     <div className="bg-gray-800 rounded-lg p-4">
-      <h2 className="text-lg font-bold text-white mb-3">PR比較 (Long vs Short)<HelpTip text="指値ベースのPR比較です。ロングは押し目（サポート付近）、ショートは戻り（レジスタンス付近）でのエントリーを想定しています。PR比は利益÷リスクで、2以上が理想的です" /></h2>
+      <h2 className="text-lg font-bold text-white mb-1">PR比較 (Long vs Short)<HelpTip text="指値ベースのPR比較です。ロングは押し目（サポート付近）、ショートは戻り（レジスタンス付近）でのエントリーを想定しています。PR比は利益÷リスクで、2以上が理想的です" /></h2>
+      <div className="flex items-center gap-2 mb-3">
+        <span className="text-sm text-gray-400">現在価格{symbol ? ` (${symbol})` : ''}:</span>
+        <span className="text-lg font-bold font-mono text-yellow-400">
+          {livePrice != null
+            ? `$${fmt(livePrice)}`
+            : '接続中...'}
+        </span>
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <SetupCard setup={longSetup} />
         <SetupCard setup={shortSetup} />

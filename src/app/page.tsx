@@ -140,17 +140,7 @@ export default function Home() {
             </div>
 
             {/* Both modes: PR Comparison */}
-            <PRComparison longSetup={result.longSetup} shortSetup={result.shortSetup} />
-
-            {/* Live Price */}
-            <div className="bg-gray-800 rounded-lg px-4 py-3 flex items-center justify-between">
-              <span className="text-sm text-gray-400">現在価格 ({currentSymbol})</span>
-              <span className="text-lg font-bold font-mono text-yellow-400">
-                {livePrice !== null
-                  ? `$${livePrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                  : '接続中...'}
-              </span>
-            </div>
+            <PRComparison longSetup={result.longSetup} shortSetup={result.shortSetup} symbol={currentSymbol} livePrice={livePrice} />
 
             {/* Both modes: Position Simulator */}
             <PositionSimulator
