@@ -20,7 +20,7 @@ interface Props {
 
 export default function SymbolInput({ onAnalyze, loading }: Props) {
   const [symbol, setSymbol] = useState('BTCUSDT');
-  const [selectedTimeframes, setSelectedTimeframes] = useState<Timeframe[]>(['1h', '4h', '1d']);
+  const [selectedTimeframes, setSelectedTimeframes] = useState<Timeframe[]>(['15m', '1h', '4h', '1d']);
 
   const toggleTimeframe = (tf: Timeframe) => {
     setSelectedTimeframes((prev) => {

@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { TradeSetup, SavedPosition } from '@/lib/types';
 import HelpTip from './HelpTip';
 
-const LEVERAGE_OPTIONS = [1, 2, 3, 5, 10, 20, 25, 40];
 
 function fmt(n: number, d = 2): string {
   return n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -106,8 +105,8 @@ export default function PositionSimulator({ longSetup, shortSetup, symbol, onSav
       </h2>
 
       {/* Inputs */}
-      <div className="flex flex-wrap gap-3 mb-4">
-        <div className="flex-1 min-w-[140px]">
+      <div className="space-y-4 mb-4">
+        <div>
           <label className="block text-xs text-gray-400 mb-1">
             投資金額 (USDT)<HelpTip text="取引に使う元手の金額です" />
           </label>
@@ -121,18 +120,27 @@ export default function PositionSimulator({ longSetup, shortSetup, symbol, onSav
           />
         </div>
         <div>
-          <label className="block text-xs text-gray-400 mb-1">
-            レバレッジ<HelpTip text="元手を何倍にして取引するかの倍率です。高いほどリターンもリスクも大きくなります" />
-          </label>
-          <select
+          <div className="flex justify-between items-center mb-1">
+            <label className="text-xs text-gray-400">
+              レバレッジ<HelpTip text="元手を何倍にして取引するかの倍率です。高いほどリターンもリスクも大きくなります" />
+            </label>
+            <span className={`text-sm font-bold font-mono ${leverage >= 20 ? 'text-red-400' : leverage >= 10 ? 'text-yellow-400' : 'text-white'}`}>{leverage}x</span>
+          </div>
+          <input
+            type="range"
+            min={1}
+            max={40}
+            step={1}
             value={leverage}
             onChange={(e) => setLeverage(Number(e.target.value))}
-            className="bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 text-sm"
-          >
-            {LEVERAGE_OPTIONS.map((lv) => (
-              <option key={lv} value={lv}>{lv}x</option>
-            ))}
-          </select>
+            className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+          />
+          <div className="flex justify-between text-xs text-gray-600 mt-1">
+            <span>1x</span>
+            <span>10x</span>
+            <span>20x</span>
+            <span>40x</span>
+          </div>
         </div>
       </div>
 
