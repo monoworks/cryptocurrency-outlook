@@ -89,40 +89,55 @@ function buildTradeSetup(
   currentPrice: number,
   entry: number,
   target: number,
-  atr: number | null
+  atr: number | null,
+  levels: PriceLevel[],
 ): TradeSetup {
-  // ATR-based SL, but capped so SL distance does not exceed target distance
   const slMultiplier = 1.5;
-  const atrOffset = atr ? atr * slMultiplier : entry * 0.002;
+  const slOffset = atr ? atr * slMultiplier : entry * 0.002;
 
   if (direction === 'long') {
-    const reward = target - entry;
-    // Cap SL: use ATR offset but never more than reward distance (minimum RR = 1.0)
-    const slOffset = reward > 0 ? Math.min(atrOffset, reward) : atrOffset;
     const stopLoss = entry - slOffset;
     const risk = entry - stopLoss;
+    // If target is closer than SL, try to find a wider target for RR >= 1.5
+    let finalTarget = target;
+    if (finalTarget - entry < risk * 1.5) {
+      const widerTarget = findTarget(levels, entry, 'long', risk * 1.5);
+      if (widerTarget > finalTarget) finalTarget = widerTarget;
+    }
+    // Fallback: if still too close, project target at 1.5x risk from entry
+    if (finalTarget - entry < risk) {
+      finalTarget = entry + risk * 1.5;
+    }
+    const reward = finalTarget - entry;
     return {
       direction: 'long',
       entry: Math.round(entry * 100) / 100,
       stopLoss: Math.round(stopLoss * 100) / 100,
-      target: Math.round(target * 100) / 100,
+      target: Math.round(finalTarget * 100) / 100,
       riskRewardRatio: risk > 0 ? Math.round((reward / risk) * 100) / 100 : 0,
       riskPercent: Math.round(((entry - stopLoss) / entry) * 10000) / 100,
-      rewardPercent: Math.round(((target - entry) / entry) * 10000) / 100,
+      rewardPercent: Math.round(((finalTarget - entry) / entry) * 10000) / 100,
     };
   } else {
-    const reward = entry - target;
-    const slOffset = reward > 0 ? Math.min(atrOffset, reward) : atrOffset;
     const stopLoss = entry + slOffset;
     const risk = stopLoss - entry;
+    let finalTarget = target;
+    if (entry - finalTarget < risk * 1.5) {
+      const widerTarget = findTarget(levels, entry, 'short', risk * 1.5);
+      if (widerTarget < finalTarget) finalTarget = widerTarget;
+    }
+    if (entry - finalTarget < risk) {
+      finalTarget = entry - risk * 1.5;
+    }
+    const reward = entry - finalTarget;
     return {
       direction: 'short',
       entry: Math.round(entry * 100) / 100,
       stopLoss: Math.round(stopLoss * 100) / 100,
-      target: Math.round(target * 100) / 100,
+      target: Math.round(finalTarget * 100) / 100,
       riskRewardRatio: risk > 0 ? Math.round((reward / risk) * 100) / 100 : 0,
       riskPercent: Math.round(((stopLoss - entry) / entry) * 10000) / 100,
-      rewardPercent: Math.round(((entry - target) / entry) * 10000) / 100,
+      rewardPercent: Math.round(((entry - finalTarget) / entry) * 10000) / 100,
     };
   }
 }
@@ -787,8 +802,8 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
   const longTarget = findTarget(levels, longEntry, 'long', minTargetDistance);
   const shortEntry = findNearestResistance(levels, currentPrice);
   const shortTarget = findTarget(levels, shortEntry, 'short', minTargetDistance);
-  const longSetup = buildTradeSetup('long', currentPrice, longEntry, longTarget, primaryAtr);
-  const shortSetup = buildTradeSetup('short', currentPrice, shortEntry, shortTarget, primaryAtr);
+  const longSetup = buildTradeSetup('long', currentPrice, longEntry, longTarget, primaryAtr, levels);
+  const shortSetup = buildTradeSetup('short', currentPrice, shortEntry, shortTarget, primaryAtr, levels);
 
   // Breakout levels (enhanced with volume breakout info)
   const breakoutLevels: BreakoutLevel[] = [];
