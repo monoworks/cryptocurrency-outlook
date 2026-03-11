@@ -154,15 +154,15 @@ function buildTradeSetup(
     const stopLoss = findStructureSL('long', entry, atr, levels);
     const risk = entry - stopLoss;
 
-    // Find target: prefer S/R levels that give RR >= 2.0
+    // Find target: prefer S/R levels that give RR >= 1.5
     let finalTarget = target;
-    if (finalTarget - entry < risk * 2.0) {
-      const widerTarget = findTarget(levels, entry, 'long', risk * 2.0);
+    if (finalTarget - entry < risk * 1.5) {
+      const widerTarget = findTarget(levels, entry, 'long', risk * 1.5);
       if (widerTarget > finalTarget) finalTarget = widerTarget;
     }
-    // Fallback: if still too close, project at 2.0x risk
-    if (finalTarget - entry < risk * 1.5) {
-      finalTarget = entry + risk * 2.0;
+    // Fallback: if still too close (RR < 1.0), project at 1.5x risk
+    if (finalTarget - entry < risk) {
+      finalTarget = entry + risk * 1.5;
     }
 
     const reward = finalTarget - entry;
@@ -180,12 +180,12 @@ function buildTradeSetup(
     const risk = stopLoss - entry;
 
     let finalTarget = target;
-    if (entry - finalTarget < risk * 2.0) {
-      const widerTarget = findTarget(levels, entry, 'short', risk * 2.0);
+    if (entry - finalTarget < risk * 1.5) {
+      const widerTarget = findTarget(levels, entry, 'short', risk * 1.5);
       if (widerTarget < finalTarget) finalTarget = widerTarget;
     }
-    if (entry - finalTarget < risk * 1.5) {
-      finalTarget = entry - risk * 2.0;
+    if (entry - finalTarget < risk) {
+      finalTarget = entry - risk * 1.5;
     }
 
     const reward = entry - finalTarget;
