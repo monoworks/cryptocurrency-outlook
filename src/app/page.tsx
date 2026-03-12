@@ -174,6 +174,37 @@ export default function Home() {
               </div>
             </div>
 
+            {/* Both modes: Economic Calendar Alert */}
+            {result.economicCalendar && result.economicCalendar.warningLevel !== 'none' && (
+              <div className={`border rounded-lg p-3 ${
+                result.economicCalendar.warningLevel === 'danger'
+                  ? 'border-red-500 bg-red-900/20'
+                  : 'border-yellow-500 bg-yellow-900/20'
+              }`}>
+                <div className={`font-semibold text-sm ${
+                  result.economicCalendar.warningLevel === 'danger' ? 'text-red-400' : 'text-yellow-400'
+                }`}>
+                  {result.economicCalendar.warningLevel === 'danger' ? '⚠ 重要経済指標 発表間近' : '経済指標カレンダー'}
+                </div>
+                <div className={`text-xs mt-1 ${
+                  result.economicCalendar.warningLevel === 'danger' ? 'text-red-300' : 'text-yellow-300'
+                }`}>
+                  {result.economicCalendar.description}
+                </div>
+                {result.economicCalendar.events.filter((e) => e.impact === 'high').length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {result.economicCalendar.events.filter((e) => e.impact === 'high').slice(0, 3).map((e, i) => (
+                      <div key={i} className="flex items-center gap-2 text-xs">
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-800 text-red-200">高</span>
+                        <span className="text-gray-400">{e.timeJST}</span>
+                        <span className="text-gray-300">{e.event}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Both modes: PR Comparison */}
             <PRComparison longSetup={result.longSetup} shortSetup={result.shortSetup} symbol={currentSymbol} livePrice={livePrice} />
 
