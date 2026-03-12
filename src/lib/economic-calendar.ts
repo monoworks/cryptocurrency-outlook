@@ -31,6 +31,99 @@ function toJST(isoDateStr: string): string {
   });
 }
 
+/**
+ * Translate Forex Factory event titles to Japanese.
+ * Uses keyword-based mapping + suffix translation (m/m, q/q, y/y).
+ */
+const EVENT_NAME_MAP: Record<string, string> = {
+  'Non-Farm Employment Change': '非農業部門雇用者数変化',
+  'Unemployment Rate': '失業率',
+  'Average Hourly Earnings m/m': '平均時給 (前月比)',
+  'Core PCE Price Index m/m': 'コアPCE価格指数 (前月比)',
+  'PCE Price Index m/m': 'PCE価格指数 (前月比)',
+  'Core CPI m/m': 'コアCPI (前月比)',
+  'CPI m/m': 'CPI (前月比)',
+  'CPI y/y': 'CPI (前年比)',
+  'Core CPI y/y': 'コアCPI (前年比)',
+  'PPI m/m': 'PPI (前月比)',
+  'Core PPI m/m': 'コアPPI (前月比)',
+  'Retail Sales m/m': '小売売上高 (前月比)',
+  'Core Retail Sales m/m': 'コア小売売上高 (前月比)',
+  'Prelim GDP q/q': 'GDP速報値 (前期比)',
+  'Final GDP q/q': 'GDP確定値 (前期比)',
+  'Advance GDP q/q': 'GDP事前値 (前期比)',
+  'GDP Price Index q/q': 'GDP価格指数 (前期比)',
+  'Prelim GDP Price Index q/q': 'GDP価格指数速報値 (前期比)',
+  'FOMC Statement': 'FOMC声明',
+  'Federal Funds Rate': 'FF金利',
+  'FOMC Press Conference': 'FOMC記者会見',
+  'FOMC Meeting Minutes': 'FOMC議事録',
+  'JOLTS Job Openings': 'JOLTS求人件数',
+  'ISM Manufacturing PMI': 'ISM製造業PMI',
+  'ISM Services PMI': 'ISMサービス業PMI',
+  'Durable Goods Orders m/m': '耐久財受注 (前月比)',
+  'Core Durable Goods Orders m/m': 'コア耐久財受注 (前月比)',
+  'Personal Spending m/m': '個人支出 (前月比)',
+  'Personal Income m/m': '個人所得 (前月比)',
+  'CB Consumer Confidence': 'CB消費者信頼感指数',
+  'Pending Home Sales m/m': '中古住宅販売保留 (前月比)',
+  'Existing Home Sales': '中古住宅販売件数',
+  'New Home Sales': '新築住宅販売件数',
+  'Building Permits': '建設許可件数',
+  'Housing Starts': '住宅着工件数',
+  'ADP Non-Farm Employment Change': 'ADP非農業部門雇用者数',
+  'Unemployment Claims': '新規失業保険申請件数',
+  'Prelim UoM Consumer Sentiment': 'ミシガン大消費者信頼感指数速報',
+  'Revised UoM Consumer Sentiment': 'ミシガン大消費者信頼感指数改定',
+  'Prelim UoM Inflation Expectations': 'ミシガン大インフレ期待速報',
+  'Revised UoM Inflation Expectations': 'ミシガン大インフレ期待改定',
+  'Empire State Manufacturing Index': 'NY連銀製造業景気指数',
+  'Philly Fed Manufacturing Index': 'フィラデルフィア連銀製造業指数',
+  'Industrial Production m/m': '鉱工業生産 (前月比)',
+  'Capacity Utilization Rate': '設備稼働率',
+  'Trade Balance': '貿易収支',
+  'Current Account': '経常収支',
+  'Treasury Currency Report': '財務省為替報告書',
+  'Crude Oil Inventories': '原油在庫量',
+  'Natural Gas Storage': '天然ガス貯蔵量',
+  'Consumer Credit m/m': '消費者信用残高 (前月比)',
+  'Final GDP Price Index q/q': 'GDP価格指数確定値 (前期比)',
+  'Core PCE Price Index y/y': 'コアPCE価格指数 (前年比)',
+  'PCE Price Index y/y': 'PCE価格指数 (前年比)',
+  'Chicago PMI': 'シカゴPMI',
+  'Richmond Manufacturing Index': 'リッチモンド連銀製造業指数',
+  'S&P/CS Composite-20 HPI y/y': 'S&P/ケースシラー住宅価格指数 (前年比)',
+  'Revised Nonfarm Productivity q/q': '非農業部門労働生産性改定値 (前期比)',
+  'Revised Unit Labor Costs q/q': '単位労働コスト改定値 (前期比)',
+  'Prelim Nonfarm Productivity q/q': '非農業部門労働生産性速報値 (前期比)',
+  'Prelim Unit Labor Costs q/q': '単位労働コスト速報値 (前期比)',
+  'Factory Orders m/m': '製造業新規受注 (前月比)',
+  'Goods Trade Balance': '財貿易収支',
+  'Wholesale Inventories m/m': '卸売在庫 (前月比)',
+};
+
+const SUFFIX_MAP: [RegExp, string][] = [
+  [/ m\/m$/, ' (前月比)'],
+  [/ q\/q$/, ' (前期比)'],
+  [/ y\/y$/, ' (前年比)'],
+];
+
+function translateEventName(title: string): string {
+  if (EVENT_NAME_MAP[title]) return EVENT_NAME_MAP[title];
+
+  // Try suffix replacement for unmapped events
+  for (const [pattern, replacement] of SUFFIX_MAP) {
+    if (pattern.test(title)) {
+      const base = title.replace(pattern, '');
+      if (EVENT_NAME_MAP[base + title.match(pattern)![0]]) {
+        return EVENT_NAME_MAP[base + title.match(pattern)![0]];
+      }
+      return base + replacement;
+    }
+  }
+  return title;
+}
+
 function normalizeImpact(raw: string): EconomicEvent['impact'] {
   const s = raw.toLowerCase();
   if (s === 'high') return 'high';
@@ -70,7 +163,7 @@ export async function fetchEconomicCalendar(): Promise<EconomicEvent[] | null> {
         return !isNaN(t.getTime()) && t >= now && t <= cutoff;
       })
       .map((e) => ({
-        event: e.title,
+        event: translateEventName(e.title),
         country: 'US',
         time: new Date(e.date).toISOString(),
         timeJST: toJST(e.date),
