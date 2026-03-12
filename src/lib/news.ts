@@ -19,13 +19,6 @@ function toJST(utcDateStr: string): string {
 }
 
 /**
- * Build Google Translate URL for a given article URL
- */
-function buildTranslateUrl(url: string): string {
-  return `https://translate.google.com/translate?sl=en&tl=ja&u=${encodeURIComponent(url)}`;
-}
-
-/**
  * Fetch latest news related to crypto, geopolitics, and regulation from NewsData.io.
  * Returns null if API key is not configured or fetch fails.
  */
@@ -78,7 +71,6 @@ export async function fetchNews(): Promise<NewsArticle[] | null> {
       title: item.title,
       description: item.description,
       link: item.link,
-      translatedLink: buildTranslateUrl(item.link),
       source: item.source_name || item.source_id,
       pubDate: item.pubDate,
       pubDateJST: toJST(item.pubDate),

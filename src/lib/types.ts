@@ -463,7 +463,6 @@ export interface NewsArticle {
   title: string;
   description: string | null;
   link: string;
-  translatedLink: string;
   source: string;
   pubDate: string;
   pubDateJST: string;

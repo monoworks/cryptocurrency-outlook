@@ -32,7 +32,7 @@ export default function NewsSection({ articles }: NewsSectionProps) {
               <div className="flex items-start gap-2">
                 <div className="flex-1 min-w-0">
                   <a
-                    href={article.translatedLink}
+                    href={article.link}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-sm text-blue-400 hover:text-blue-300 hover:underline leading-snug block"
@@ -43,23 +43,11 @@ export default function NewsSection({ articles }: NewsSectionProps) {
                     <span>{article.pubDateJST}</span>
                     <span>|</span>
                     <span>{article.source}</span>
-                    <span>|</span>
-                    <a
-                      href={article.link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:text-gray-400"
-                    >
-                      原文
-                    </a>
                   </div>
                 </div>
               </div>
             </div>
           ))}
-          <div className="text-[10px] text-gray-600 pt-1">
-            ※ タイトルクリックでGoogle翻訳による日本語ページが開きます
-          </div>
         </div>
       )}
     </div>
