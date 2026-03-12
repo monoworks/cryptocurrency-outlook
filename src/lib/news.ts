@@ -31,15 +31,16 @@ function buildTranslateUrl(url: string): string {
  */
 export async function fetchNews(): Promise<NewsArticle[] | null> {
   const apiKey = process.env.NEWSDATA_API_KEY;
-  if (!apiKey) return null;
+  if (!apiKey) {
+    console.log('[News] NEWSDATA_API_KEY is not configured');
+    return null;
+  }
 
   try {
-    const query = 'crypto OR bitcoin OR ethereum OR regulation OR sanctions OR geopolitical OR "central bank"';
     const params = new URLSearchParams({
       apikey: apiKey,
-      q: query,
+      q: 'crypto OR bitcoin',
       language: 'en',
-      category: 'business,politics,world',
       size: '10',
     });
 
@@ -49,7 +50,11 @@ export async function fetchNews(): Promise<NewsArticle[] | null> {
       next: { revalidate: 600 }, // cache 10 minutes
     });
 
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const text = await res.text();
+      console.error(`[News] API error: ${res.status} ${text}`);
+      return null;
+    }
 
     const data = await res.json() as {
       status: string;
@@ -65,6 +70,7 @@ export async function fetchNews(): Promise<NewsArticle[] | null> {
     };
 
     if (data.status !== 'success' || !data.results || !Array.isArray(data.results)) {
+      console.error('[News] Unexpected response:', JSON.stringify(data).slice(0, 200));
       return null;
     }
 
