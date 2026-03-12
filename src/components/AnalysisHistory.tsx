@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useMemo } from 'react';
-import { AnalysisResult } from '@/lib/types';
+import { AnalysisResult, Timeframe } from '@/lib/types';
 import { useLivePrices } from '@/hooks/useLivePrice';
 import HelpTip from './HelpTip';
 
@@ -30,26 +30,49 @@ const conclusionLabel: Record<string, { text: string; color: string }> = {
   skip: { text: 'スキップ', color: 'text-gray-400' },
 };
 
+/** Map the longest timeframe used in analysis to an evaluation window (hours) */
+const tfEvalHours: Record<Timeframe, number> = {
+  '5m': 4,
+  '15m': 8,
+  '1h': 12,
+  '4h': 24,
+  '1d': 72,
+};
+
+function getEvalWindowHours(timeframes: Timeframe[]): number {
+  let max = 4;
+  for (const tf of timeframes) {
+    const h = tfEvalHours[tf];
+    if (h && h > max) max = h;
+  }
+  return max;
+}
+
 function formatTimestamp(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
+function formatRemainingTime(hours: number): string {
+  if (hours < 1) return `${Math.ceil(hours * 60)}分`;
+  return `${Math.floor(hours)}時間`;
+}
+
 /** Evaluate whether the signal was correct based on price movement */
-function evaluateResult(conclusion: string, changePct: number): { label: string; color: string } {
+function evaluateResult(conclusion: string, changePct: number): { label: string; color: string; bg: string } {
   if (conclusion === 'enter_long') {
-    if (changePct > 1) return { label: '的中', color: 'text-green-400' };
-    if (changePct < -1) return { label: '外れ', color: 'text-red-400' };
-    return { label: '判定中', color: 'text-gray-500' };
+    if (changePct > 1) return { label: '的中', color: 'text-green-400', bg: 'bg-green-900/40' };
+    if (changePct < -1) return { label: '外れ', color: 'text-red-400', bg: 'bg-red-900/40' };
+    return { label: '判定中', color: 'text-gray-500', bg: 'bg-gray-700/40' };
   }
   if (conclusion === 'enter_short') {
-    if (changePct < -1) return { label: '的中', color: 'text-green-400' };
-    if (changePct > 1) return { label: '外れ', color: 'text-red-400' };
-    return { label: '判定中', color: 'text-gray-500' };
+    if (changePct < -1) return { label: '的中', color: 'text-green-400', bg: 'bg-green-900/40' };
+    if (changePct > 1) return { label: '外れ', color: 'text-red-400', bg: 'bg-red-900/40' };
+    return { label: '判定中', color: 'text-gray-500', bg: 'bg-gray-700/40' };
   }
   // wait / skip
-  if (Math.abs(changePct) < 2) return { label: '正解', color: 'text-green-400' };
-  return { label: '機会損失', color: 'text-yellow-400' };
+  if (Math.abs(changePct) < 2) return { label: '正解', color: 'text-green-400', bg: 'bg-green-900/40' };
+  return { label: '機会損失', color: 'text-yellow-400', bg: 'bg-yellow-900/40' };
 }
 
 export default function AnalysisHistory({ history, onLoad, onDelete, onImport, onClearAll }: Props) {
@@ -113,7 +136,7 @@ export default function AnalysisHistory({ history, onLoad, onDelete, onImport, o
         >
           <span className={`transition-transform ${expanded ? 'rotate-90' : ''}`}>▶</span>
           分析履歴（{history.length}件）
-          <HelpTip text="過去の分析結果を保存し、現在価格との比較で的中/外れを自動判定します。±1%以上の動きで判定、様子見は±2%未満なら正解。JSONエクスポート/インポートでバックアップ可能" />
+          <HelpTip text="過去の分析結果を保存し、現在価格との比較で的中/外れを自動判定します。判定期間は分析時の最長時間足に連動（5m→4h、1h→12h、4h→24h、1d→72h）。期間を過ぎると期限切れになります" />
         </button>
         <div className="flex gap-2">
           <button
@@ -143,10 +166,19 @@ export default function AnalysisHistory({ history, onLoad, onDelete, onImport, o
                 const cl = conclusionLabel[entry.conclusion] ?? { text: entry.conclusion, color: 'text-gray-400' };
                 const nowPrice = livePrices[entry.symbol.toUpperCase()];
                 const changePct = nowPrice ? ((nowPrice - entry.currentPrice) / entry.currentPrice) * 100 : null;
-                const evaluation = changePct !== null ? evaluateResult(entry.conclusion, changePct) : null;
+
+                // Determine evaluation window from timeframes used
+                const timeframes = entry.result?.marketSummary?.timeframes ?? [];
+                const evalWindowH = getEvalWindowHours(timeframes);
+                const elapsedMs = Date.now() - new Date(entry.timestamp).getTime();
+                const elapsedH = elapsedMs / (1000 * 60 * 60);
+                const isExpired = elapsedH > evalWindowH;
+                const remainingH = evalWindowH - elapsedH;
+
+                const evaluation = (!isExpired && changePct !== null) ? evaluateResult(entry.conclusion, changePct) : null;
 
                 return (
-                  <div key={entry.id} className="bg-gray-750 border border-gray-700 rounded-lg px-3 py-2">
+                  <div key={entry.id} className={`border rounded-lg px-3 py-2 ${isExpired ? 'border-gray-700/50 opacity-60' : 'border-gray-700'}`}>
                     <div className="flex items-center justify-between">
                       <button
                         onClick={() => onLoad(entry)}
@@ -158,6 +190,11 @@ export default function AnalysisHistory({ history, onLoad, onDelete, onImport, o
                           <span className={`text-xs font-bold ${cl.color}`}>{cl.text}</span>
                           {entry.confidence != null && (
                             <span className="text-xs text-gray-500">信頼度 {entry.confidence}%</span>
+                          )}
+                          {isExpired ? (
+                            <span className="text-[10px] text-gray-600 px-1.5 py-0.5 rounded bg-gray-700/40">期限切れ</span>
+                          ) : (
+                            <span className="text-[10px] text-gray-600">残り{formatRemainingTime(remainingH)}</span>
                           )}
                         </div>
                         <div className="flex items-center gap-3 mt-1">
@@ -174,13 +211,13 @@ export default function AnalysisHistory({ history, onLoad, onDelete, onImport, o
                                 {changePct >= 0 ? '+' : ''}{changePct.toFixed(2)}%
                               </span>
                               {evaluation && (
-                                <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${evaluation.color} ${
-                                  evaluation.label === '的中' ? 'bg-green-900/40' :
-                                  evaluation.label === '外れ' ? 'bg-red-900/40' :
-                                  evaluation.label === '機会損失' ? 'bg-yellow-900/40' :
-                                  'bg-gray-700/40'
-                                }`}>
+                                <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${evaluation.color} ${evaluation.bg}`}>
                                   {evaluation.label}
+                                </span>
+                              )}
+                              {isExpired && (
+                                <span className="text-xs text-gray-600 font-mono">
+                                  最終 {changePct >= 0 ? '+' : ''}{changePct.toFixed(2)}%
                                 </span>
                               )}
                             </>
