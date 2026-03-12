@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { AnalysisResult, Timeframe } from '@/lib/types';
+import { AnalysisResult, EconomicCalendarAnalysis, Timeframe } from '@/lib/types';
 import { buildAnalysisPrompt } from '@/lib/prompt-builder';
 import { useSavedPositions } from '@/hooks/useSavedPositions';
 import { useLivePrice } from '@/hooks/useLivePrice';
@@ -53,6 +53,15 @@ export default function Home() {
   const { pendingPositions, openPositions, closedPositions, addPosition, fillPosition, removePosition, closePosition, resetAll, maxPositions, positions } = useSavedPositions();
   const [viewMode, setViewMode] = useState<'simple' | 'detail'>('simple');
   const livePrice = useLivePrice(result ? currentSymbol : null);
+  const [standaloneCalendar, setStandaloneCalendar] = useState<EconomicCalendarAnalysis | null>(null);
+
+  // Fetch economic calendar on page load (independent of analysis)
+  useEffect(() => {
+    fetch('/api/economic-calendar')
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => { if (data) setStandaloneCalendar(data); })
+      .catch(() => {});
+  }, []);
 
   // 将来用に残す（AI分析・画像アップロード）
   // const [aiSettings, setAiSettings] = useState<AISettingsType | null>(null);
@@ -129,6 +138,48 @@ export default function Home() {
 
         {/* Image Upload - 将来用に非表示 */}
         {/* <ImageUpload onImageSelect={setImageBase64} imageBase64={imageBase64} /> */}
+
+        {/* Standalone Economic Calendar (before analysis) */}
+        {!result && standaloneCalendar && (
+          <div className={`border rounded-lg p-3 ${
+            standaloneCalendar.warningLevel === 'danger'
+              ? 'border-red-500 bg-red-900/20'
+              : standaloneCalendar.warningLevel === 'caution'
+                ? 'border-yellow-500 bg-yellow-900/20'
+                : 'border-gray-600 bg-gray-800'
+          }`}>
+            <div className={`font-semibold text-sm ${
+              standaloneCalendar.warningLevel === 'danger' ? 'text-red-400'
+                : standaloneCalendar.warningLevel === 'caution' ? 'text-yellow-400'
+                : 'text-gray-400'
+            }`}>
+              {standaloneCalendar.warningLevel === 'danger' ? '⚠ 重要経済指標 発表間近'
+                : '経済指標カレンダー'}
+            </div>
+            <div className={`text-xs mt-1 ${
+              standaloneCalendar.warningLevel === 'danger' ? 'text-red-300'
+                : standaloneCalendar.warningLevel === 'caution' ? 'text-yellow-300'
+                : 'text-gray-500'
+            }`}>
+              {standaloneCalendar.description}
+            </div>
+            {standaloneCalendar.events.filter((e) => e.impact === 'high' || e.impact === 'medium').length > 0 && (
+              <div className="mt-2 space-y-1">
+                {standaloneCalendar.events.filter((e) => e.impact === 'high' || e.impact === 'medium').slice(0, 5).map((e, i) => (
+                  <div key={i} className="flex items-center gap-2 text-xs">
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                      e.impact === 'high' ? 'bg-red-800 text-red-200' : 'bg-yellow-800 text-yellow-200'
+                    }`}>
+                      {e.impact === 'high' ? '高' : '中'}
+                    </span>
+                    <span className="text-gray-400">{e.timeJST}</span>
+                    <span className="text-gray-300">{e.event}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Error */}
         {error && (
