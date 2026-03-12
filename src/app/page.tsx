@@ -110,6 +110,7 @@ export default function Home() {
         {/* Header */}
         <div className="relative text-center mb-6">
           <h1 className="text-2xl font-bold">Cryptocurrency Outlook</h1>
+          <p className="text-base font-semibold text-red-600 mt-1">データソース: Binance Futures | 投資助言ではありません</p>
           <div className="absolute right-0 top-1/2 -translate-y-1/2 flex gap-1.5">
             {(Object.keys(themeConfig) as Theme[]).map((key) => (
               <button
@@ -333,8 +334,7 @@ export default function Home() {
         )}
 
         {/* Footer */}
-        <footer className="text-center text-base font-semibold text-red-600 pt-8 pb-4">
-          <p>データソース: Binance Futures | 投資助言ではありません</p>
+        <footer className="text-center pt-8 pb-4">
         </footer>
       </div>
     </main>
