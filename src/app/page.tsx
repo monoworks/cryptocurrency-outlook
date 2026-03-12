@@ -23,14 +23,17 @@ import CopyPrompt from '@/components/CopyPrompt';
 // 将来用に残す
 // const AI_SETTINGS_KEY = 'crypto-signal-ai-settings';
 
-type Theme = 'dark' | 'light' | 'soft';
+type Theme = 'dark' | 'light' | 'soft' | 'blue' | 'sakura' | 'orange';
 
 const THEME_KEY = 'crypto-outlook-theme';
 
 const themeConfig: Record<Theme, { bg: string; text: string; label: string; swatch: string }> = {
-  dark:  { bg: 'bg-gray-900', text: 'text-white',    label: '黒',       swatch: 'bg-gray-900' },
-  light: { bg: 'bg-white',    text: 'text-gray-900', label: '白',       swatch: 'bg-white' },
-  soft:  { bg: 'bg-amber-50', text: 'text-gray-800', label: 'やさしい', swatch: 'bg-amber-100' },
+  dark:   { bg: 'bg-gray-900',   text: 'text-white',    label: '黒',         swatch: 'bg-gray-900' },
+  light:  { bg: 'bg-white',      text: 'text-gray-900', label: '白',         swatch: 'bg-white' },
+  soft:   { bg: 'bg-amber-50',   text: 'text-gray-800', label: 'やさしい',   swatch: 'bg-amber-100' },
+  blue:   { bg: 'bg-sky-50',     text: 'text-gray-800', label: '淡い青',     swatch: 'bg-sky-200' },
+  sakura: { bg: 'bg-pink-50',    text: 'text-gray-800', label: '桜色',       swatch: 'bg-pink-200' },
+  orange: { bg: 'bg-orange-50',  text: 'text-gray-800', label: '淡いオレンジ', swatch: 'bg-orange-200' },
 };
 
 export default function Home() {
