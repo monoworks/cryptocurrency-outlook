@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { fetchEconomicCalendar, analyzeEconomicCalendar } from '@/lib/economic-calendar';
+import { fetchEconomicCalendar, analyzeEconomicCalendar, _lastFinnhubDebug } from '@/lib/economic-calendar';
 
 export const dynamic = 'force-dynamic';
 export const preferredRegion = 'hnd1';
@@ -15,6 +15,7 @@ export async function GET() {
         hasApiKey: hasKey,
         rawEventCount: events?.length ?? 0,
         fetchedAt: new Date().toISOString(),
+        finnhub: _lastFinnhubDebug,
       },
     });
   } catch (err) {

@@ -47,6 +47,10 @@ function formatDate(d: Date): string {
  * Fetch upcoming US economic events from Finnhub.
  * Returns null if API key is not configured or fetch fails.
  */
+// Exposed for debugging — stores last raw response from Finnhub
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export let _lastFinnhubDebug: { url: string; status: number; keys: string[]; sample: any; totalRaw: number } | null = null;
+
 export async function fetchEconomicCalendar(): Promise<EconomicEvent[] | null> {
   const apiKey = process.env.FINNHUB_API_KEY;
   if (!apiKey) return null;
@@ -62,10 +66,25 @@ export async function fetchEconomicCalendar(): Promise<EconomicEvent[] | null> {
       next: { revalidate: 1800 },
     });
 
-    if (!res.ok) return null;
+    if (!res.ok) {
+      _lastFinnhubDebug = { url: url.replace(apiKey, '***'), status: res.status, keys: [], sample: null, totalRaw: 0 };
+      return null;
+    }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const data = await res.json() as Record<string, any>;
+
+    // Capture raw response shape for debugging
+    const ecField = data.economicCalendar;
+    _lastFinnhubDebug = {
+      url: url.replace(apiKey, '***'),
+      status: res.status,
+      keys: Object.keys(data),
+      sample: Array.isArray(ecField) ? ecField.slice(0, 2)
+        : ecField && typeof ecField === 'object' ? { subKeys: Object.keys(ecField), sample: Array.isArray(ecField.result) ? ecField.result.slice(0, 2) : null }
+        : ecField,
+      totalRaw: Array.isArray(ecField) ? ecField.length : (ecField?.result?.length ?? 0),
+    };
 
     // Finnhub may return { economicCalendar: [...] } or { economicCalendar: { result: [...] } }
     let rawEvents: {
