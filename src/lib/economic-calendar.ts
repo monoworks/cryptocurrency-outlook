@@ -6,7 +6,9 @@ const FINNHUB_BASE = 'https://finnhub.io/api/v1';
  * Format a UTC date string to JST display string (e.g. "3/12 22:30")
  */
 function toJST(utcDateStr: string): string {
-  const d = new Date(utcDateStr);
+  // Finnhub returns "YYYY-MM-DD HH:MM:SS" without timezone — treat as UTC
+  const normalized = utcDateStr.includes('T') ? utcDateStr : utcDateStr.replace(' ', 'T') + 'Z';
+  const d = new Date(normalized);
   if (isNaN(d.getTime())) return utcDateStr;
   return d.toLocaleString('ja-JP', {
     timeZone: 'Asia/Tokyo',
@@ -62,28 +64,45 @@ export async function fetchEconomicCalendar(): Promise<EconomicEvent[] | null> {
 
     if (!res.ok) return null;
 
-    const data = await res.json() as {
-      economicCalendar?: {
-        event: string;
-        country: string;
-        time: string;
-        impact: string | number;
-        estimate?: number;
-        actual?: number;
-        prev?: number;
-        unit?: string;
-      }[];
-    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data = await res.json() as Record<string, any>;
 
-    if (!data.economicCalendar || !Array.isArray(data.economicCalendar)) return null;
+    // Finnhub may return { economicCalendar: [...] } or { economicCalendar: { result: [...] } }
+    let rawEvents: {
+      event: string;
+      country: string;
+      time: string;
+      impact: string | number;
+      estimate?: number;
+      actual?: number;
+      prev?: number;
+      unit?: string;
+    }[] | undefined;
+
+    if (Array.isArray(data.economicCalendar)) {
+      rawEvents = data.economicCalendar;
+    } else if (data.economicCalendar && Array.isArray(data.economicCalendar.result)) {
+      rawEvents = data.economicCalendar.result;
+    }
+
+    if (!rawEvents || rawEvents.length === 0) {
+      console.warn('[economic-calendar] No events from Finnhub. Response keys:', Object.keys(data));
+      return null;
+    }
+
+    console.log(`[economic-calendar] Finnhub returned ${rawEvents.length} raw events`);
+
+    // Normalize time to ISO UTC string for consistent parsing
+    const normalizeTime = (t: string) =>
+      t.includes('T') ? t : t.replace(' ', 'T') + 'Z';
 
     // Filter US events only, with valid time
-    return data.economicCalendar
+    const usEvents = rawEvents
       .filter((e) => e.country === 'US' && e.time)
       .map((e) => ({
         event: e.event,
         country: e.country,
-        time: e.time,
+        time: normalizeTime(e.time),
         timeJST: toJST(e.time),
         impact: normalizeImpact(e.impact),
         estimate: e.estimate,
@@ -92,6 +111,9 @@ export async function fetchEconomicCalendar(): Promise<EconomicEvent[] | null> {
         unit: e.unit,
       }))
       .sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+
+    console.log(`[economic-calendar] ${usEvents.length} US events after filtering`);
+    return usEvents;
   } catch {
     return null;
   }
