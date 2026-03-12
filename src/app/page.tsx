@@ -339,6 +339,26 @@ export default function Home() {
               </div>
             )}
 
+            {/* Simple mode: Conclusion summary */}
+            {viewMode === 'simple' && (() => {
+              const cfg: Record<string, { label: string; color: string; bg: string }> = {
+                enter_long: { label: 'ロングエントリー推奨', color: 'text-green-400', bg: 'bg-green-900/30 border-green-500' },
+                enter_short: { label: 'ショートエントリー推奨', color: 'text-red-400', bg: 'bg-red-900/30 border-red-500' },
+                wait: { label: '引きつけて待機', color: 'text-yellow-400', bg: 'bg-yellow-900/30 border-yellow-500' },
+                skip: { label: '見送り推奨', color: 'text-gray-400', bg: 'bg-gray-700/30 border-gray-500' },
+              };
+              const c = cfg[result.conclusion] ?? cfg.skip;
+              return (
+                <div className="bg-gray-800 rounded-lg p-4">
+                  <h2 className="text-lg font-bold text-white mb-3">結論</h2>
+                  <div className={`border rounded-lg p-4 ${c.bg}`}>
+                    <div className={`text-xl font-bold ${c.color} mb-2`}>{c.label}</div>
+                    <p className="text-gray-300 text-sm">{result.conclusionReason}</p>
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Both modes: PR Comparison */}
             <PRComparison longSetup={result.longSetup} shortSetup={result.shortSetup} symbol={currentSymbol} livePrice={livePrice} />
 
