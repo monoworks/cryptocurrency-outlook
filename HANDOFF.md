@@ -60,7 +60,7 @@ src/
 | `TrendBadge` | トレンド表示 (各タイムフレーム) |
 | `SRLevels` | サポート・レジスタンスレベル |
 | `PRComparison` | ④ PR比較 (Long vs Short, 指値ベース) |
-| `PositionSimulator` | 損益シミュレーター |
+| `PositionSimulator` | 売買シミュレーター |
 | `BreakoutLevels` | 重要分岐点 |
 | `Conclusion` | 総合判定・シグナル |
 | `CopyPrompt` | 分析結果テキストコピー |

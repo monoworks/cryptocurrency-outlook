@@ -100,7 +100,7 @@ export default function PositionSimulator({ longSetup, shortSetup, symbol, onSav
   return (
     <div className="bg-gray-800 rounded-lg p-4">
       <h2 className="text-lg font-bold text-white mb-3">
-        損益シミュレーター
+        売買シミュレーター
         <HelpTip text="分析結果のエントリー・損切り・利確価格を基に、投資金額に応じた損益を試算します。各価格は手動で変更可能です" />
       </h2>
 
