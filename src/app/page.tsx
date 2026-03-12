@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { AnalysisResult, Timeframe } from '@/lib/types';
 import { buildAnalysisPrompt } from '@/lib/prompt-builder';
 import { useSavedPositions } from '@/hooks/useSavedPositions';
@@ -25,6 +25,8 @@ import CopyPrompt from '@/components/CopyPrompt';
 
 type Theme = 'dark' | 'light' | 'soft';
 
+const THEME_KEY = 'crypto-outlook-theme';
+
 const themeConfig: Record<Theme, { bg: string; text: string; label: string; swatch: string }> = {
   dark:  { bg: 'bg-gray-900', text: 'text-white',    label: '黒',       swatch: 'bg-gray-900' },
   light: { bg: 'bg-white',    text: 'text-gray-900', label: '白',       swatch: 'bg-white' },
@@ -33,6 +35,14 @@ const themeConfig: Record<Theme, { bg: string; text: string; label: string; swat
 
 export default function Home() {
   const [theme, setTheme] = useState<Theme>('dark');
+  useEffect(() => {
+    const saved = localStorage.getItem(THEME_KEY);
+    if (saved && saved in themeConfig) setTheme(saved as Theme);
+  }, []);
+  const handleSetTheme = useCallback((t: Theme) => {
+    setTheme(t);
+    localStorage.setItem(THEME_KEY, t);
+  }, []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AnalysisResult | null>(null);
@@ -92,7 +102,7 @@ export default function Home() {
             {(Object.keys(themeConfig) as Theme[]).map((key) => (
               <button
                 key={key}
-                onClick={() => setTheme(key)}
+                onClick={() => handleSetTheme(key)}
                 title={themeConfig[key].label}
                 className={`w-7 h-7 rounded-full border-2 transition-all ${themeConfig[key].swatch} ${
                   theme === key
