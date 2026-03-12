@@ -34,7 +34,8 @@ export function useSavedPositions() {
 
   const addPosition = useCallback((pos: Omit<SavedPosition, 'id' | 'createdAt' | 'status'>): boolean => {
     const current = loadPositions();
-    if (current.length >= MAX_POSITIONS) return false;
+    const activeCount = current.filter((p) => p.status !== 'closed').length;
+    if (activeCount >= MAX_POSITIONS) return false;
     const newPos: SavedPosition = {
       ...pos,
       id: crypto.randomUUID(),
