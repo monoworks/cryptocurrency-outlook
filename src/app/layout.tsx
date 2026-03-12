@@ -14,7 +14,7 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Crypto Trading Signal Calculator",
+  title: "Cryptocurrency Outlook",
   description: "暗号通貨トレーディングシグナル計算機 - テクニカル分析 + デリバティブデータ + AI分析",
 };
 
