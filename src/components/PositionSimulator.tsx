@@ -9,6 +9,14 @@ function fmt(n: number, d = 2): string {
   return n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 }
 
+function fmtDuration(ms: number): string {
+  const hours = ms / (60 * 60 * 1000);
+  if (hours < 24) return `${Math.round(hours)}時間`;
+  const days = hours / 24;
+  if (days === Math.round(days)) return `${Math.round(days)}日`;
+  return `${days.toFixed(1)}日`;
+}
+
 interface Props {
   longSetup: TradeSetup;
   shortSetup: TradeSetup;
@@ -88,6 +96,7 @@ export default function PositionSimulator({ longSetup, shortSetup, symbol, onSav
       target,
       amount: investAmount,
       leverage,
+      ...(setup.suggestedMaxHoldingMs ? { maxHoldingMs: setup.suggestedMaxHoldingMs } : {}),
     });
     if (ok) {
       setSaved(true);
@@ -271,6 +280,18 @@ export default function PositionSimulator({ longSetup, shortSetup, symbol, onSav
             </div>
           )}
 
+          {/* Suggested max holding time */}
+          {setup.suggestedMaxHoldingMs && (
+            <div className="border-t border-gray-700 pt-3">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-gray-400">
+                  推奨最大保有時間<HelpTip text="分析タイムフレームから算出した目安です。この時間を超えてSL/TPに到達しない場合、手動決済を検討してください" />
+                </span>
+                <span className="font-mono text-gray-200 font-bold">{fmtDuration(setup.suggestedMaxHoldingMs)}</span>
+              </div>
+            </div>
+          )}
+
           {/* Save position button */}
           <div className="border-t border-gray-700 pt-3">
             <button
@@ -287,7 +308,7 @@ export default function PositionSimulator({ longSetup, shortSetup, symbol, onSav
               {saved ? '指値注文を登録しました' : isFull ? `ポジション上限（${maxPositions}件）に達しています` : '指値注文として登録'}
             </button>
             <p className="text-xs text-gray-500 mt-1 text-center">
-              価格がエントリーに到達すると約定します。損切り/利確は自動執行されます（{positionCount}/{maxPositions}件）
+              価格がエントリーに到達すると約定します。損切り/利確/保有期限超過は自動執行されます（{positionCount}/{maxPositions}件）
             </p>
           </div>
 

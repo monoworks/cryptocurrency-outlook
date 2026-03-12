@@ -43,6 +43,15 @@ const TIMEFRAME_WEIGHT: Record<Timeframe, number> = {
   '1d': 4,
 };
 
+// Suggested max holding time per timeframe (in milliseconds)
+const TIMEFRAME_MAX_HOLDING_MS: Record<Timeframe, number> = {
+  '5m':  2 * 60 * 60 * 1000,        // 2 hours
+  '15m': 4 * 60 * 60 * 1000,        // 4 hours
+  '1h':  8 * 60 * 60 * 1000,        // 8 hours
+  '4h':  2 * 24 * 60 * 60 * 1000,   // 2 days
+  '1d':  5 * 24 * 60 * 60 * 1000,   // 5 days
+};
+
 function findNearestSupport(levels: PriceLevel[], currentPrice: number): number {
   const supports = levels
     .filter((l) => l.type === 'support' && l.price < currentPrice)
@@ -901,6 +910,22 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
   const shortTarget = findTarget(levels, shortEntry, 'short', minTargetDistance);
   const longSetup = buildTradeSetup('long', currentPrice, longEntry, longTarget, blendedAtr, levels);
   const shortSetup = buildTradeSetup('short', currentPrice, shortEntry, shortTarget, blendedAtr, levels);
+
+  // Compute weighted-average suggested max holding time based on analyzed timeframes
+  {
+    let holdSum = 0;
+    let holdWeightSum = 0;
+    for (const tf of sortedTf) {
+      const w = TIMEFRAME_WEIGHT[tf.timeframe];
+      holdSum += TIMEFRAME_MAX_HOLDING_MS[tf.timeframe] * w;
+      holdWeightSum += w;
+    }
+    if (holdWeightSum > 0) {
+      const suggestedMs = Math.round(holdSum / holdWeightSum);
+      longSetup.suggestedMaxHoldingMs = suggestedMs;
+      shortSetup.suggestedMaxHoldingMs = suggestedMs;
+    }
+  }
 
   // Breakout levels (enhanced with volume breakout info)
   const breakoutLevels: BreakoutLevel[] = [];

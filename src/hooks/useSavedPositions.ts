@@ -65,7 +65,7 @@ export function useSavedPositions() {
     setPositions(updated);
   }, []);
 
-  const closePosition = useCallback((id: string, currentPrice: number, reason: 'manual' | 'stop_loss' | 'take_profit' = 'manual') => {
+  const closePosition = useCallback((id: string, currentPrice: number, reason: 'manual' | 'stop_loss' | 'take_profit' | 'timeout' = 'manual') => {
     const current = loadPositions();
     const updated = current.map((p) => {
       if (p.id !== id || p.status !== 'open') return p;

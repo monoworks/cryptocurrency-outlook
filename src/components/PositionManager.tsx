@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { SavedPosition, CloseReason } from '@/lib/types';
 import { useLivePrices } from '@/hooks/useLivePrice';
 import HelpTip from './HelpTip';
@@ -21,7 +21,22 @@ function closeReasonLabel(reason?: CloseReason): string {
     case 'stop_loss': return '損切り';
     case 'take_profit': return '利確';
     case 'manual': return '手動決済';
+    case 'timeout': return '時間決済';
   }
+}
+
+function fmtDuration(ms: number): string {
+  if (ms <= 0) return '期限超過';
+  const totalMin = Math.floor(ms / (60 * 1000));
+  const hours = Math.floor(totalMin / 60);
+  const mins = totalMin % 60;
+  if (hours >= 24) {
+    const days = Math.floor(hours / 24);
+    const remHours = hours % 24;
+    return remHours > 0 ? `${days}日${remHours}時間` : `${days}日`;
+  }
+  if (hours > 0) return mins > 0 ? `${hours}時間${mins}分` : `${hours}時間`;
+  return `${mins}分`;
 }
 
 interface Props {
@@ -30,7 +45,7 @@ interface Props {
   closedPositions: SavedPosition[];
   onRemove: (id: string) => void;
   onFill: (id: string, fillPrice: number) => void;
-  onClose: (id: string, currentPrice: number, reason?: 'manual' | 'stop_loss' | 'take_profit') => void;
+  onClose: (id: string, currentPrice: number, reason?: CloseReason) => void;
   onResetAll: () => void;
 }
 
@@ -42,6 +57,15 @@ export default function PositionManager({ pendingPositions, openPositions, close
 
   // Track which positions have already been auto-processed to avoid duplicate triggers
   const processedRef = useRef<Set<string>>(new Set());
+
+  // Tick every minute so remaining-time display updates
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const hasTimeout = openPositions.some((p) => p.maxHoldingMs && p.filledAt);
+    if (!hasTimeout) return;
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, [openPositions]);
 
   // Auto-fill pending orders and auto-trigger SL/TP
   useEffect(() => {
@@ -85,6 +109,17 @@ export default function PositionManager({ pendingPositions, openPositions, close
         } else if (livePrice <= pos.target) {
           processedRef.current.add(`close-${pos.id}`);
           onClose(pos.id, pos.target, 'take_profit');
+        }
+      }
+
+      // Time-based auto-close: if maxHoldingMs is set and exceeded
+      if (pos.maxHoldingMs && pos.filledAt) {
+        const elapsed = Date.now() - pos.filledAt;
+        if (elapsed >= pos.maxHoldingMs) {
+          if (!processedRef.current.has(`close-${pos.id}`)) {
+            processedRef.current.add(`close-${pos.id}`);
+            onClose(pos.id, livePrice, 'timeout');
+          }
         }
       }
     }
@@ -204,6 +239,7 @@ export default function PositionManager({ pendingPositions, openPositions, close
               key={pos.id}
               position={pos}
               livePrice={livePrices[pos.symbol.toUpperCase()] ?? null}
+              now={now}
               onRemove={onRemove}
               onClose={onClose}
             />
@@ -276,11 +312,12 @@ function PendingPositionRow({ position: pos, livePrice, onRemove }: {
   );
 }
 
-function OpenPositionRow({ position: pos, livePrice, onRemove, onClose }: {
+function OpenPositionRow({ position: pos, livePrice, now, onRemove, onClose }: {
   position: SavedPosition;
   livePrice: number | null;
+  now: number;
   onRemove: (id: string) => void;
-  onClose: (id: string, currentPrice: number, reason?: 'manual' | 'stop_loss' | 'take_profit') => void;
+  onClose: (id: string, currentPrice: number, reason?: CloseReason) => void;
 }) {
   const posSize = pos.amount * pos.leverage;
   const isLong = pos.direction === 'long';
@@ -307,6 +344,21 @@ function OpenPositionRow({ position: pos, livePrice, onRemove, onClose }: {
           <span className="text-gray-500 text-xs">{pos.leverage}x</span>
           <span className="text-gray-500 text-xs">${fmt(pos.amount, 0)}</span>
           {pos.filledAt && <span className="text-gray-600 text-xs">約定 {fmtDate(pos.filledAt)}</span>}
+          {pos.maxHoldingMs && pos.filledAt && (() => {
+            const remaining = pos.maxHoldingMs - (now - pos.filledAt);
+            const ratio = remaining / pos.maxHoldingMs;
+            const isWarning = ratio <= 0.2;
+            const isExpired = remaining <= 0;
+            return (
+              <span className={`text-xs px-1.5 py-0.5 rounded ${
+                isExpired ? 'text-red-400 bg-red-900/40 animate-pulse' :
+                isWarning ? 'text-yellow-400 bg-yellow-900/30' :
+                'text-gray-400 bg-gray-700/50'
+              }`}>
+                {isExpired ? '期限超過' : `残 ${fmtDuration(remaining)}`}
+              </span>
+            );
+          })()}
         </div>
         <div className="text-xs text-gray-500">
           参入 ${fmt(pos.entry)} / 損切 ${fmt(pos.stopLoss)} / 利確 ${fmt(pos.target)}
@@ -378,6 +430,7 @@ function ClosedPositionRow({ position: pos, onRemove }: {
             <span className={`text-xs px-1.5 py-0.5 rounded ${
               pos.closeReason === 'take_profit' ? 'text-green-400 bg-green-900/30' :
               pos.closeReason === 'stop_loss' ? 'text-red-400 bg-red-900/30' :
+              pos.closeReason === 'timeout' ? 'text-yellow-400 bg-yellow-900/30' :
               'text-gray-400 bg-gray-700'
             }`}>{reason}</span>
           )}

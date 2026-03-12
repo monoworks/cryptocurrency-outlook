@@ -308,6 +308,7 @@ export interface TradeSetup {
   riskRewardRatio: number;
   riskPercent: number;
   rewardPercent: number;
+  suggestedMaxHoldingMs?: number;  // タイムフレーム重みから算出した推奨最大保有時間（ミリ秒）
 }
 
 export type SignalConclusion = 'enter_long' | 'enter_short' | 'wait' | 'skip';
@@ -480,7 +481,7 @@ export interface AISettings {
 // ===== Saved Position =====
 
 export type PositionStatus = 'pending' | 'open' | 'closed';
-export type CloseReason = 'manual' | 'stop_loss' | 'take_profit';
+export type CloseReason = 'manual' | 'stop_loss' | 'take_profit' | 'timeout';
 
 export interface SavedPosition {
   id: string;
@@ -498,4 +499,5 @@ export interface SavedPosition {
   closedPrice?: number;
   closedPnl?: number;
   closeReason?: CloseReason;
+  maxHoldingMs?: number;       // 推奨最大保有時間（ミリ秒）
 }
