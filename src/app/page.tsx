@@ -225,6 +225,7 @@ export default function Home() {
                   orderFlow={result.orderFlow}
                   divergenceAggregation={result.divergenceAggregation}
                   sentiment={result.sentiment}
+                  economicCalendar={result.economicCalendar}
                 />
 
                 {/* AI Analysis - 将来用に非表示 */}

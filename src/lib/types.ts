@@ -426,6 +426,35 @@ export interface AnalysisResult {
   divergenceAggregation?: DivergenceAggregation;
   // Sentiment
   sentiment?: SentimentAnalysis;
+  // Economic calendar
+  economicCalendar?: EconomicCalendarAnalysis;
+}
+
+// ===== Economic Calendar =====
+
+export interface EconomicEvent {
+  event: string;
+  country: string;
+  time: string;           // ISO datetime (UTC)
+  timeJST: string;        // JST formatted string for display
+  impact: 'high' | 'medium' | 'low';
+  estimate?: number;
+  actual?: number;
+  prev?: number;
+  unit?: string;
+}
+
+export interface EconomicCalendarAnalysis {
+  events: EconomicEvent[];
+  hasHighImpact: boolean;
+  nearestHighImpact?: {
+    event: string;
+    hoursUntil: number;
+    timeJST: string;
+  };
+  warningLevel: 'none' | 'caution' | 'danger';
+  description: string;
+  confidenceImpact: number;   // 0 to -15
 }
 
 // ===== AI =====

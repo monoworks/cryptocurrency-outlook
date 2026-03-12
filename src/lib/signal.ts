@@ -19,6 +19,7 @@ import {
   TopTraderRatio,
   DivergenceAggregation,
   FearGreedData,
+  EconomicEvent,
 } from './types';
 import { calcIndicators } from './indicators';
 import { detectPatterns, detectFalseBreakouts, detectWickRejections, detectVolumeSpikes } from './patterns';
@@ -31,6 +32,7 @@ import { buildVolumeProfile } from './volume-profile';
 import { estimateLiquidationLevels } from './liquidation';
 import { analyzeOrderFlow } from './order-flow';
 import { analyzeSentiment } from './sentiment';
+import { analyzeEconomicCalendar } from './economic-calendar';
 
 // Weight for each timeframe (higher = more influence on combined result)
 const TIMEFRAME_WEIGHT: Record<Timeframe, number> = {
@@ -459,6 +461,8 @@ function determineConclusion(
   hierarchical?: HierarchicalAnalysis,
   orderFlowData?: { imbalance: number },
   sentimentSignal?: string,
+  economicWarning?: 'none' | 'caution' | 'danger',
+  economicDescription?: string,
 ): { conclusion: SignalConclusion; reason: string } {
   let bullishScore = 0;
   let bearishScore = 0;
@@ -639,6 +643,16 @@ function determineConclusion(
     reason += ` [階層分析: ${hierarchical.description}]`;
   }
 
+  // Economic calendar override
+  if (economicWarning === 'danger') {
+    if (conclusion === 'enter_long' || conclusion === 'enter_short') {
+      conclusion = 'wait';
+    }
+    reason += ` ⚠ ${economicDescription ?? '重要経済指標発表間近'} — イベント通過まで様子見推奨。`;
+  } else if (economicWarning === 'caution' && economicDescription) {
+    reason += ` [${economicDescription}]`;
+  }
+
   return { conclusion, reason };
 }
 
@@ -650,6 +664,7 @@ function calcConfidence(
   shortSetup: TradeSetup,
   hierarchical?: HierarchicalAnalysis,
   topTraderRatio?: TopTraderRatio,
+  economicConfidenceImpact?: number,
 ): SignalConfidence {
   const factors: SignalConfidence['factors'] = [];
   let score = 50; // base
@@ -751,6 +766,12 @@ function calcConfidence(
     }
   }
 
+  // 9. Economic calendar impact
+  if (economicConfidenceImpact && economicConfidenceImpact < 0) {
+    score += economicConfidenceImpact;
+    factors.push({ name: '経済指標発表リスク', contribution: Math.abs(economicConfidenceImpact), positive: false });
+  }
+
   // Clamp 0-100
   score = Math.max(0, Math.min(100, score));
 
@@ -817,6 +838,7 @@ export interface MultiTimeframeInput {
   derivativesHistory?: DerivativesHistory;
   topTraderRatio?: TopTraderRatio;
   fearGreed?: FearGreedData;
+  economicEvents?: EconomicEvent[];
 }
 
 export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
@@ -913,6 +935,9 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
   // Sentiment (computed early for scoring)
   const sentimentEarly = input.fearGreed ? analyzeSentiment(input.fearGreed) : undefined;
 
+  // Economic calendar (computed early for scoring + conclusion override)
+  const economicCalendar = analyzeEconomicCalendar(input.economicEvents ?? null);
+
   // Conclusion
   const { conclusion, reason } = determineConclusion(
     trend,
@@ -923,6 +948,8 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
     hierarchical,
     { imbalance: orderFlowEarly.imbalance },
     sentimentEarly?.signal,
+    economicCalendar.warningLevel,
+    economicCalendar.description,
   );
 
   // Previous day high/low from daily candles
@@ -931,7 +958,7 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
   const prevDayLow = dailyAnalysis?.prevDayLow;
 
   // Confidence scoring
-  const confidence = calcConfidence(trend, details, derivatives, longSetup, shortSetup, hierarchical, input.topTraderRatio);
+  const confidence = calcConfidence(trend, details, derivatives, longSetup, shortSetup, hierarchical, input.topTraderRatio, economicCalendar.confidenceImpact);
 
   // Use primary (highest weight) timeframe for top-level indicators/patterns
   const primary = details[details.length - 1];
@@ -1004,5 +1031,6 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
     orderFlow,
     divergenceAggregation,
     sentiment,
+    economicCalendar: economicCalendar.events.length > 0 ? economicCalendar : undefined,
   };
 }

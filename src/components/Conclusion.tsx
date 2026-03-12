@@ -1,6 +1,6 @@
 'use client';
 
-import { SignalConclusion, CandlePattern, DerivativesAnalysis, IndicatorValues, HierarchicalAnalysis, FalseBreakout, WickRejectionZone, VolumeSpike, SignalConfidence, Divergence, TopTraderRatio, MarketRegimeAnalysis, VolumeProfileAnalysis, LiquidationAnalysis, OrderFlowAnalysis, DivergenceAggregation, SentimentAnalysis, Timeframe } from '@/lib/types';
+import { SignalConclusion, CandlePattern, DerivativesAnalysis, IndicatorValues, HierarchicalAnalysis, FalseBreakout, WickRejectionZone, VolumeSpike, SignalConfidence, Divergence, TopTraderRatio, MarketRegimeAnalysis, VolumeProfileAnalysis, LiquidationAnalysis, OrderFlowAnalysis, DivergenceAggregation, SentimentAnalysis, EconomicCalendarAnalysis, Timeframe } from '@/lib/types';
 import HelpTip from './HelpTip';
 
 const CONCLUSION_CONFIG: Record<SignalConclusion, { label: string; color: string; bg: string }> = {
@@ -38,9 +38,10 @@ interface Props {
   orderFlow?: OrderFlowAnalysis;
   divergenceAggregation?: DivergenceAggregation;
   sentiment?: SentimentAnalysis;
+  economicCalendar?: EconomicCalendarAnalysis;
 }
 
-export default function Conclusion({ conclusion, reason, patterns, derivatives, indicators, hierarchical, falseBreakouts, wickRejections, volumeSpikes, confidence, divergences, topTraderRatio, marketRegime, volumeProfile, timeframeVolumeProfiles, liquidation, orderFlow, divergenceAggregation, sentiment }: Props) {
+export default function Conclusion({ conclusion, reason, patterns, derivatives, indicators, hierarchical, falseBreakouts, wickRejections, volumeSpikes, confidence, divergences, topTraderRatio, marketRegime, volumeProfile, timeframeVolumeProfiles, liquidation, orderFlow, divergenceAggregation, sentiment, economicCalendar }: Props) {
   const config = CONCLUSION_CONFIG[conclusion];
 
   return (
@@ -50,6 +51,44 @@ export default function Conclusion({ conclusion, reason, patterns, derivatives, 
         <div className={`text-xl font-bold ${config.color} mb-2`}>{config.label}</div>
         <p className="text-gray-300 text-sm">{reason}</p>
       </div>
+
+      {/* Economic Calendar Alert (above other sections when danger) */}
+      {economicCalendar && economicCalendar.warningLevel !== 'none' && (
+        <div className={`mt-3 border rounded-lg p-3 ${
+          economicCalendar.warningLevel === 'danger'
+            ? 'border-red-500 bg-red-900/20'
+            : 'border-yellow-500 bg-yellow-900/20'
+        }`}>
+          <h4 className={`font-semibold text-sm mb-1 ${
+            economicCalendar.warningLevel === 'danger' ? 'text-red-400' : 'text-yellow-400'
+          }`}>
+            {economicCalendar.warningLevel === 'danger' ? '⚠ 重要経済指標 発表間近' : '経済指標カレンダー'}
+            <HelpTip text="FOMC、CPI、雇用統計等の重要経済指標の発表前後は急変動リスクがあります。発表時刻は日本時間(JST)で表示しています" />
+          </h4>
+          <div className={`text-xs mb-2 ${
+            economicCalendar.warningLevel === 'danger' ? 'text-red-300' : 'text-yellow-300'
+          }`}>
+            {economicCalendar.description}
+          </div>
+          {economicCalendar.events.length > 0 && (
+            <div className="space-y-1">
+              {economicCalendar.events.filter((e) => e.impact === 'high' || e.impact === 'medium').slice(0, 5).map((e, i) => (
+                <div key={i} className="flex items-center gap-2 text-xs">
+                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                    e.impact === 'high' ? 'bg-red-800 text-red-200' : 'bg-yellow-800 text-yellow-200'
+                  }`}>
+                    {e.impact === 'high' ? '高' : '中'}
+                  </span>
+                  <span className="text-gray-400">{e.timeJST}</span>
+                  <span className="text-gray-300">{e.event}</span>
+                  {e.estimate != null && <span className="text-gray-500">予想: {e.estimate}</span>}
+                  {e.prev != null && <span className="text-gray-500">前回: {e.prev}</span>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Market Regime + Sentiment row */}
       {(marketRegime || sentiment) && (

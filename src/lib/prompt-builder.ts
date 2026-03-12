@@ -202,6 +202,11 @@ ${result.divergenceAggregation && (result.divergenceAggregation.bullishCount + r
 ${result.sentiment ? `## センチメント (Fear & Greed Index)
 - ${result.sentiment.description}` : ''}
 
+${result.economicCalendar ? `## 経済指標カレンダー (JST)
+- 警告レベル: ${result.economicCalendar.warningLevel === 'danger' ? '⚠ 危険' : result.economicCalendar.warningLevel === 'caution' ? '注意' : '通常'}
+- ${result.economicCalendar.description}
+${result.economicCalendar.events.map((e) => `- ${e.timeJST} (JST) ${e.event} [${e.impact}]${e.estimate != null ? ` 予想: ${e.estimate}` : ''}${e.prev != null ? ` 前回: ${e.prev}` : ''}`).join('\n')}` : ''}
+
 ## ⑦ 結論
 ${result.conclusionReason}
 
@@ -213,7 +218,8 @@ ${result.conclusionReason}
 4. ロングとショートどちらが有利か、その根拠
 5. 具体的なエントリー戦略（押し目買い/戻り売り、引きつけ位置、POC/VA基準）
 6. 注意すべきリスク要因（OI変化、Funding過熱、清算レベル、オーダーフロー偏り）
-7. 重要な価格レベルと、そこを超えた/割れた場合の対応`;
+7. 重要な価格レベルと、そこを超えた/割れた場合の対応
+8. 経済指標カレンダーがある場合、イベント前後のリスク評価と推奨行動`;
 }
 
 export function buildImageAnalysisPrompt(): string {
