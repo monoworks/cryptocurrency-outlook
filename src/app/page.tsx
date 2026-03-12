@@ -59,6 +59,7 @@ export default function Home() {
   const [viewMode, setViewMode] = useState<'simple' | 'detail'>('simple');
   const livePrice = useLivePrice(result ? currentSymbol : null);
   const [standaloneCalendar, setStandaloneCalendar] = useState<EconomicCalendarAnalysis | null>(null);
+  const [calendarCollapsed, setCalendarCollapsed] = useState(true);
   const [news, setNews] = useState<NewsArticle[] | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
 
@@ -222,35 +223,45 @@ export default function Home() {
                 ? 'border-yellow-500 bg-yellow-900/20'
                 : 'border-gray-600 bg-gray-800'
           }`}>
-            <div className={`font-semibold text-sm ${
-              standaloneCalendar.warningLevel === 'danger' ? 'text-red-400'
-                : standaloneCalendar.warningLevel === 'caution' ? 'text-yellow-400'
-                : 'text-gray-400'
-            }`}>
-              {standaloneCalendar.warningLevel === 'danger' ? '⚠ 重要経済指標 発表間近'
-                : '経済指標カレンダー'}
-            </div>
-            <div className={`text-xs mt-1 ${
-              standaloneCalendar.warningLevel === 'danger' ? 'text-red-300'
-                : standaloneCalendar.warningLevel === 'caution' ? 'text-yellow-300'
-                : 'text-gray-500'
-            }`}>
-              {standaloneCalendar.description}
-            </div>
-            {standaloneCalendar.events.filter((e) => e.impact === 'high' || e.impact === 'medium').length > 0 && (
-              <div className="mt-2 space-y-1">
-                {standaloneCalendar.events.filter((e) => e.impact === 'high' || e.impact === 'medium').slice(0, 5).map((e, i) => (
-                  <div key={i} className="flex items-center gap-2 text-xs">
-                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                      e.impact === 'high' ? 'bg-red-800 text-red-200' : 'bg-yellow-800 text-yellow-200'
-                    }`}>
-                      {e.impact === 'high' ? '高' : '中'}
-                    </span>
-                    <span className="text-gray-400">{e.timeJST}</span>
-                    <span className="text-gray-300">{e.event}</span>
-                  </div>
-                ))}
+            <button
+              onClick={() => setCalendarCollapsed(!calendarCollapsed)}
+              className="w-full flex items-center justify-between text-left"
+            >
+              <div className={`font-semibold text-sm ${
+                standaloneCalendar.warningLevel === 'danger' ? 'text-red-400'
+                  : standaloneCalendar.warningLevel === 'caution' ? 'text-yellow-400'
+                  : 'text-gray-400'
+              }`}>
+                {standaloneCalendar.warningLevel === 'danger' ? '⚠ 重要経済指標 発表間近'
+                  : '経済指標カレンダー'}
               </div>
+              <span className="text-gray-500 text-xs">{calendarCollapsed ? '▼ 展開' : '▲ 折りたたむ'}</span>
+            </button>
+            {!calendarCollapsed && (
+              <>
+                <div className={`text-xs mt-1 ${
+                  standaloneCalendar.warningLevel === 'danger' ? 'text-red-300'
+                    : standaloneCalendar.warningLevel === 'caution' ? 'text-yellow-300'
+                    : 'text-gray-500'
+                }`}>
+                  {standaloneCalendar.description}
+                </div>
+                {standaloneCalendar.events.filter((e) => e.impact === 'high' || e.impact === 'medium').length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {standaloneCalendar.events.filter((e) => e.impact === 'high' || e.impact === 'medium').slice(0, 5).map((e, i) => (
+                      <div key={i} className="flex items-center gap-2 text-xs">
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                          e.impact === 'high' ? 'bg-red-800 text-red-200' : 'bg-yellow-800 text-yellow-200'
+                        }`}>
+                          {e.impact === 'high' ? '高' : '中'}
+                        </span>
+                        <span className="text-gray-400">{e.timeJST}</span>
+                        <span className="text-gray-300">{e.event}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
@@ -322,32 +333,42 @@ export default function Home() {
                     ? 'border-yellow-500 bg-yellow-900/20'
                     : 'border-gray-600 bg-gray-800'
               }`}>
-                <div className={`font-semibold text-sm ${
-                  result.economicCalendar.warningLevel === 'danger' ? 'text-red-400'
-                    : result.economicCalendar.warningLevel === 'caution' ? 'text-yellow-400'
-                    : 'text-gray-400'
-                }`}>
-                  {result.economicCalendar.warningLevel === 'danger' ? '⚠ 重要経済指標 発表間近'
-                    : result.economicCalendar.warningLevel === 'caution' ? '経済指標カレンダー'
-                    : '経済指標カレンダー'}
-                </div>
-                <div className={`text-xs mt-1 ${
-                  result.economicCalendar.warningLevel === 'danger' ? 'text-red-300'
-                    : result.economicCalendar.warningLevel === 'caution' ? 'text-yellow-300'
-                    : 'text-gray-500'
-                }`}>
-                  {result.economicCalendar.description}
-                </div>
-                {result.economicCalendar.events.filter((e) => e.impact === 'high').length > 0 && (
-                  <div className="mt-2 space-y-1">
-                    {result.economicCalendar.events.filter((e) => e.impact === 'high').slice(0, 3).map((e, i) => (
-                      <div key={i} className="flex items-center gap-2 text-xs">
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-800 text-red-200">高</span>
-                        <span className="text-gray-400">{e.timeJST}</span>
-                        <span className="text-gray-300">{e.event}</span>
-                      </div>
-                    ))}
+                <button
+                  onClick={() => setCalendarCollapsed(!calendarCollapsed)}
+                  className="w-full flex items-center justify-between text-left"
+                >
+                  <div className={`font-semibold text-sm ${
+                    result.economicCalendar.warningLevel === 'danger' ? 'text-red-400'
+                      : result.economicCalendar.warningLevel === 'caution' ? 'text-yellow-400'
+                      : 'text-gray-400'
+                  }`}>
+                    {result.economicCalendar.warningLevel === 'danger' ? '⚠ 重要経済指標 発表間近'
+                      : result.economicCalendar.warningLevel === 'caution' ? '経済指標カレンダー'
+                      : '経済指標カレンダー'}
                   </div>
+                  <span className="text-gray-500 text-xs">{calendarCollapsed ? '▼ 展開' : '▲ 折りたたむ'}</span>
+                </button>
+                {!calendarCollapsed && (
+                  <>
+                    <div className={`text-xs mt-1 ${
+                      result.economicCalendar.warningLevel === 'danger' ? 'text-red-300'
+                        : result.economicCalendar.warningLevel === 'caution' ? 'text-yellow-300'
+                        : 'text-gray-500'
+                    }`}>
+                      {result.economicCalendar.description}
+                    </div>
+                    {result.economicCalendar.events.filter((e) => e.impact === 'high').length > 0 && (
+                      <div className="mt-2 space-y-1">
+                        {result.economicCalendar.events.filter((e) => e.impact === 'high').slice(0, 3).map((e, i) => (
+                          <div key={i} className="flex items-center gap-2 text-xs">
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-800 text-red-200">高</span>
+                            <span className="text-gray-400">{e.timeJST}</span>
+                            <span className="text-gray-300">{e.event}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}

@@ -8,7 +8,7 @@ interface NewsSectionProps {
 }
 
 export default function NewsSection({ articles }: NewsSectionProps) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
 
   if (!articles || articles.length === 0) return null;
 
