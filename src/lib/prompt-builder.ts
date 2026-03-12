@@ -205,7 +205,7 @@ ${result.sentiment ? `## センチメント (Fear & Greed Index)
 ${result.economicCalendar ? `## 経済指標カレンダー (JST)
 - 警告レベル: ${result.economicCalendar.warningLevel === 'danger' ? '⚠ 危険' : result.economicCalendar.warningLevel === 'caution' ? '注意' : '通常'}
 - ${result.economicCalendar.description}
-${result.economicCalendar.events.map((e) => `- ${e.timeJST} (JST) ${e.event} [${e.impact}]${e.estimate != null ? ` 予想: ${e.estimate}` : ''}${e.prev != null ? ` 前回: ${e.prev}` : ''}`).join('\n')}` : ''}
+${result.economicCalendar.events.map((e) => `- ${e.timeJST} (JST) ${e.event} [${e.impact}]${e.forecast ? ` 予想: ${e.forecast}` : ''}${e.prev ? ` 前回: ${e.prev}` : ''}`).join('\n')}` : ''}
 
 ## ⑦ 結論
 ${result.conclusionReason}

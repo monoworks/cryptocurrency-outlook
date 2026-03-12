@@ -87,8 +87,8 @@ export default function Conclusion({ conclusion, reason, patterns, derivatives, 
                   </span>
                   <span className="text-gray-400">{e.timeJST}</span>
                   <span className="text-gray-300">{e.event}</span>
-                  {e.estimate != null && <span className="text-gray-500">予想: {e.estimate}</span>}
-                  {e.prev != null && <span className="text-gray-500">前回: {e.prev}</span>}
+                  {e.forecast && <span className="text-gray-500">予想: {e.forecast}</span>}
+                  {e.prev && <span className="text-gray-500">前回: {e.prev}</span>}
                 </div>
               ))}
             </div>

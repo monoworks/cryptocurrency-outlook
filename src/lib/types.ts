@@ -438,10 +438,8 @@ export interface EconomicEvent {
   time: string;           // ISO datetime (UTC)
   timeJST: string;        // JST formatted string for display
   impact: 'high' | 'medium' | 'low';
-  estimate?: number;
-  actual?: number;
-  prev?: number;
-  unit?: string;
+  forecast?: string;
+  prev?: string;
 }
 
 export interface EconomicCalendarAnalysis {

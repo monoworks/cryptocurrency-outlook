@@ -1,15 +1,26 @@
 import { EconomicEvent, EconomicCalendarAnalysis } from './types';
 
-const FINNHUB_BASE = 'https://finnhub.io/api/v1';
+/**
+ * Forex Factory calendar feed (free, no API key required).
+ * Rate limit: max 2 requests per 5 minutes — use aggressive caching.
+ */
+const FF_CALENDAR_URL = 'https://nfs.faireconomy.media/ff_calendar_thisweek.json';
+
+interface FFEvent {
+  title: string;
+  country: string;
+  date: string;
+  impact: string;
+  forecast?: string;
+  previous?: string;
+}
 
 /**
- * Format a UTC date string to JST display string (e.g. "3/12 22:30")
+ * Format an ISO date string to JST display string (e.g. "3/12 22:30")
  */
-function toJST(utcDateStr: string): string {
-  // Finnhub returns "YYYY-MM-DD HH:MM:SS" without timezone — treat as UTC
-  const normalized = utcDateStr.includes('T') ? utcDateStr : utcDateStr.replace(' ', 'T') + 'Z';
-  const d = new Date(normalized);
-  if (isNaN(d.getTime())) return utcDateStr;
+function toJST(isoDateStr: string): string {
+  const d = new Date(isoDateStr);
+  if (isNaN(d.getTime())) return isoDateStr;
   return d.toLocaleString('ja-JP', {
     timeZone: 'Asia/Tokyo',
     month: 'numeric',
@@ -20,119 +31,54 @@ function toJST(utcDateStr: string): string {
   });
 }
 
-/**
- * Map Finnhub impact string to our normalized impact level.
- * Finnhub uses "high", "medium", "low" (or numeric 1-3 in some responses).
- */
-function normalizeImpact(raw: string | number): EconomicEvent['impact'] {
-  if (typeof raw === 'number') {
-    if (raw >= 3) return 'high';
-    if (raw >= 2) return 'medium';
-    return 'low';
-  }
-  const s = String(raw).toLowerCase();
-  if (s === 'high' || s === '3') return 'high';
-  if (s === 'medium' || s === '2') return 'medium';
+function normalizeImpact(raw: string): EconomicEvent['impact'] {
+  const s = raw.toLowerCase();
+  if (s === 'high') return 'high';
+  if (s === 'medium') return 'medium';
   return 'low';
 }
 
-function formatDate(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
 /**
- * Fetch upcoming US economic events from Finnhub.
- * Returns null if API key is not configured or fetch fails.
+ * Fetch upcoming US economic events from Forex Factory.
+ * Returns null if fetch fails.
  */
-// Exposed for debugging — stores last raw response from Finnhub
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export let _lastFinnhubDebug: { url: string; status: number; keys: string[]; sample: any; totalRaw: number } | null = null;
-
 export async function fetchEconomicCalendar(): Promise<EconomicEvent[] | null> {
-  const apiKey = process.env.FINNHUB_API_KEY;
-  if (!apiKey) return null;
-
   try {
-    const now = new Date();
-    const from = formatDate(now);
-    const to = formatDate(new Date(now.getTime() + 48 * 60 * 60 * 1000));
-
-    const url = `${FINNHUB_BASE}/calendar/economic?from=${from}&to=${to}&token=${apiKey}`;
-    const res = await fetch(url, {
-      headers: { Accept: 'application/json' },
-      next: { revalidate: 1800 },
+    const res = await fetch(FF_CALENDAR_URL, {
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': 'Mozilla/5.0',
+      },
+      next: { revalidate: 3600 },
     });
 
-    if (!res.ok) {
-      _lastFinnhubDebug = { url: url.replace(apiKey, '***'), status: res.status, keys: [], sample: null, totalRaw: 0 };
-      return null;
-    }
+    if (!res.ok) return null;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const data = await res.json() as Record<string, any>;
+    const data = await res.json() as FFEvent[];
 
-    // Capture raw response shape for debugging
-    const ecField = data.economicCalendar;
-    _lastFinnhubDebug = {
-      url: url.replace(apiKey, '***'),
-      status: res.status,
-      keys: Object.keys(data),
-      sample: Array.isArray(ecField) ? ecField.slice(0, 2)
-        : ecField && typeof ecField === 'object' ? { subKeys: Object.keys(ecField), sample: Array.isArray(ecField.result) ? ecField.result.slice(0, 2) : null }
-        : ecField,
-      totalRaw: Array.isArray(ecField) ? ecField.length : (ecField?.result?.length ?? 0),
-    };
+    if (!Array.isArray(data) || data.length === 0) return null;
 
-    // Finnhub may return { economicCalendar: [...] } or { economicCalendar: { result: [...] } }
-    let rawEvents: {
-      event: string;
-      country: string;
-      time: string;
-      impact: string | number;
-      estimate?: number;
-      actual?: number;
-      prev?: number;
-      unit?: string;
-    }[] | undefined;
+    const now = new Date();
+    const cutoff = new Date(now.getTime() + 48 * 60 * 60 * 1000);
 
-    if (Array.isArray(data.economicCalendar)) {
-      rawEvents = data.economicCalendar;
-    } else if (data.economicCalendar && Array.isArray(data.economicCalendar.result)) {
-      rawEvents = data.economicCalendar.result;
-    }
-
-    if (!rawEvents || rawEvents.length === 0) {
-      console.warn('[economic-calendar] No events from Finnhub. Response keys:', Object.keys(data));
-      return null;
-    }
-
-    console.log(`[economic-calendar] Finnhub returned ${rawEvents.length} raw events`);
-
-    // Normalize time to ISO UTC string for consistent parsing
-    const normalizeTime = (t: string) =>
-      t.includes('T') ? t : t.replace(' ', 'T') + 'Z';
-
-    // Filter US events only, with valid time
-    const usEvents = rawEvents
-      .filter((e) => e.country === 'US' && e.time)
+    // Filter USD events within 48-hour window, exclude holidays
+    return data
+      .filter((e) => {
+        if (e.country !== 'USD' || !e.date) return false;
+        if (e.impact?.toLowerCase() === 'holiday') return false;
+        const t = new Date(e.date);
+        return !isNaN(t.getTime()) && t >= now && t <= cutoff;
+      })
       .map((e) => ({
-        event: e.event,
-        country: e.country,
-        time: normalizeTime(e.time),
-        timeJST: toJST(e.time),
+        event: e.title,
+        country: 'US',
+        time: new Date(e.date).toISOString(),
+        timeJST: toJST(e.date),
         impact: normalizeImpact(e.impact),
-        estimate: e.estimate,
-        actual: e.actual,
-        prev: e.prev,
-        unit: e.unit,
+        forecast: e.forecast || undefined,
+        prev: e.previous || undefined,
       }))
       .sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
-
-    console.log(`[economic-calendar] ${usEvents.length} US events after filtering`);
-    return usEvents;
   } catch {
     return null;
   }
