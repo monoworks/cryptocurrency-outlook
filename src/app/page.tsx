@@ -14,11 +14,15 @@ import PositionSimulator from '@/components/PositionSimulator';
 import PositionManager from '@/components/PositionManager';
 import BreakoutLevels from '@/components/BreakoutLevels';
 import Conclusion from '@/components/Conclusion';
+import AnalysisHistory, { HistoryEntry } from '@/components/AnalysisHistory';
 // 将来用に残す
 // import AISettings from '@/components/AISettings';
 // import AIAnalysis from '@/components/AIAnalysis';
 // import ImageUpload from '@/components/ImageUpload';
 import CopyPrompt from '@/components/CopyPrompt';
+
+const HISTORY_KEY = 'crypto-outlook-history';
+const MAX_HISTORY = 100;
 
 // 将来用に残す
 // const AI_SETTINGS_KEY = 'crypto-signal-ai-settings';
@@ -54,6 +58,64 @@ export default function Home() {
   const [viewMode, setViewMode] = useState<'simple' | 'detail'>('simple');
   const livePrice = useLivePrice(result ? currentSymbol : null);
   const [standaloneCalendar, setStandaloneCalendar] = useState<EconomicCalendarAnalysis | null>(null);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+
+  // Load history from localStorage
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(HISTORY_KEY);
+      if (stored) setHistory(JSON.parse(stored));
+    } catch { /* ignore */ }
+  }, []);
+
+  const saveHistory = useCallback((entries: HistoryEntry[]) => {
+    setHistory(entries);
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(entries));
+  }, []);
+
+  const addToHistory = useCallback((res: AnalysisResult, symbol: string) => {
+    const entry: HistoryEntry = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      timestamp: new Date().toISOString(),
+      symbol: symbol.toUpperCase(),
+      conclusion: res.conclusion,
+      currentPrice: res.marketSummary.currentPrice,
+      confidence: res.confidence?.score,
+      result: res,
+    };
+    setHistory((prev) => {
+      const next = [entry, ...prev].slice(0, MAX_HISTORY);
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  const loadFromHistory = useCallback((entry: HistoryEntry) => {
+    setResult(entry.result);
+    setCurrentSymbol(entry.symbol);
+  }, []);
+
+  const deleteFromHistory = useCallback((id: string) => {
+    setHistory((prev) => {
+      const next = prev.filter((e) => e.id !== id);
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  const importHistory = useCallback((entries: HistoryEntry[]) => {
+    setHistory((prev) => {
+      const existingIds = new Set(prev.map((e) => e.id));
+      const newEntries = entries.filter((e) => !existingIds.has(e.id));
+      const next = [...newEntries, ...prev].slice(0, MAX_HISTORY);
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  const clearHistory = useCallback(() => {
+    saveHistory([]);
+  }, [saveHistory]);
 
   // Fetch economic calendar on page load (independent of analysis)
   useEffect(() => {
@@ -96,6 +158,7 @@ export default function Home() {
         setError(data.error || '分析に失敗しました');
       } else {
         setResult(data);
+        addToHistory(data, symbol);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'エラーが発生しました');
@@ -197,6 +260,17 @@ export default function Home() {
           </div>
         )}
 
+        {/* Analysis History (before analysis) */}
+        {!result && !loading && history.length > 0 && (
+          <AnalysisHistory
+            history={history}
+            onLoad={loadFromHistory}
+            onDelete={deleteFromHistory}
+            onImport={importHistory}
+            onClearAll={clearHistory}
+          />
+        )}
+
         {/* Results */}
         {result && (
           <div className="space-y-4">
@@ -287,6 +361,15 @@ export default function Home() {
               onFill={fillPosition}
               onClose={closePosition}
               onResetAll={resetAll}
+            />
+
+            {/* Both modes: Analysis History */}
+            <AnalysisHistory
+              history={history}
+              onLoad={loadFromHistory}
+              onDelete={deleteFromHistory}
+              onImport={importHistory}
+              onClearAll={clearHistory}
             />
 
             {/* Detail mode only */}
