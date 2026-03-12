@@ -457,6 +457,19 @@ export interface EconomicCalendarAnalysis {
   confidenceImpact: number;   // 0 to -15
 }
 
+// ===== News =====
+
+export interface NewsArticle {
+  title: string;
+  description: string | null;
+  link: string;
+  translatedLink: string;
+  source: string;
+  pubDate: string;
+  pubDateJST: string;
+  category: string[];
+}
+
 // ===== AI =====
 
 export type AIProvider = 'openai' | 'anthropic';

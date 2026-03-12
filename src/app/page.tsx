@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { AnalysisResult, EconomicCalendarAnalysis, Timeframe } from '@/lib/types';
+import { AnalysisResult, EconomicCalendarAnalysis, NewsArticle, Timeframe } from '@/lib/types';
 import { buildAnalysisPrompt } from '@/lib/prompt-builder';
 import { useSavedPositions } from '@/hooks/useSavedPositions';
 import { useLivePrice } from '@/hooks/useLivePrice';
@@ -20,6 +20,7 @@ import AnalysisHistory, { HistoryEntry } from '@/components/AnalysisHistory';
 // import AIAnalysis from '@/components/AIAnalysis';
 // import ImageUpload from '@/components/ImageUpload';
 import CopyPrompt from '@/components/CopyPrompt';
+import NewsSection from '@/components/NewsSection';
 
 const HISTORY_KEY = 'crypto-outlook-history';
 const MAX_HISTORY = 100;
@@ -58,6 +59,7 @@ export default function Home() {
   const [viewMode, setViewMode] = useState<'simple' | 'detail'>('simple');
   const livePrice = useLivePrice(result ? currentSymbol : null);
   const [standaloneCalendar, setStandaloneCalendar] = useState<EconomicCalendarAnalysis | null>(null);
+  const [news, setNews] = useState<NewsArticle[] | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
 
   // Load history from localStorage
@@ -122,6 +124,14 @@ export default function Home() {
     fetch('/api/economic-calendar')
       .then((res) => res.ok ? res.json() : null)
       .then((data) => { if (data) setStandaloneCalendar(data); })
+      .catch(() => {});
+  }, []);
+
+  // Fetch news on page load
+  useEffect(() => {
+    fetch('/api/news')
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => { if (data?.articles) setNews(data.articles); })
       .catch(() => {});
   }, []);
 
@@ -245,6 +255,9 @@ export default function Home() {
           </div>
         )}
 
+        {/* Standalone News (before analysis) */}
+        {!result && <NewsSection articles={news} />}
+
         {/* Error */}
         {error && (
           <div className="bg-red-900/30 border border-red-500 rounded-lg p-4 text-red-300">
@@ -338,6 +351,9 @@ export default function Home() {
                 )}
               </div>
             )}
+
+            {/* News (after economic calendar) */}
+            <NewsSection articles={news} />
 
             {/* Simple mode: Conclusion summary */}
             {viewMode === 'simple' && (() => {
