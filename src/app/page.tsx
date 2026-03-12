@@ -175,19 +175,27 @@ export default function Home() {
             </div>
 
             {/* Both modes: Economic Calendar Alert */}
-            {result.economicCalendar && result.economicCalendar.warningLevel !== 'none' && (
+            {result.economicCalendar && (
               <div className={`border rounded-lg p-3 ${
                 result.economicCalendar.warningLevel === 'danger'
                   ? 'border-red-500 bg-red-900/20'
-                  : 'border-yellow-500 bg-yellow-900/20'
+                  : result.economicCalendar.warningLevel === 'caution'
+                    ? 'border-yellow-500 bg-yellow-900/20'
+                    : 'border-gray-600 bg-gray-800'
               }`}>
                 <div className={`font-semibold text-sm ${
-                  result.economicCalendar.warningLevel === 'danger' ? 'text-red-400' : 'text-yellow-400'
+                  result.economicCalendar.warningLevel === 'danger' ? 'text-red-400'
+                    : result.economicCalendar.warningLevel === 'caution' ? 'text-yellow-400'
+                    : 'text-gray-400'
                 }`}>
-                  {result.economicCalendar.warningLevel === 'danger' ? '⚠ 重要経済指標 発表間近' : '経済指標カレンダー'}
+                  {result.economicCalendar.warningLevel === 'danger' ? '⚠ 重要経済指標 発表間近'
+                    : result.economicCalendar.warningLevel === 'caution' ? '経済指標カレンダー'
+                    : '経済指標カレンダー'}
                 </div>
                 <div className={`text-xs mt-1 ${
-                  result.economicCalendar.warningLevel === 'danger' ? 'text-red-300' : 'text-yellow-300'
+                  result.economicCalendar.warningLevel === 'danger' ? 'text-red-300'
+                    : result.economicCalendar.warningLevel === 'caution' ? 'text-yellow-300'
+                    : 'text-gray-500'
                 }`}>
                   {result.economicCalendar.description}
                 </div>

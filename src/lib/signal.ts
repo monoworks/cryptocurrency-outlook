@@ -1031,6 +1031,6 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
     orderFlow,
     divergenceAggregation,
     sentiment,
-    economicCalendar: economicCalendar.events.length > 0 ? economicCalendar : undefined,
+    economicCalendar,
   };
 }

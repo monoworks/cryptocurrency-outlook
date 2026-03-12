@@ -52,21 +52,27 @@ export default function Conclusion({ conclusion, reason, patterns, derivatives, 
         <p className="text-gray-300 text-sm">{reason}</p>
       </div>
 
-      {/* Economic Calendar Alert (above other sections when danger) */}
-      {economicCalendar && economicCalendar.warningLevel !== 'none' && (
+      {/* Economic Calendar Alert */}
+      {economicCalendar && (
         <div className={`mt-3 border rounded-lg p-3 ${
           economicCalendar.warningLevel === 'danger'
             ? 'border-red-500 bg-red-900/20'
-            : 'border-yellow-500 bg-yellow-900/20'
+            : economicCalendar.warningLevel === 'caution'
+              ? 'border-yellow-500 bg-yellow-900/20'
+              : 'border-gray-600'
         }`}>
           <h4 className={`font-semibold text-sm mb-1 ${
-            economicCalendar.warningLevel === 'danger' ? 'text-red-400' : 'text-yellow-400'
+            economicCalendar.warningLevel === 'danger' ? 'text-red-400'
+              : economicCalendar.warningLevel === 'caution' ? 'text-yellow-400'
+              : 'text-gray-400'
           }`}>
             {economicCalendar.warningLevel === 'danger' ? '⚠ 重要経済指標 発表間近' : '経済指標カレンダー'}
             <HelpTip text="FOMC、CPI、雇用統計等の重要経済指標の発表前後は急変動リスクがあります。発表時刻は日本時間(JST)で表示しています" />
           </h4>
           <div className={`text-xs mb-2 ${
-            economicCalendar.warningLevel === 'danger' ? 'text-red-300' : 'text-yellow-300'
+            economicCalendar.warningLevel === 'danger' ? 'text-red-300'
+              : economicCalendar.warningLevel === 'caution' ? 'text-yellow-300'
+              : 'text-gray-500'
           }`}>
             {economicCalendar.description}
           </div>
