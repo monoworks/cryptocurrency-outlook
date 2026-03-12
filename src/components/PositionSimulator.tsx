@@ -234,16 +234,14 @@ export default function PositionSimulator({ longSetup, shortSetup, symbol, onSav
             <div className="text-right font-mono text-gray-200">1 : {fmt(rr, 1)}</div>
           </div>
 
-          <div className="border-t border-gray-700 pt-3">
+          <div className="border-t border-gray-700 pt-3 grid grid-cols-2 gap-2">
             {/* Profit scenario */}
-            <div className="bg-green-900/20 border border-green-700/30 rounded-lg p-3 mb-2">
+            <div className="bg-green-900/20 border border-green-700/30 rounded-lg p-3">
               <div className="text-xs text-green-400 mb-1">
                 利確時（${fmt(target)}）<HelpTip text="目標価格に達した場合の利益です" />
               </div>
-              <div className="flex justify-between items-baseline">
-                <span className="text-green-400 text-xl font-bold font-mono">+${fmt(profitAtTarget)}</span>
-                <span className="text-green-400 text-sm font-mono">+{fmt(roi)}%</span>
-              </div>
+              <div className="text-green-400 text-xl font-bold font-mono">+${fmt(profitAtTarget)}</div>
+              <div className="text-green-400 text-sm font-mono">+{fmt(roi)}%</div>
             </div>
 
             {/* Loss scenario */}
@@ -251,10 +249,8 @@ export default function PositionSimulator({ longSetup, shortSetup, symbol, onSav
               <div className="text-xs text-red-400 mb-1">
                 損切り時（${fmt(stopLoss)}）<HelpTip text="損切りラインに達した場合の損失です" />
               </div>
-              <div className="flex justify-between items-baseline">
-                <span className="text-red-400 text-xl font-bold font-mono">-${fmt(lossAtStop)}</span>
-                <span className="text-red-400 text-sm font-mono">-{fmt(lossRoi)}%</span>
-              </div>
+              <div className="text-red-400 text-xl font-bold font-mono">-${fmt(lossAtStop)}</div>
+              <div className="text-red-400 text-sm font-mono">-{fmt(lossRoi)}%</div>
             </div>
           </div>
 
