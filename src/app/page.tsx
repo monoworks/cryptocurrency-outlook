@@ -63,6 +63,7 @@ export default function Home() {
   const [calendarCollapsed, setCalendarCollapsed] = useState(true);
   const [news, setNews] = useState<NewsArticle[] | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [inputCollapsed, setInputCollapsed] = useState(false);
 
   // Load history from localStorage
   useEffect(() => {
@@ -202,8 +203,28 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Input */}
-        <SymbolInput onAnalyze={handleAnalyze} loading={loading} />
+        {/* Input — collapsible in dashboard mode */}
+        {viewMode === 'dashboard' ? (
+          <div>
+            <button
+              onClick={() => setInputCollapsed(!inputCollapsed)}
+              className="w-full flex items-center justify-between bg-gray-800 rounded-lg px-4 py-2 hover:bg-gray-700 transition-colors"
+            >
+              <span className="text-sm text-gray-300 font-medium">
+                銘柄設定・分析開始
+                {inputCollapsed && <span className="text-gray-500 ml-2">— {currentSymbol}</span>}
+              </span>
+              <span className="text-gray-500 text-xs">{inputCollapsed ? '▼ 展開' : '▲ 折りたたむ'}</span>
+            </button>
+            {!inputCollapsed && (
+              <div className="mt-2">
+                <SymbolInput onAnalyze={handleAnalyze} loading={loading} />
+              </div>
+            )}
+          </div>
+        ) : (
+          <SymbolInput onAnalyze={handleAnalyze} loading={loading} />
+        )}
 
         {/* AI Settings - 将来用に非表示 */}
         {/* <AISettings

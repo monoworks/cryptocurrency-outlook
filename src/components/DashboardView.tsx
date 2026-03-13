@@ -2,13 +2,11 @@
 
 import { useState } from 'react';
 import { AnalysisResult, EconomicCalendarAnalysis, NewsArticle, SavedPosition, CloseReason } from '@/lib/types';
-import { buildAnalysisPrompt } from '@/lib/prompt-builder';
 import PRComparison from './PRComparison';
 import PositionSimulator from './PositionSimulator';
 import PositionManager from './PositionManager';
 import AnalysisHistory, { HistoryEntry } from './AnalysisHistory';
 import NewsSection from './NewsSection';
-import CopyPrompt from './CopyPrompt';
 
 interface Props {
   result: AnalysisResult | null;
@@ -253,10 +251,6 @@ export default function DashboardView({
         </div>
       </div>
 
-      {/* Copy Prompt (only when result exists) */}
-      {result && (
-        <CopyPrompt prompt={buildAnalysisPrompt(result)} />
-      )}
     </div>
   );
 }
