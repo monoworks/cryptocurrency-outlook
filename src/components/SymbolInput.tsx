@@ -84,6 +84,9 @@ export default function SymbolInput({ onAnalyze, loading }: Props) {
             );
           })}
         </div>
+        <p className="text-xs text-gray-500 mt-2 leading-relaxed">
+          💡 短期トレード（スキャルピング〜数時間）は短めの足（5分足・15分足・1時間足）、長期トレード（数日〜）は長めの足（1時間足・4時間足・日足）の組み合わせが効果的です。
+        </p>
       </div>
     </div>
   );
