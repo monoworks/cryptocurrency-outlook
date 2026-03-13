@@ -21,6 +21,7 @@ import AnalysisHistory, { HistoryEntry } from '@/components/AnalysisHistory';
 // import ImageUpload from '@/components/ImageUpload';
 import CopyPrompt from '@/components/CopyPrompt';
 import NewsSection from '@/components/NewsSection';
+import DashboardView from '@/components/DashboardView';
 
 const HISTORY_KEY = 'crypto-outlook-history';
 const MAX_HISTORY = 100;
@@ -56,7 +57,7 @@ export default function Home() {
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [currentSymbol, setCurrentSymbol] = useState('BTCUSDT');
   const { pendingPositions, openPositions, closedPositions, addPosition, fillPosition, removePosition, closePosition, resetAll, maxPositions, positions } = useSavedPositions();
-  const [viewMode, setViewMode] = useState<'simple' | 'detail'>('simple');
+  const [viewMode, setViewMode] = useState<'simple' | 'detail' | 'dashboard'>('simple');
   const livePrice = useLivePrice(result ? currentSymbol : null);
   const [standaloneCalendar, setStandaloneCalendar] = useState<EconomicCalendarAnalysis | null>(null);
   const [calendarCollapsed, setCalendarCollapsed] = useState(true);
@@ -180,7 +181,7 @@ export default function Home() {
 
   return (
     <main className={`min-h-screen ${themeConfig[theme].bg} ${themeConfig[theme].text} transition-colors duration-300`}>
-      <div className="max-w-5xl mx-auto px-4 py-6 space-y-4">
+      <div className={`${viewMode === 'dashboard' ? 'max-w-[1400px]' : 'max-w-5xl'} mx-auto px-4 py-6 space-y-4 transition-all duration-300`}>
         {/* Header */}
         <div className="relative text-center mb-6">
           <h1 className="text-2xl font-bold">Cryptocurrency Outlook</h1>
@@ -214,60 +215,28 @@ export default function Home() {
         {/* Image Upload - 将来用に非表示 */}
         {/* <ImageUpload onImageSelect={setImageBase64} imageBase64={imageBase64} /> */}
 
-        {/* Standalone Economic Calendar (before analysis) */}
-        {!result && standaloneCalendar && (
-          <div className={`border rounded-lg p-3 ${
-            standaloneCalendar.warningLevel === 'danger'
-              ? 'border-red-500 bg-red-900/20'
-              : standaloneCalendar.warningLevel === 'caution'
-                ? 'border-yellow-500 bg-yellow-900/20'
-                : 'border-gray-600 bg-gray-800'
-          }`}>
-            <button
-              onClick={() => setCalendarCollapsed(!calendarCollapsed)}
-              className="w-full flex items-center justify-between text-left"
-            >
-              <div className={`font-semibold text-sm ${
-                standaloneCalendar.warningLevel === 'danger' ? 'text-red-400'
-                  : standaloneCalendar.warningLevel === 'caution' ? 'text-yellow-400'
-                  : 'text-gray-400'
-              }`}>
-                {standaloneCalendar.warningLevel === 'danger' ? '⚠ 重要経済指標 発表間近'
-                  : '経済指標カレンダー'}
-              </div>
-              <span className="text-gray-500 text-xs">{calendarCollapsed ? '▼ 展開' : '▲ 折りたたむ'}</span>
-            </button>
-            {!calendarCollapsed && (
-              <>
-                <div className={`text-xs mt-1 ${
-                  standaloneCalendar.warningLevel === 'danger' ? 'text-red-300'
-                    : standaloneCalendar.warningLevel === 'caution' ? 'text-yellow-300'
-                    : 'text-gray-500'
-                }`}>
-                  {standaloneCalendar.description}
-                </div>
-                {standaloneCalendar.events.filter((e) => e.impact === 'high' || e.impact === 'medium').length > 0 && (
-                  <div className="mt-2 space-y-1">
-                    {standaloneCalendar.events.filter((e) => e.impact === 'high' || e.impact === 'medium').slice(0, 5).map((e, i) => (
-                      <div key={i} className="flex items-center gap-2 text-xs">
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                          e.impact === 'high' ? 'bg-red-800 text-red-200' : 'bg-yellow-800 text-yellow-200'
-                        }`}>
-                          {e.impact === 'high' ? '高' : '中'}
-                        </span>
-                        <span className="text-gray-400">{e.timeJST}</span>
-                        <span className="text-gray-300">{e.event}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
+        {/* View mode toggle — always visible */}
+        <div className="flex items-center justify-between">
+          <div className="flex gap-1 bg-gray-800 rounded-lg p-1">
+            {([
+              { key: 'simple' as const, label: '簡易版' },
+              { key: 'detail' as const, label: '詳細版' },
+              { key: 'dashboard' as const, label: 'ダッシュボード' },
+            ]).map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setViewMode(key)}
+                className={`px-4 py-1.5 rounded text-sm font-medium transition-colors ${
+                  viewMode === key
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-400 hover:text-gray-200'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
-        )}
-
-        {/* Standalone News (before analysis) */}
-        {!result && <NewsSection articles={news} />}
+        </div>
 
         {/* Error */}
         {error && (
@@ -284,47 +253,107 @@ export default function Home() {
           </div>
         )}
 
-        {/* Analysis History (before analysis) */}
-        {!result && !loading && history.length > 0 && (
-          <AnalysisHistory
+        {/* Dashboard mode — always rendered (shows placeholders when no result) */}
+        {viewMode === 'dashboard' && (
+          <DashboardView
+            result={result}
+            currentSymbol={currentSymbol}
+            livePrice={livePrice}
+            standaloneCalendar={standaloneCalendar}
+            news={news}
+            pendingPositions={pendingPositions}
+            openPositions={openPositions}
+            closedPositions={closedPositions}
+            addPosition={addPosition}
+            fillPosition={fillPosition}
+            removePosition={removePosition}
+            closePosition={closePosition}
+            resetAll={resetAll}
+            positions={positions}
+            maxPositions={maxPositions}
             history={history}
-            onLoad={loadFromHistory}
-            onDelete={deleteFromHistory}
-            onImport={importHistory}
-            onClearAll={clearHistory}
+            loadFromHistory={loadFromHistory}
+            deleteFromHistory={deleteFromHistory}
+            importHistory={importHistory}
+            clearHistory={clearHistory}
           />
         )}
 
-        {/* Results */}
-        {result && (
-          <div className="space-y-4">
-            {/* View mode toggle */}
-            <div className="flex items-center justify-between">
-              <div className="flex gap-1 bg-gray-800 rounded-lg p-1">
+        {/* Simple / Detail modes: pre-analysis content */}
+        {viewMode !== 'dashboard' && !result && (
+          <>
+            {/* Standalone Economic Calendar */}
+            {standaloneCalendar && (
+              <div className={`border rounded-lg p-3 ${
+                standaloneCalendar.warningLevel === 'danger'
+                  ? 'border-red-500 bg-red-900/20'
+                  : standaloneCalendar.warningLevel === 'caution'
+                    ? 'border-yellow-500 bg-yellow-900/20'
+                    : 'border-gray-600 bg-gray-800'
+              }`}>
                 <button
-                  onClick={() => setViewMode('simple')}
-                  className={`px-4 py-1.5 rounded text-sm font-medium transition-colors ${
-                    viewMode === 'simple'
-                      ? 'bg-blue-600 text-white'
-                      : 'text-gray-400 hover:text-gray-200'
-                  }`}
+                  onClick={() => setCalendarCollapsed(!calendarCollapsed)}
+                  className="w-full flex items-center justify-between text-left"
                 >
-                  簡易版
+                  <div className={`font-semibold text-sm ${
+                    standaloneCalendar.warningLevel === 'danger' ? 'text-red-400'
+                      : standaloneCalendar.warningLevel === 'caution' ? 'text-yellow-400'
+                      : 'text-gray-400'
+                  }`}>
+                    {standaloneCalendar.warningLevel === 'danger' ? '⚠ 重要経済指標 発表間近'
+                      : '経済指標カレンダー'}
+                  </div>
+                  <span className="text-gray-500 text-xs">{calendarCollapsed ? '▼ 展開' : '▲ 折りたたむ'}</span>
                 </button>
-                <button
-                  onClick={() => setViewMode('detail')}
-                  className={`px-4 py-1.5 rounded text-sm font-medium transition-colors ${
-                    viewMode === 'detail'
-                      ? 'bg-blue-600 text-white'
-                      : 'text-gray-400 hover:text-gray-200'
-                  }`}
-                >
-                  詳細版
-                </button>
+                {!calendarCollapsed && (
+                  <>
+                    <div className={`text-xs mt-1 ${
+                      standaloneCalendar.warningLevel === 'danger' ? 'text-red-300'
+                        : standaloneCalendar.warningLevel === 'caution' ? 'text-yellow-300'
+                        : 'text-gray-500'
+                    }`}>
+                      {standaloneCalendar.description}
+                    </div>
+                    {standaloneCalendar.events.filter((e) => e.impact === 'high' || e.impact === 'medium').length > 0 && (
+                      <div className="mt-2 space-y-1">
+                        {standaloneCalendar.events.filter((e) => e.impact === 'high' || e.impact === 'medium').slice(0, 5).map((e, i) => (
+                          <div key={i} className="flex items-center gap-2 text-xs">
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                              e.impact === 'high' ? 'bg-red-800 text-red-200' : 'bg-yellow-800 text-yellow-200'
+                            }`}>
+                              {e.impact === 'high' ? '高' : '中'}
+                            </span>
+                            <span className="text-gray-400">{e.timeJST}</span>
+                            <span className="text-gray-300">{e.event}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
-            </div>
+            )}
 
-            {/* Both modes: Economic Calendar Alert */}
+            {/* Standalone News */}
+            <NewsSection articles={news} />
+
+            {/* Analysis History (before analysis) */}
+            {!loading && history.length > 0 && (
+              <AnalysisHistory
+                history={history}
+                onLoad={loadFromHistory}
+                onDelete={deleteFromHistory}
+                onImport={importHistory}
+                onClearAll={clearHistory}
+              />
+            )}
+          </>
+        )}
+
+        {/* Simple / Detail modes: post-analysis results */}
+        {viewMode !== 'dashboard' && result && (
+          <div className="space-y-4">
+            {/* Economic Calendar Alert */}
             {result.economicCalendar && (
               <div className={`border rounded-lg p-3 ${
                 result.economicCalendar.warningLevel === 'danger'
@@ -373,7 +402,7 @@ export default function Home() {
               </div>
             )}
 
-            {/* News (after economic calendar) */}
+            {/* News */}
             <NewsSection articles={news} />
 
             {/* Simple mode: Conclusion summary */}
@@ -396,10 +425,10 @@ export default function Home() {
               );
             })()}
 
-            {/* Both modes: PR Comparison */}
+            {/* PR Comparison */}
             <PRComparison longSetup={result.longSetup} shortSetup={result.shortSetup} symbol={currentSymbol} livePrice={livePrice} />
 
-            {/* Both modes: Position Simulator */}
+            {/* Position Simulator */}
             <PositionSimulator
               longSetup={result.longSetup}
               shortSetup={result.shortSetup}
@@ -409,7 +438,7 @@ export default function Home() {
               maxPositions={maxPositions}
             />
 
-            {/* Both modes: Saved Positions */}
+            {/* Saved Positions */}
             <PositionManager
               pendingPositions={pendingPositions}
               openPositions={openPositions}
@@ -420,7 +449,7 @@ export default function Home() {
               onResetAll={resetAll}
             />
 
-            {/* Both modes: Analysis History */}
+            {/* Analysis History */}
             <AnalysisHistory
               history={history}
               onLoad={loadFromHistory}

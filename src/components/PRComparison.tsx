@@ -43,7 +43,7 @@ function Row({ label, help, value, valueColor = 'text-gray-200', sub, subColor }
   );
 }
 
-export default function PRComparison({ longSetup, shortSetup, symbol, livePrice }: { longSetup: TradeSetup; shortSetup: TradeSetup; symbol?: string; livePrice?: number | null }) {
+export default function PRComparison({ longSetup, shortSetup, symbol, livePrice, vertical }: { longSetup: TradeSetup; shortSetup: TradeSetup; symbol?: string; livePrice?: number | null; vertical?: boolean }) {
   const better = longSetup.riskRewardRatio >= shortSetup.riskRewardRatio ? 'long' : 'short';
 
   return (
@@ -57,7 +57,7 @@ export default function PRComparison({ longSetup, shortSetup, symbol, livePrice 
             : '接続中...'}
         </span>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className={`grid gap-3 ${vertical ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'}`}>
         <SetupCard setup={longSetup} />
         <SetupCard setup={shortSetup} />
       </div>
