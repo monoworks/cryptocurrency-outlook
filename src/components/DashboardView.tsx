@@ -37,7 +37,7 @@ interface Props {
 
 function Placeholder({ text }: { text: string }) {
   return (
-    <div className="flex items-center justify-center h-full min-h-[80px] text-gray-500 text-sm">
+    <div className="flex items-center justify-center h-full min-h-[60px] text-gray-500 text-sm">
       {text}
     </div>
   );
@@ -68,12 +68,12 @@ export default function DashboardView({
   const calendar = result?.economicCalendar ?? standaloneCalendar;
 
   return (
-    <div className="grid grid-cols-1 2xl:grid-cols-[2fr_3fr] gap-4">
+    <div className="grid grid-cols-1 xl:grid-cols-[2fr_3fr] gap-3 xl:h-[calc(100vh-180px)]">
       {/* ===== Left column ===== */}
-      <div className="space-y-4">
+      <div className="flex flex-col gap-3 xl:overflow-y-auto xl:min-h-0">
         {/* Conclusion card */}
-        <div className="bg-gray-800 rounded-lg p-4">
-          <h2 className="text-lg font-bold text-white mb-3">結論</h2>
+        <div className="bg-gray-800 rounded-lg p-3 shrink-0">
+          <h2 className="text-base font-bold text-white mb-2">結論</h2>
           {result ? (() => {
             const cfg: Record<string, { label: string; color: string; bg: string }> = {
               enter_long: { label: 'ロングエントリー推奨', color: 'text-green-400', bg: 'bg-green-900/30 border-green-500' },
@@ -83,8 +83,8 @@ export default function DashboardView({
             };
             const c = cfg[result.conclusion] ?? cfg.skip;
             return (
-              <div className={`border rounded-lg p-4 ${c.bg}`}>
-                <div className={`text-xl font-bold ${c.color} mb-2`}>{c.label}</div>
+              <div className={`border rounded-lg p-3 ${c.bg}`}>
+                <div className={`text-lg font-bold ${c.color} mb-1`}>{c.label}</div>
                 <p className="text-gray-300 text-sm">{result.conclusionReason}</p>
               </div>
             );
@@ -94,7 +94,7 @@ export default function DashboardView({
         </div>
 
         {/* PR Comparison card */}
-        <div className="bg-gray-800 rounded-lg p-0 overflow-hidden">
+        <div className="bg-gray-800 rounded-lg p-0 overflow-hidden shrink-0">
           {result ? (
             <PRComparison
               longSetup={result.longSetup}
@@ -104,16 +104,16 @@ export default function DashboardView({
               vertical
             />
           ) : (
-            <div className="p-4">
-              <h2 className="text-lg font-bold text-white mb-3">PR比較 (Long vs Short)</h2>
+            <div className="p-3">
+              <h2 className="text-base font-bold text-white mb-2">PR比較 (Long vs Short)</h2>
               <Placeholder text="分析を実行するとPR比較が表示されます" />
             </div>
           )}
         </div>
 
         {/* Economic Calendar card */}
-        <div className="bg-gray-800 rounded-lg p-4">
-          <h2 className="text-sm font-semibold text-gray-400 mb-2">経済指標カレンダー</h2>
+        <div className="bg-gray-800 rounded-lg p-3 shrink-0">
+          <h2 className="text-sm font-semibold text-gray-400 mb-1">経済指標カレンダー</h2>
           {calendar ? (
             <>
               <div className={`text-xs ${
@@ -124,8 +124,8 @@ export default function DashboardView({
                 {calendar.description}
               </div>
               {calendar.events.filter((e) => e.impact === 'high' || e.impact === 'medium').length > 0 && (
-                <div className="mt-2 space-y-1">
-                  {calendar.events.filter((e) => e.impact === 'high' || e.impact === 'medium').slice(0, 5).map((e, i) => (
+                <div className="mt-1.5 space-y-1">
+                  {calendar.events.filter((e) => e.impact === 'high' || e.impact === 'medium').slice(0, 4).map((e, i) => (
                     <div key={i} className="flex items-center gap-2 text-xs">
                       <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
                         e.impact === 'high' ? 'bg-red-800 text-red-200' : 'bg-yellow-800 text-yellow-200'
@@ -145,15 +145,15 @@ export default function DashboardView({
         </div>
 
         {/* News card */}
-        <div className="bg-gray-800 rounded-lg p-0 overflow-hidden">
+        <div className="bg-gray-800 rounded-lg p-0 overflow-hidden shrink-0">
           <NewsSection articles={news} />
         </div>
       </div>
 
       {/* ===== Right column ===== */}
-      <div className="space-y-4">
+      <div className="flex flex-col gap-3 xl:overflow-y-auto xl:min-h-0">
         {/* Position Simulator card */}
-        <div className="bg-gray-800 rounded-lg p-0 overflow-hidden">
+        <div className="bg-gray-800 rounded-lg p-0 overflow-hidden shrink-0">
           {result ? (
             <PositionSimulator
               longSetup={result.longSetup}
@@ -164,15 +164,15 @@ export default function DashboardView({
               maxPositions={maxPositions}
             />
           ) : (
-            <div className="p-4">
-              <h2 className="text-lg font-bold text-white mb-3">売買シミュレーター</h2>
+            <div className="p-3">
+              <h2 className="text-base font-bold text-white mb-2">売買シミュレーター</h2>
               <Placeholder text="分析を実行するとシミュレーターが使用可能になります" />
             </div>
           )}
         </div>
 
         {/* Position Manager card */}
-        <div className="bg-gray-800 rounded-lg p-0 overflow-hidden max-h-[300px] overflow-y-auto">
+        <div className="bg-gray-800 rounded-lg p-0 overflow-hidden xl:max-h-[220px] overflow-y-auto shrink-0">
           {(pendingPositions.length + openPositions.length + closedPositions.length) > 0 ? (
             <PositionManager
               pendingPositions={pendingPositions}
@@ -184,15 +184,15 @@ export default function DashboardView({
               onResetAll={resetAll}
             />
           ) : (
-            <div className="p-4">
-              <h2 className="text-lg font-bold text-white mb-3">ポジション管理</h2>
+            <div className="p-3">
+              <h2 className="text-base font-bold text-white mb-2">ポジション管理</h2>
               <Placeholder text="登録されたポジションはありません" />
             </div>
           )}
         </div>
 
         {/* Analysis History card */}
-        <div className="bg-gray-800 rounded-lg p-0 overflow-hidden max-h-[300px] overflow-y-auto">
+        <div className="bg-gray-800 rounded-lg p-0 overflow-hidden xl:max-h-[220px] overflow-y-auto shrink-0">
           {history.length > 0 ? (
             <AnalysisHistory
               history={history}
@@ -202,8 +202,8 @@ export default function DashboardView({
               onClearAll={clearHistory}
             />
           ) : (
-            <div className="p-4">
-              <h2 className="text-lg font-bold text-white mb-3">分析履歴</h2>
+            <div className="p-3">
+              <h2 className="text-base font-bold text-white mb-2">分析履歴</h2>
               <Placeholder text="分析を実行すると履歴が保存されます" />
             </div>
           )}
