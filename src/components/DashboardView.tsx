@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { AnalysisResult, EconomicCalendarAnalysis, NewsArticle, SavedPosition, CloseReason } from '@/lib/types';
 import { buildAnalysisPrompt } from '@/lib/prompt-builder';
 import PRComparison from './PRComparison';
@@ -43,6 +44,77 @@ function Placeholder({ text }: { text: string }) {
   );
 }
 
+/* ── Inline header badges for 経済指標 & ニュース ── */
+function CalendarBadge({ calendar }: { calendar: EconomicCalendarAnalysis | null }) {
+  const [open, setOpen] = useState(false);
+  if (!calendar) return null;
+
+  const color = calendar.warningLevel === 'danger' ? 'text-red-400 border-red-500'
+    : calendar.warningLevel === 'caution' ? 'text-yellow-400 border-yellow-500'
+    : 'text-gray-400 border-gray-600';
+  const icon = calendar.warningLevel === 'danger' ? '🔴'
+    : calendar.warningLevel === 'caution' ? '🟡' : '🟢';
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className={`flex items-center gap-1.5 text-xs border rounded-md px-2 py-1 ${color} bg-gray-800 hover:bg-gray-700 transition-colors`}
+      >
+        <span>{icon}</span>
+        <span>経済指標</span>
+      </button>
+      {open && (
+        <div className="absolute top-full mt-1 right-0 z-50 w-80 bg-gray-800 border border-gray-600 rounded-lg p-3 shadow-xl">
+          <div className={`text-xs mb-2 ${
+            calendar.warningLevel === 'danger' ? 'text-red-300'
+              : calendar.warningLevel === 'caution' ? 'text-yellow-300' : 'text-gray-400'
+          }`}>
+            {calendar.description}
+          </div>
+          {calendar.events.filter((e) => e.impact === 'high' || e.impact === 'medium').length > 0 && (
+            <div className="space-y-1">
+              {calendar.events.filter((e) => e.impact === 'high' || e.impact === 'medium').slice(0, 5).map((e, i) => (
+                <div key={i} className="flex items-center gap-2 text-xs">
+                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                    e.impact === 'high' ? 'bg-red-800 text-red-200' : 'bg-yellow-800 text-yellow-200'
+                  }`}>
+                    {e.impact === 'high' ? '高' : '中'}
+                  </span>
+                  <span className="text-gray-400">{e.timeJST}</span>
+                  <span className="text-gray-300">{e.event}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NewsBadge({ articles }: { articles: NewsArticle[] | null }) {
+  const [open, setOpen] = useState(false);
+  if (!articles || articles.length === 0) return null;
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-1.5 text-xs border border-gray-600 rounded-md px-2 py-1 text-gray-400 bg-gray-800 hover:bg-gray-700 transition-colors"
+      >
+        <span>📰</span>
+        <span>ニュース ({articles.length})</span>
+      </button>
+      {open && (
+        <div className="absolute top-full mt-1 right-0 z-50 w-96 bg-gray-800 border border-gray-600 rounded-lg shadow-xl overflow-hidden">
+          <NewsSection articles={articles} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function DashboardView({
   result,
   currentSymbol,
@@ -68,92 +140,60 @@ export default function DashboardView({
   const calendar = result?.economicCalendar ?? standaloneCalendar;
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-[2fr_3fr] gap-3 xl:h-[calc(100vh-180px)]">
-      {/* ===== Left column ===== */}
-      <div className="flex flex-col gap-3 xl:overflow-y-auto xl:min-h-0">
-        {/* Conclusion card */}
-        <div className="bg-gray-800 rounded-lg p-3 shrink-0">
-          <h2 className="text-base font-bold text-white mb-2">結論</h2>
-          {result ? (() => {
-            const cfg: Record<string, { label: string; color: string; bg: string }> = {
-              enter_long: { label: 'ロングエントリー推奨', color: 'text-green-400', bg: 'bg-green-900/30 border-green-500' },
-              enter_short: { label: 'ショートエントリー推奨', color: 'text-red-400', bg: 'bg-red-900/30 border-red-500' },
-              wait: { label: '引きつけて待機', color: 'text-yellow-400', bg: 'bg-yellow-900/30 border-yellow-500' },
-              skip: { label: '見送り推奨', color: 'text-gray-400', bg: 'bg-gray-700/30 border-gray-500' },
-            };
-            const c = cfg[result.conclusion] ?? cfg.skip;
-            return (
-              <div className={`border rounded-lg p-3 ${c.bg}`}>
-                <div className={`text-lg font-bold ${c.color} mb-1`}>{c.label}</div>
-                <p className="text-gray-300 text-sm">{result.conclusionReason}</p>
-              </div>
-            );
-          })() : (
-            <Placeholder text="分析を実行すると結論が表示されます" />
-          )}
-        </div>
-
-        {/* PR Comparison card */}
-        <div className="bg-gray-800 rounded-lg p-0 overflow-hidden shrink-0">
-          {result ? (
-            <PRComparison
-              longSetup={result.longSetup}
-              shortSetup={result.shortSetup}
-              symbol={currentSymbol}
-              livePrice={livePrice}
-              vertical
-            />
-          ) : (
-            <div className="p-3">
-              <h2 className="text-base font-bold text-white mb-2">PR比較 (Long vs Short)</h2>
-              <Placeholder text="分析を実行するとPR比較が表示されます" />
-            </div>
-          )}
-        </div>
-
-        {/* Economic Calendar card */}
-        <div className="bg-gray-800 rounded-lg p-3 shrink-0">
-          <h2 className="text-sm font-semibold text-gray-400 mb-1">経済指標カレンダー</h2>
-          {calendar ? (
-            <>
-              <div className={`text-xs ${
-                calendar.warningLevel === 'danger' ? 'text-red-300'
-                  : calendar.warningLevel === 'caution' ? 'text-yellow-300'
-                  : 'text-gray-500'
-              }`}>
-                {calendar.description}
-              </div>
-              {calendar.events.filter((e) => e.impact === 'high' || e.impact === 'medium').length > 0 && (
-                <div className="mt-1.5 space-y-1">
-                  {calendar.events.filter((e) => e.impact === 'high' || e.impact === 'medium').slice(0, 4).map((e, i) => (
-                    <div key={i} className="flex items-center gap-2 text-xs">
-                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                        e.impact === 'high' ? 'bg-red-800 text-red-200' : 'bg-yellow-800 text-yellow-200'
-                      }`}>
-                        {e.impact === 'high' ? '高' : '中'}
-                      </span>
-                      <span className="text-gray-400">{e.timeJST}</span>
-                      <span className="text-gray-300">{e.event}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
-          ) : (
-            <Placeholder text="経済指標データなし" />
-          )}
-        </div>
-
-        {/* News card */}
-        <div className="bg-gray-800 rounded-lg p-0 overflow-hidden shrink-0">
-          <NewsSection articles={news} />
-        </div>
+    <div className="flex flex-col gap-3">
+      {/* ===== Row 0: Header badges (経済指標 + ニュース) ===== */}
+      <div className="flex items-center gap-2 justify-end">
+        <CalendarBadge calendar={calendar} />
+        <NewsBadge articles={news} />
       </div>
 
-      {/* ===== Right column ===== */}
-      <div className="flex flex-col gap-3 xl:overflow-y-auto xl:min-h-0">
-        {/* Position Simulator card */}
-        <div className="bg-gray-800 rounded-lg p-0 overflow-hidden shrink-0">
+      {/* ===== Row 1: Main content — Left (結論+PR比較) | Right (売買シミュレーター) ===== */}
+      <div className="grid grid-cols-1 xl:grid-cols-[2fr_3fr] gap-3">
+        {/* Left column */}
+        <div className="flex flex-col gap-3">
+          {/* Conclusion card */}
+          <div className="bg-gray-800 rounded-lg p-3">
+            <h2 className="text-base font-bold text-white mb-2">結論</h2>
+            {result ? (() => {
+              const cfg: Record<string, { label: string; color: string; bg: string }> = {
+                enter_long: { label: 'ロングエントリー推奨', color: 'text-green-400', bg: 'bg-green-900/30 border-green-500' },
+                enter_short: { label: 'ショートエントリー推奨', color: 'text-red-400', bg: 'bg-red-900/30 border-red-500' },
+                wait: { label: '引きつけて待機', color: 'text-yellow-400', bg: 'bg-yellow-900/30 border-yellow-500' },
+                skip: { label: '見送り推奨', color: 'text-gray-400', bg: 'bg-gray-700/30 border-gray-500' },
+              };
+              const c = cfg[result.conclusion] ?? cfg.skip;
+              return (
+                <div className={`border rounded-lg p-3 ${c.bg}`}>
+                  <div className={`text-lg font-bold ${c.color} mb-1`}>{c.label}</div>
+                  <p className="text-gray-300 text-sm">{result.conclusionReason}</p>
+                </div>
+              );
+            })() : (
+              <Placeholder text="分析を実行すると結論が表示されます" />
+            )}
+          </div>
+
+          {/* PR Comparison card */}
+          <div className="bg-gray-800 rounded-lg p-0 overflow-hidden flex-1">
+            {result ? (
+              <PRComparison
+                longSetup={result.longSetup}
+                shortSetup={result.shortSetup}
+                symbol={currentSymbol}
+                livePrice={livePrice}
+                vertical
+              />
+            ) : (
+              <div className="p-3">
+                <h2 className="text-base font-bold text-white mb-2">PR比較 (Long vs Short)</h2>
+                <Placeholder text="分析を実行するとPR比較が表示されます" />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right column — Simulator */}
+        <div className="bg-gray-800 rounded-lg p-0 overflow-hidden">
           {result ? (
             <PositionSimulator
               longSetup={result.longSetup}
@@ -170,9 +210,12 @@ export default function DashboardView({
             </div>
           )}
         </div>
+      </div>
 
-        {/* Position Manager card */}
-        <div className="bg-gray-800 rounded-lg p-0 overflow-hidden xl:max-h-[220px] overflow-y-auto shrink-0">
+      {/* ===== Row 2: Bottom — ポジション管理 | 分析履歴 ===== */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+        {/* Position Manager */}
+        <div className="bg-gray-800 rounded-lg p-0 overflow-hidden max-h-[250px] overflow-y-auto">
           {(pendingPositions.length + openPositions.length + closedPositions.length) > 0 ? (
             <PositionManager
               pendingPositions={pendingPositions}
@@ -191,8 +234,8 @@ export default function DashboardView({
           )}
         </div>
 
-        {/* Analysis History card */}
-        <div className="bg-gray-800 rounded-lg p-0 overflow-hidden xl:max-h-[220px] overflow-y-auto shrink-0">
+        {/* Analysis History */}
+        <div className="bg-gray-800 rounded-lg p-0 overflow-hidden max-h-[250px] overflow-y-auto">
           {history.length > 0 ? (
             <AnalysisHistory
               history={history}
@@ -208,12 +251,12 @@ export default function DashboardView({
             </div>
           )}
         </div>
-
-        {/* Copy Prompt (only when result exists) */}
-        {result && (
-          <CopyPrompt prompt={buildAnalysisPrompt(result)} />
-        )}
       </div>
+
+      {/* Copy Prompt (only when result exists) */}
+      {result && (
+        <CopyPrompt prompt={buildAnalysisPrompt(result)} />
+      )}
     </div>
   );
 }

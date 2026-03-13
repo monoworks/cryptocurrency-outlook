@@ -181,7 +181,7 @@ export default function Home() {
 
   return (
     <main className={`min-h-screen ${themeConfig[theme].bg} ${themeConfig[theme].text} transition-colors duration-300`}>
-      <div className={`${viewMode === 'dashboard' ? 'max-w-[1400px]' : 'max-w-5xl'} mx-auto px-4 py-6 space-y-4 transition-all duration-300`}>
+      <div className={`${viewMode === 'dashboard' ? 'max-w-full px-6' : 'max-w-5xl px-4'} mx-auto py-4 space-y-3 transition-all duration-300`}>
         {/* Header */}
         <div className="relative text-center mb-6">
           <h1 className="text-2xl font-bold">Cryptocurrency Outlook</h1>
