@@ -63,7 +63,7 @@ function CalendarBadge({ calendar }: { calendar: EconomicCalendarAnalysis | null
         <span>経済指標</span>
       </button>
       {open && (
-        <div className="absolute top-full mt-1 right-0 z-50 w-80 bg-gray-800 border border-gray-600 rounded-lg p-3 shadow-xl">
+        <div className="absolute top-full mt-1 left-0 z-50 w-80 bg-gray-800 border border-gray-600 rounded-lg p-3 shadow-xl">
           <div className={`text-xs mb-2 ${
             calendar.warningLevel === 'danger' ? 'text-red-300'
               : calendar.warningLevel === 'caution' ? 'text-yellow-300' : 'text-gray-400'
@@ -105,7 +105,7 @@ function NewsBadge({ articles }: { articles: NewsArticle[] | null }) {
         <span>ニュース ({articles.length})</span>
       </button>
       {open && (
-        <div className="absolute top-full mt-1 right-0 z-50 w-96 bg-gray-800 border border-gray-600 rounded-lg shadow-xl overflow-hidden">
+        <div className="absolute top-full mt-1 left-0 z-50 w-96 bg-gray-800 border border-gray-600 rounded-lg shadow-xl overflow-hidden">
           <NewsSection articles={articles} />
         </div>
       )}
@@ -140,7 +140,7 @@ export default function DashboardView({
   return (
     <div className="flex flex-col gap-3">
       {/* ===== Row 0: Header badges (経済指標 + ニュース) ===== */}
-      <div className="flex items-center gap-2 justify-end">
+      <div className="flex items-center gap-2 justify-start">
         <CalendarBadge calendar={calendar} />
         <NewsBadge articles={news} />
       </div>
