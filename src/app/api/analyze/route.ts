@@ -6,6 +6,7 @@ import { fetchFearGreedIndex } from '@/lib/sentiment';
 import { fetchEconomicCalendar } from '@/lib/economic-calendar';
 import { fetchNews } from '@/lib/news';
 import { notifySignal } from '@/lib/telegram';
+import { getNewsCache, getFearGreedCache, getEconomicCalendarCache, isFresh } from '@/lib/external-cache';
 
 export const preferredRegion = 'hnd1';
 
@@ -33,7 +34,16 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // Fetch candles (with taker volume) for each timeframe + shared market data in parallel
+    // Read external data from cache (populated by /api/news-notify and /api/refresh-external crons).
+    // Fall back to direct fetch only if cache is empty (e.g. first run after deploy).
+    const NEWS_MAX_AGE = 10 * 60 * 1000;       // 10 min (news-notify runs every 5 min)
+    const EXTERNAL_MAX_AGE = 60 * 60 * 1000;   // 60 min (refresh-external runs every 30 min)
+
+    const cachedNews = getNewsCache();
+    const cachedFearGreed = getFearGreedCache();
+    const cachedEconomic = getEconomicCalendarCache();
+
+    // Fetch Binance data + fallback external data in parallel
     const [candlesResults, ticker, openInterest, fundingRate, premiumIndex, oiHistory, fundingHistory, topTraderRatio, fearGreed, economicEvents, newsArticles] = await Promise.all([
       Promise.all(timeframes.map((tf) =>
         getKlinesWithTakerVolume(symbol, tf).then((r) => ({ timeframe: tf, candles: r.candles, takerBuyVolumes: r.takerBuyVolumes }))
@@ -45,9 +55,15 @@ export async function GET(req: NextRequest) {
       getOIHistory(symbol, '1h', 24).catch(() => []),
       getFundingHistory(symbol, 20).catch(() => []),
       getTopTraderRatio(symbol).catch(() => null),
-      fetchFearGreedIndex().catch(() => null),
-      fetchEconomicCalendar().catch(() => null),
-      fetchNews().catch(() => null),
+      isFresh(cachedFearGreed, EXTERNAL_MAX_AGE)
+        ? Promise.resolve(cachedFearGreed!.data)
+        : fetchFearGreedIndex().catch(() => null),
+      isFresh(cachedEconomic, EXTERNAL_MAX_AGE)
+        ? Promise.resolve(cachedEconomic!.data)
+        : fetchEconomicCalendar().catch(() => null),
+      isFresh(cachedNews, NEWS_MAX_AGE)
+        ? Promise.resolve(cachedNews!.data)
+        : fetchNews().catch(() => null),
     ]);
 
     const result = generateSignal({
