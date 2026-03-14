@@ -246,8 +246,8 @@ export async function fetchNews(): Promise<NewsArticle[] | null> {
       return true;
     });
 
-    // Filter out low-relevance articles (noise) — threshold 3 to exclude generic matches
-    const relevant = deduped.filter((a) => a.relevanceScore >= 3);
+    // Filter out low-relevance articles (noise) — threshold 4 to exclude single-keyword matches
+    const relevant = deduped.filter((a) => a.relevanceScore >= 4);
 
     // Sort by relevance (high first), then newest
     relevant.sort((a, b) => {
