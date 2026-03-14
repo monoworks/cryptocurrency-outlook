@@ -95,14 +95,22 @@ function NewsBadge({ articles }: { articles: NewsArticle[] | null }) {
   const [open, setOpen] = useState(false);
   if (!articles || articles.length === 0) return null;
 
+  const geoCount = articles.filter((a) => a.tag === 'geopolitical').length;
+  const hasGeo = geoCount > 0;
+
   return (
     <div className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 text-xs border border-gray-600 rounded-md px-2 py-1 text-gray-400 bg-gray-800 hover:bg-gray-700 transition-colors"
+        className={`flex items-center gap-1.5 text-xs border rounded-md px-2 py-1 transition-colors ${
+          hasGeo
+            ? 'border-orange-600/60 text-orange-400 bg-orange-900/20 hover:bg-orange-900/30'
+            : 'border-gray-600 text-gray-400 bg-gray-800 hover:bg-gray-700'
+        }`}
       >
-        <span>📰</span>
+        <span>{hasGeo ? '⚠️' : '📰'}</span>
         <span>ニュース ({articles.length})</span>
+        {hasGeo && <span className="text-orange-400 font-bold">地政学{geoCount}</span>}
       </button>
       {open && (
         <div className="absolute top-full mt-1 left-0 z-50 w-96 bg-gray-800 border border-gray-600 rounded-lg shadow-xl overflow-hidden">

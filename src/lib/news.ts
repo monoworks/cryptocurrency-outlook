@@ -1,4 +1,4 @@
-import { NewsArticle } from './types';
+import { NewsArticle, NewsTag } from './types';
 
 const NEWSDATA_BASE = 'https://newsdata.io/api/1/latest';
 
@@ -18,9 +18,64 @@ function toJST(utcDateStr: string): string {
   });
 }
 
+interface RawArticle {
+  title: string;
+  description: string | null;
+  link: string;
+  source_id: string;
+  source_name?: string;
+  pubDate: string;
+  category?: string[];
+}
+
+/** Fetch a single query from NewsData.io and tag results */
+async function fetchQuery(
+  apiKey: string,
+  q: string,
+  tag: NewsTag,
+  size: number = 10,
+): Promise<NewsArticle[]> {
+  const params = new URLSearchParams({
+    apikey: apiKey,
+    q,
+    language: 'en',
+    size: String(size),
+  });
+
+  const res = await fetch(`${NEWSDATA_BASE}?${params.toString()}`, {
+    headers: { Accept: 'application/json' },
+    next: { revalidate: 1800 }, // cache 30 minutes (API credit conservation)
+  });
+
+  if (!res.ok) {
+    console.error(`[News:${tag}] API error: ${res.status}`);
+    return [];
+  }
+
+  const data = await res.json() as {
+    status: string;
+    results?: RawArticle[];
+  };
+
+  if (data.status !== 'success' || !Array.isArray(data.results)) {
+    return [];
+  }
+
+  return data.results.map((item) => ({
+    title: item.title,
+    description: item.description,
+    link: item.link,
+    source: item.source_name || item.source_id,
+    pubDate: item.pubDate,
+    pubDateJST: toJST(item.pubDate),
+    category: item.category ?? [],
+    tag,
+  }));
+}
+
 /**
- * Fetch latest news related to crypto, geopolitics, and regulation from NewsData.io.
- * Returns null if API key is not configured or fetch fails.
+ * Fetch latest news: crypto + geopolitical, merged and sorted by date.
+ * Returns null if API key is not configured or both fetches fail.
  */
 export async function fetchNews(): Promise<NewsArticle[] | null> {
   const apiKey = process.env.NEWSDATA_API_KEY;
@@ -30,52 +85,31 @@ export async function fetchNews(): Promise<NewsArticle[] | null> {
   }
 
   try {
-    const params = new URLSearchParams({
-      apikey: apiKey,
-      q: 'crypto OR bitcoin',
-      language: 'en',
-      size: '10',
+    const [crypto, geopolitical] = await Promise.all([
+      fetchQuery(apiKey, 'crypto OR bitcoin', 'crypto', 10),
+      fetchQuery(
+        apiKey,
+        'war OR conflict OR sanctions OR "Federal Reserve" OR "interest rate" OR missile OR airstrike OR military',
+        'geopolitical',
+        10,
+      ),
+    ]);
+
+    const all = [...crypto, ...geopolitical];
+    if (all.length === 0) return null;
+
+    // Dedupe by link
+    const seen = new Set<string>();
+    const deduped = all.filter((a) => {
+      if (seen.has(a.link)) return false;
+      seen.add(a.link);
+      return true;
     });
 
-    const url = `${NEWSDATA_BASE}?${params.toString()}`;
-    const res = await fetch(url, {
-      headers: { Accept: 'application/json' },
-      next: { revalidate: 600 }, // cache 10 minutes
-    });
+    // Sort newest first
+    deduped.sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
 
-    if (!res.ok) {
-      const text = await res.text();
-      console.error(`[News] API error: ${res.status} ${text}`);
-      return null;
-    }
-
-    const data = await res.json() as {
-      status: string;
-      results?: {
-        title: string;
-        description: string | null;
-        link: string;
-        source_id: string;
-        source_name?: string;
-        pubDate: string;
-        category?: string[];
-      }[];
-    };
-
-    if (data.status !== 'success' || !data.results || !Array.isArray(data.results)) {
-      console.error('[News] Unexpected response:', JSON.stringify(data).slice(0, 200));
-      return null;
-    }
-
-    return data.results.map((item) => ({
-      title: item.title,
-      description: item.description,
-      link: item.link,
-      source: item.source_name || item.source_id,
-      pubDate: item.pubDate,
-      pubDateJST: toJST(item.pubDate),
-      category: item.category ?? [],
-    }));
+    return deduped;
   } catch {
     return null;
   }

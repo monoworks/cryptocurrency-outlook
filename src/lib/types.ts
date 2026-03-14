@@ -458,6 +458,8 @@ export interface EconomicCalendarAnalysis {
 
 // ===== News =====
 
+export type NewsTag = 'crypto' | 'geopolitical';
+
 export interface NewsArticle {
   title: string;
   description: string | null;
@@ -466,6 +468,7 @@ export interface NewsArticle {
   pubDate: string;
   pubDateJST: string;
   category: string[];
+  tag: NewsTag;
 }
 
 // ===== AI =====
