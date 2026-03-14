@@ -82,10 +82,10 @@ export async function GET(req: NextRequest) {
       newsArticles,
     });
 
-    // Fire-and-forget: send Telegram notification for actionable signals
-    notifySignal(result).catch(() => {});
+    // Send Telegram notification for actionable signals
+    const notified = await notifySignal(result).catch(() => false);
 
-    return NextResponse.json(result);
+    return NextResponse.json({ ...result, _telegram: { notified, conclusion: result.conclusion } });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     return NextResponse.json({ error: message }, { status: 500 });
