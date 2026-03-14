@@ -13,14 +13,18 @@ import {
   HistogramSeries,
 } from 'lightweight-charts';
 
-type Interval = '15m' | '1h' | '4h' | '1d';
+type Interval = '5m' | '15m' | '1h' | '4h' | '1d';
 
 const INTERVALS: { label: string; value: Interval }[] = [
+  { label: '5分', value: '5m' },
   { label: '15分', value: '15m' },
   { label: '1時間', value: '1h' },
   { label: '4時間', value: '4h' },
   { label: '日足', value: '1d' },
 ];
+
+const WS_BASE = 'wss://fstream.binance.com/ws/';
+const RECONNECT_DELAY = 3000;
 
 interface Props {
   symbol: string;
@@ -35,15 +39,31 @@ interface KlineData {
   volume: number;
 }
 
+interface BinanceKlineWsData {
+  e: string;
+  k: {
+    t: number;   // kline start time
+    o: string;   // open
+    h: string;   // high
+    l: string;   // low
+    c: string;   // close
+    v: string;   // volume
+    x: boolean;  // is this kline closed?
+  };
+}
+
 export default function BinanceChart({ symbol }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [interval, setInterval] = useState<Interval>('1h');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Create chart once
   useEffect(() => {
     if (!containerRef.current) return;
 
@@ -109,6 +129,7 @@ export default function BinanceChart({ symbol }: Props) {
     };
   }, []);
 
+  // Fetch historical data + connect WebSocket for real-time updates
   const fetchData = useCallback(async () => {
     const candleSeries = candleSeriesRef.current;
     const volumeSeries = volumeSeriesRef.current;
@@ -151,11 +172,80 @@ export default function BinanceChart({ symbol }: Props) {
     fetchData();
   }, [fetchData]);
 
+  // WebSocket for real-time kline updates
+  useEffect(() => {
+    const candleSeries = candleSeriesRef.current;
+    const volumeSeries = volumeSeriesRef.current;
+    if (!candleSeries || !volumeSeries || !symbol) return;
+
+    let unmounted = false;
+
+    function connect() {
+      if (unmounted) return;
+
+      const stream = `${symbol.toLowerCase()}@kline_${interval}`;
+      const ws = new WebSocket(`${WS_BASE}${stream}`);
+      wsRef.current = ws;
+
+      ws.onmessage = (event) => {
+        try {
+          const cs = candleSeriesRef.current;
+          const vs = volumeSeriesRef.current;
+          if (!cs || !vs) return;
+
+          const msg: BinanceKlineWsData = JSON.parse(event.data);
+          if (msg.e !== 'kline') return;
+
+          const k = msg.k;
+          const time = Math.floor(k.t / 1000) as Time;
+          const open = parseFloat(k.o);
+          const high = parseFloat(k.h);
+          const low = parseFloat(k.l);
+          const close = parseFloat(k.c);
+          const volume = parseFloat(k.v);
+
+          // update() adds or updates the last candle
+          cs.update({ time, open, high, low, close });
+          vs.update({
+            time,
+            value: volume,
+            color: close >= open ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)',
+          });
+        } catch {
+          // ignore parse errors
+        }
+      };
+
+      ws.onclose = () => {
+        if (!unmounted) {
+          reconnectTimerRef.current = setTimeout(connect, RECONNECT_DELAY);
+        }
+      };
+
+      ws.onerror = () => {
+        ws.close();
+      };
+    }
+
+    connect();
+
+    return () => {
+      unmounted = true;
+      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+      if (wsRef.current) {
+        wsRef.current.onclose = null;
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+    };
+  }, [symbol, interval]);
+
   return (
     <div className="bg-[#1a1a2e] border border-gray-700 rounded-lg p-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-white font-bold text-sm">
           {symbol} チャート
+          <span className="ml-2 inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" title="リアルタイム" />
         </h3>
         <div className="flex gap-1">
           {INTERVALS.map((iv) => (
