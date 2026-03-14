@@ -20,6 +20,7 @@ import AnalysisHistory, { HistoryEntry } from '@/components/AnalysisHistory';
 // import AIAnalysis from '@/components/AIAnalysis';
 // import ImageUpload from '@/components/ImageUpload';
 import CopyPrompt from '@/components/CopyPrompt';
+import BinanceChart from '@/components/BinanceChart';
 import NewsSection from '@/components/NewsSection';
 import DashboardView from '@/components/DashboardView';
 
@@ -515,6 +516,9 @@ export default function Home() {
                   analysisResult={result}
                   imageBase64={imageBase64}
                 /> */}
+
+                {/* Binance Chart */}
+                <BinanceChart symbol={currentSymbol} />
 
                 {/* Copy Prompt */}
                 <CopyPrompt prompt={buildAnalysisPrompt(result)} />
