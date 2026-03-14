@@ -6,10 +6,11 @@ const TELEGRAM_API = 'https://api.telegram.org/bot';
  * Send a Telegram message via Bot API.
  * Requires TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID env vars.
  */
-async function sendMessage(text: string): Promise<boolean> {
+async function sendMessage(text: string): Promise<string> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
-  if (!token || !chatId) return false;
+  if (!token) return 'no_token';
+  if (!chatId) return 'no_chat_id';
 
   try {
     const res = await fetch(`${TELEGRAM_API}${token}/sendMessage`, {
@@ -23,13 +24,12 @@ async function sendMessage(text: string): Promise<boolean> {
       }),
     });
     if (!res.ok) {
-      console.error(`[Telegram] sendMessage failed: ${res.status}`);
-      return false;
+      const body = await res.text().catch(() => '');
+      return `send_failed:${res.status}:${body}`;
     }
-    return true;
+    return 'ok';
   } catch (err) {
-    console.error('[Telegram] sendMessage error:', err);
-    return false;
+    return `error:${err instanceof Error ? err.message : String(err)}`;
   }
 }
 
@@ -110,6 +110,11 @@ export async function notifySignal(result: AnalysisResult): Promise<boolean | st
   lines.push(`💬 ${result.conclusionReason}`);
 
   return sendMessage(lines.join('\n'));
+}
+
+/** Expose sendMessage result for debugging */
+export async function debugTelegramSend(): Promise<string> {
+  return sendMessage('🔧 テスト通知 - Telegram接続確認');
 }
 
 /**
