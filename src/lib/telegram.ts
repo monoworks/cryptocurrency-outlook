@@ -1,4 +1,4 @@
-import { AnalysisResult } from './types';
+import { AnalysisResult, NewsArticle } from './types';
 
 const TELEGRAM_API = 'https://api.telegram.org/bot';
 
@@ -109,4 +109,52 @@ export async function notifySignal(result: AnalysisResult): Promise<boolean> {
   lines.push(`💬 ${result.conclusionReason}`);
 
   return sendMessage(lines.join('\n'));
+}
+
+/**
+ * Send news alert to Telegram.
+ * Only sends articles published within the given window (minutes) to avoid duplicates.
+ * Returns the number of articles notified.
+ */
+export async function notifyNews(
+  articles: NewsArticle[],
+  windowMinutes: number = 6,
+): Promise<number> {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_CHAT_ID;
+  if (!token || !chatId) return 0;
+  if (!articles || articles.length === 0) return 0;
+
+  // Only notify articles published within the time window
+  const cutoff = Date.now() - windowMinutes * 60 * 1000;
+  const recent = articles.filter((a) => {
+    const pubTime = new Date(a.pubDate).getTime();
+    return !isNaN(pubTime) && pubTime >= cutoff;
+  });
+
+  if (recent.length === 0) return 0;
+
+  const tagLabel = (tag: string) => tag === 'geopolitical' ? '🌍 地政学' : '📋 規制';
+  const impactLabel = (impact: string) => {
+    switch (impact) {
+      case 'high': return '🔴 高';
+      case 'medium': return '🟡 中';
+      default: return '⚪ 低';
+    }
+  };
+
+  const lines: string[] = [
+    `📰 <b>ニュース速報</b> (${recent.length}件)`,
+    ``,
+  ];
+
+  for (const a of recent) {
+    lines.push(`${tagLabel(a.tag)} ${impactLabel(a.impact)} 関連度${a.relevanceScore}/10`);
+    lines.push(`<b>${a.title}</b>`);
+    lines.push(`${a.source} | ${a.pubDateJST}`);
+    lines.push(`${a.link}`);
+    lines.push(``);
+  }
+
+  return (await sendMessage(lines.join('\n'))) ? recent.length : 0;
 }

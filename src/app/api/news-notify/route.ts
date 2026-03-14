@@ -1,0 +1,31 @@
+import { NextResponse } from 'next/server';
+import { fetchNews } from '@/lib/news';
+import { notifyNews } from '@/lib/telegram';
+
+export const dynamic = 'force-dynamic';
+export const preferredRegion = 'hnd1';
+
+/**
+ * GET /api/news-notify
+ * Fetches latest news and sends new high-relevance articles to Telegram.
+ * Designed to be called by an external cron (e.g. cron-job.org) every 5 minutes.
+ */
+export async function GET() {
+  const articles = await fetchNews();
+
+  if (!articles || articles.length === 0) {
+    return NextResponse.json({ notified: 0, message: 'No relevant news' });
+  }
+
+  // Only notify medium+ impact articles (relevance >= 3 already filtered by fetchNews)
+  const notable = articles.filter((a) => a.impact === 'high' || a.impact === 'medium');
+
+  // 6-minute window to cover 5-min cron interval with buffer
+  const notified = await notifyNews(notable, 6);
+
+  return NextResponse.json({
+    notified,
+    total: articles.length,
+    notable: notable.length,
+  });
+}
