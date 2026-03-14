@@ -13,6 +13,7 @@ import {
   HistogramSeries,
 } from 'lightweight-charts';
 import { PriceLevel, VolumeProfileAnalysis } from '@/lib/types';
+import { VrvpPrimitive } from './VrvpPrimitive';
 
 type Interval = '5m' | '15m' | '1h' | '4h' | '1d';
 
@@ -93,6 +94,8 @@ export default function BinanceChart({ symbol, levels, volumeProfile }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [overlays, setOverlays] = useState<Set<OverlayToggle>>(new Set());
 
+  const vrvpPrimitiveRef = useRef<VrvpPrimitive | null>(null);
+
   const allCandlesRef = useRef<KlineData[]>([]);
   const loadingMoreRef = useRef(false);
   const noMoreDataRef = useRef(false);
@@ -161,6 +164,11 @@ export default function BinanceChart({ symbol, levels, volumeProfile }: Props) {
       scaleMargins: { top: 0.8, bottom: 0 },
     });
 
+    // Attach VRVP primitive to candle series
+    const vrvpPrimitive = new VrvpPrimitive();
+    candleSeries.attachPrimitive(vrvpPrimitive);
+    vrvpPrimitiveRef.current = vrvpPrimitive;
+
     chartRef.current = chart;
     candleSeriesRef.current = candleSeries;
     volumeSeriesRef.current = volumeSeries;
@@ -216,48 +224,16 @@ export default function BinanceChart({ symbol, levels, volumeProfile }: Props) {
     }
   }, [overlays, levels]);
 
-  // VRVP overlay — POC, VAH, VAL as price lines
+  // VRVP overlay — horizontal volume profile bars via custom primitive
   useEffect(() => {
-    const cs = candleSeriesRef.current;
-    if (!cs) return;
+    const primitive = vrvpPrimitiveRef.current;
+    if (!primitive) return;
 
-    if (!overlays.has('vrvp') || !volumeProfile || volumeProfile.levels.length === 0) return;
-
-    const pocLine = cs.createPriceLine({
-      price: volumeProfile.poc,
-      color: 'rgba(255,193,7,0.8)',
-      lineWidth: 2,
-      lineStyle: 0, // solid
-      axisLabelVisible: true,
-      title: 'POC',
-    });
-
-    const vahLine = cs.createPriceLine({
-      price: volumeProfile.valueAreaHigh,
-      color: 'rgba(100,181,246,0.6)',
-      lineWidth: 1,
-      lineStyle: 2,
-      axisLabelVisible: true,
-      title: 'VAH',
-    });
-
-    const valLine = cs.createPriceLine({
-      price: volumeProfile.valueAreaLow,
-      color: 'rgba(100,181,246,0.6)',
-      lineWidth: 1,
-      lineStyle: 2,
-      axisLabelVisible: true,
-      title: 'VAL',
-    });
-
-    // Store references in a temporary array for cleanup
-    const vrvpLines = [pocLine, vahLine, valLine];
-
-    return () => {
-      for (const line of vrvpLines) {
-        try { cs.removePriceLine(line); } catch { /* noop */ }
-      }
-    };
+    if (overlays.has('vrvp') && volumeProfile && volumeProfile.levels.length > 0) {
+      primitive.setProfile(volumeProfile);
+    } else {
+      primitive.setProfile(null);
+    }
   }, [overlays, volumeProfile]);
 
   // Load older data
