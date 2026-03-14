@@ -52,10 +52,10 @@ export async function fetchNews(): Promise<NewsArticle[] | null> {
   try {
     const q = [
       // Geopolitical risk
-      'war', 'conflict', 'sanctions', '"Federal Reserve"', '"interest rate"',
-      'missile', 'airstrike', 'military', 'ceasefire', 'invasion',
-      // Crypto regulation
-      '"SEC crypto"', '"crypto regulation"', '"crypto ban"', '"exchange hack"', 'CBDC',
+      'war', 'sanctions', '"Federal Reserve"', '"interest rate"',
+      'missile', 'airstrike', 'military',
+      // Crypto regulation & policy
+      'SEC', 'crypto regulation', 'crypto ban', 'CBDC',
     ].join(' OR ');
 
     const params = new URLSearchParams({
