@@ -8,7 +8,12 @@ export async function GET(req: NextRequest) {
   const interval = searchParams.get('interval') || '1h';
   const limit = Math.min(Number(searchParams.get('limit') || '200'), 1000);
 
-  const url = `${BINANCE_API}?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}&limit=${limit}`;
+  const endTime = searchParams.get('endTime');
+
+  let url = `${BINANCE_API}?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}&limit=${limit}`;
+  if (endTime) {
+    url += `&endTime=${encodeURIComponent(endTime)}`;
+  }
 
   try {
     const res = await fetch(url, { next: { revalidate: 60 } });

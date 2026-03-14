@@ -25,6 +25,8 @@ const INTERVALS: { label: string; value: Interval }[] = [
 
 const WS_BASE = 'wss://fstream.binance.com/ws/';
 const RECONNECT_DELAY = 3000;
+const JST_OFFSET = 9 * 60 * 60; // +9 hours in seconds
+const LOAD_MORE_THRESHOLD = 10; // logical bar index threshold to trigger loading
 
 interface Props {
   symbol: string;
@@ -52,6 +54,28 @@ interface BinanceKlineWsData {
   };
 }
 
+function toJST(utcSec: number): Time {
+  return (utcSec + JST_OFFSET) as Time;
+}
+
+function toCandleData(data: KlineData[]): CandlestickData<Time>[] {
+  return data.map((d) => ({
+    time: toJST(d.time),
+    open: d.open,
+    high: d.high,
+    low: d.low,
+    close: d.close,
+  }));
+}
+
+function toVolumeData(data: KlineData[]): HistogramData<Time>[] {
+  return data.map((d) => ({
+    time: toJST(d.time),
+    value: d.volume,
+    color: d.close >= d.open ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)',
+  }));
+}
+
 export default function BinanceChart({ symbol }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -62,6 +86,11 @@ export default function BinanceChart({ symbol }: Props) {
   const [interval, setInterval] = useState<Interval>('1h');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Track all loaded data for prepending older candles
+  const allCandlesRef = useRef<KlineData[]>([]);
+  const loadingMoreRef = useRef(false);
+  const noMoreDataRef = useRef(false);
 
   // Create chart once
   useEffect(() => {
@@ -88,6 +117,16 @@ export default function BinanceChart({ symbol }: Props) {
       },
       crosshair: {
         mode: 0,
+      },
+      localization: {
+        timeFormatter: (time: number) => {
+          const d = new Date(time * 1000);
+          const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+          const dd = String(d.getUTCDate()).padStart(2, '0');
+          const hh = String(d.getUTCHours()).padStart(2, '0');
+          const min = String(d.getUTCMinutes()).padStart(2, '0');
+          return `${mm}/${dd} ${hh}:${min}`;
+        },
       },
     });
 
@@ -129,7 +168,60 @@ export default function BinanceChart({ symbol }: Props) {
     };
   }, []);
 
-  // Fetch historical data + connect WebSocket for real-time updates
+  // Load older data when scrolling to the left edge
+  const loadOlderData = useCallback(async () => {
+    if (loadingMoreRef.current || noMoreDataRef.current) return;
+    const cs = candleSeriesRef.current;
+    const vs = volumeSeriesRef.current;
+    if (!cs || !vs || allCandlesRef.current.length === 0) return;
+
+    loadingMoreRef.current = true;
+
+    try {
+      const oldest = allCandlesRef.current[0];
+      // endTime = oldest candle time in ms (exclusive, so subtract 1ms)
+      const endTime = oldest.time * 1000 - 1;
+      const res = await fetch(
+        `/api/klines?symbol=${encodeURIComponent(symbol)}&interval=${interval}&limit=200&endTime=${endTime}`
+      );
+      if (!res.ok) throw new Error(`API error: ${res.status}`);
+      const data: KlineData[] = await res.json();
+
+      if (data.length === 0) {
+        noMoreDataRef.current = true;
+        return;
+      }
+
+      // Prepend and re-set all data (lightweight-charts requires sorted data via setData)
+      allCandlesRef.current = [...data, ...allCandlesRef.current];
+      cs.setData(toCandleData(allCandlesRef.current));
+      vs.setData(toVolumeData(allCandlesRef.current));
+    } catch {
+      // silently fail — user can try scrolling again
+    } finally {
+      loadingMoreRef.current = false;
+    }
+  }, [symbol, interval]);
+
+  // Subscribe to visible range changes for infinite scroll
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+
+    const handler = () => {
+      const range = chart.timeScale().getVisibleLogicalRange();
+      if (range && range.from < LOAD_MORE_THRESHOLD) {
+        loadOlderData();
+      }
+    };
+
+    chart.timeScale().subscribeVisibleLogicalRangeChange(handler);
+    return () => {
+      chart.timeScale().unsubscribeVisibleLogicalRangeChange(handler);
+    };
+  }, [loadOlderData]);
+
+  // Fetch initial data
   const fetchData = useCallback(async () => {
     const candleSeries = candleSeriesRef.current;
     const volumeSeries = volumeSeriesRef.current;
@@ -138,28 +230,17 @@ export default function BinanceChart({ symbol }: Props) {
 
     setLoading(true);
     setError(null);
+    allCandlesRef.current = [];
+    noMoreDataRef.current = false;
 
     try {
       const res = await fetch(`/api/klines?symbol=${encodeURIComponent(symbol)}&interval=${interval}&limit=200`);
       if (!res.ok) throw new Error(`API error: ${res.status}`);
       const data: KlineData[] = await res.json();
 
-      const candleData: CandlestickData<Time>[] = data.map((d) => ({
-        time: d.time as Time,
-        open: d.open,
-        high: d.high,
-        low: d.low,
-        close: d.close,
-      }));
-      candleSeries.setData(candleData);
-
-      const volumeData: HistogramData<Time>[] = data.map((d) => ({
-        time: d.time as Time,
-        value: d.volume,
-        color: d.close >= d.open ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)',
-      }));
-      volumeSeries.setData(volumeData);
-
+      allCandlesRef.current = data;
+      candleSeries.setData(toCandleData(data));
+      volumeSeries.setData(toVolumeData(data));
       chart.timeScale().fitContent();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load chart data');
@@ -174,9 +255,7 @@ export default function BinanceChart({ symbol }: Props) {
 
   // WebSocket for real-time kline updates
   useEffect(() => {
-    const candleSeries = candleSeriesRef.current;
-    const volumeSeries = volumeSeriesRef.current;
-    if (!candleSeries || !volumeSeries || !symbol) return;
+    if (!symbol) return;
 
     let unmounted = false;
 
@@ -197,20 +276,28 @@ export default function BinanceChart({ symbol }: Props) {
           if (msg.e !== 'kline') return;
 
           const k = msg.k;
-          const time = Math.floor(k.t / 1000) as Time;
+          const utcSec = Math.floor(k.t / 1000);
+          const time = toJST(utcSec);
           const open = parseFloat(k.o);
           const high = parseFloat(k.h);
           const low = parseFloat(k.l);
           const close = parseFloat(k.c);
           const volume = parseFloat(k.v);
 
-          // update() adds or updates the last candle
           cs.update({ time, open, high, low, close });
           vs.update({
             time,
             value: volume,
             color: close >= open ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)',
           });
+
+          // Keep allCandlesRef in sync for the latest candle
+          const all = allCandlesRef.current;
+          if (all.length > 0 && all[all.length - 1].time === utcSec) {
+            all[all.length - 1] = { time: utcSec, open, high, low, close, volume };
+          } else {
+            all.push({ time: utcSec, open, high, low, close, volume });
+          }
         } catch {
           // ignore parse errors
         }
@@ -246,6 +333,7 @@ export default function BinanceChart({ symbol }: Props) {
         <h3 className="text-white font-bold text-sm flex items-center gap-2">
           {symbol} チャート
           <span className="text-[10px] text-gray-500 font-normal">Binance Futures</span>
+          <span className="text-[10px] text-gray-500 font-normal">JST</span>
           <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" title="リアルタイム" />
         </h3>
         <div className="flex gap-1">
