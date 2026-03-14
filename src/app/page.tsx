@@ -518,7 +518,7 @@ export default function Home() {
                 /> */}
 
                 {/* Binance Chart */}
-                <BinanceChart symbol={currentSymbol} />
+                <BinanceChart symbol={currentSymbol} levels={result?.levels} volumeProfile={result?.volumeProfile} />
 
                 {/* Copy Prompt */}
                 <CopyPrompt prompt={buildAnalysisPrompt(result)} />

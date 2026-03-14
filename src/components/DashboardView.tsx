@@ -203,7 +203,7 @@ export default function DashboardView({
 
         {/* Right column — Chart + Simulator */}
         <div className="flex flex-col gap-3">
-          <BinanceChart symbol={currentSymbol} />
+          <BinanceChart symbol={currentSymbol} levels={result?.levels} volumeProfile={result?.volumeProfile} />
           <div className="bg-gray-800 rounded-lg p-0 overflow-hidden">
             {result ? (
               <PositionSimulator
