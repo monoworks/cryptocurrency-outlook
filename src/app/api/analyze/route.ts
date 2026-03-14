@@ -83,7 +83,7 @@ export async function GET(req: NextRequest) {
     });
 
     // Send Telegram notification for actionable signals
-    const notified = await notifySignal(result).catch((e) => `error: ${e}`);
+    const notified = await notifySignal(result).catch(() => false);
 
     return NextResponse.json({ ...result, _telegram: { notified, conclusion: result.conclusion } });
   } catch (err) {

@@ -6,11 +6,10 @@ const TELEGRAM_API = 'https://api.telegram.org/bot';
  * Send a Telegram message via Bot API.
  * Requires TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID env vars.
  */
-async function sendMessage(text: string): Promise<string> {
+async function sendMessage(text: string): Promise<boolean> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
-  if (!token) return 'no_token';
-  if (!chatId) return 'no_chat_id';
+  if (!token || !chatId) return false;
 
   try {
     const res = await fetch(`${TELEGRAM_API}${token}/sendMessage`, {
@@ -24,12 +23,13 @@ async function sendMessage(text: string): Promise<string> {
       }),
     });
     if (!res.ok) {
-      const body = await res.text().catch(() => '');
-      return `send_failed:${res.status}:${body}`;
+      console.error(`[Telegram] sendMessage failed: ${res.status}`);
+      return false;
     }
-    return 'ok';
+    return true;
   } catch (err) {
-    return `error:${err instanceof Error ? err.message : String(err)}`;
+    console.error('[Telegram] sendMessage error:', err);
+    return false;
   }
 }
 
@@ -51,19 +51,18 @@ function fmt(n: number, decimals = 0): string {
 
 /**
  * Send a trading signal notification to Telegram.
- * Sends for all conclusions by default.
- * Set TELEGRAM_NOTIFY_ALL=false to only notify on enter_long / enter_short.
+ * Only sends for actionable signals (enter_long / enter_short) by default.
+ * Set TELEGRAM_NOTIFY_ALL=true to also notify on wait/skip.
  */
-export async function notifySignal(result: AnalysisResult): Promise<boolean | string> {
+export async function notifySignal(result: AnalysisResult): Promise<boolean> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
-  if (!token) return 'no_token';
-  if (!chatId) return 'no_chat_id';
+  if (!token || !chatId) return false;
 
-  const notifyAll = process.env.TELEGRAM_NOTIFY_ALL !== 'false';
+  const notifyAll = process.env.TELEGRAM_NOTIFY_ALL === 'true';
   const isActionable = result.conclusion === 'enter_long' || result.conclusion === 'enter_short';
 
-  if (!isActionable && !notifyAll) return 'filtered';
+  if (!isActionable && !notifyAll) return false;
 
   const { marketSummary: ms } = result;
   const setup = result.conclusion === 'enter_long' ? result.longSetup : result.shortSetup;
@@ -110,11 +109,6 @@ export async function notifySignal(result: AnalysisResult): Promise<boolean | st
   lines.push(`💬 ${result.conclusionReason}`);
 
   return sendMessage(lines.join('\n'));
-}
-
-/** Expose sendMessage result for debugging */
-export async function debugTelegramSend(): Promise<string> {
-  return sendMessage('🔧 テスト通知 - Telegram接続確認');
 }
 
 /**
