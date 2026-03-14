@@ -2,6 +2,11 @@ import { NewsArticle, NewsAnalysis, NewsImpact, NewsTag } from './types';
 
 const NEWSDATA_BASE = 'https://newsdata.io/api/1/latest';
 
+/** Sources to exclude (low-quality or flagged as unsafe) */
+const EXCLUDED_SOURCES = new Set([
+  'techbullion',
+]);
+
 /**
  * Format a UTC date string to JST display string (e.g. "3/12 22:30")
  */
@@ -185,7 +190,10 @@ async function fetchQuery(
     return [];
   }
 
-  return data.results.map((item) => {
+  return data.results.filter((item) => {
+    const src = (item.source_name || item.source_id || '').toLowerCase();
+    return !EXCLUDED_SOURCES.has(src);
+  }).map((item) => {
     const { relevanceScore, impact } = scoreArticle(item.title, item.description);
     return {
       title: item.title,
