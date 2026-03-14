@@ -30,19 +30,31 @@ const conclusionLabel: Record<string, { text: string; color: string }> = {
   skip: { text: 'スキップ', color: 'text-gray-400' },
 };
 
-/** Map the longest timeframe used in analysis to an evaluation window (hours) */
-const tfEvalHours: Record<Timeframe, number> = {
-  '5m': 4,
-  '15m': 8,
-  '1h': 12,
-  '4h': 24,
-  '1d': 72,
+/** Fallback: map the longest timeframe to an evaluation window (hours) for legacy entries */
+const tfEvalHoursFallback: Record<Timeframe, number> = {
+  '5m': 2,
+  '15m': 4,
+  '1h': 8,
+  '4h': 48,
+  '1d': 120,
 };
 
-function getEvalWindowHours(timeframes: Timeframe[]): number {
-  let max = 4;
+/**
+ * Get evaluation window in hours from the analysis result.
+ * Primary: use suggestedMaxHoldingMs (weighted average of timeframe combination).
+ * Fallback: use longest timeframe mapping for legacy entries without holding data.
+ */
+function getEvalWindowHours(result: AnalysisResult): number {
+  // Use the conclusion-relevant setup's holding time if available
+  const holdingMs = result.longSetup?.suggestedMaxHoldingMs ?? result.shortSetup?.suggestedMaxHoldingMs;
+  if (holdingMs && holdingMs > 0) {
+    return holdingMs / (1000 * 60 * 60);
+  }
+  // Fallback for legacy entries
+  const timeframes = result.marketSummary?.timeframes ?? [];
+  let max = 2;
   for (const tf of timeframes) {
-    const h = tfEvalHours[tf];
+    const h = tfEvalHoursFallback[tf];
     if (h && h > max) max = h;
   }
   return max;
@@ -136,7 +148,7 @@ export default function AnalysisHistory({ history, onLoad, onDelete, onImport, o
         >
           <span className={`transition-transform ${expanded ? 'rotate-90' : ''}`}>▶</span>
           分析履歴（{history.length}件）
-          <HelpTip text="過去の分析結果を保存し、現在価格との比較で的中/外れを自動判定します。判定期間は分析時の最長時間足に連動（5m→4h、1h→12h、4h→24h、1d→72h）。期間を過ぎると期限切れになります" />
+          <HelpTip text="過去の分析結果を保存し、現在価格との比較で的中/外れを自動判定します。判定期間は選択した時間足の組み合わせから算出した推奨保有時間に連動します。期間を過ぎると期限切れになります" />
         </button>
         <div className="flex gap-2">
           <button
@@ -168,8 +180,7 @@ export default function AnalysisHistory({ history, onLoad, onDelete, onImport, o
                 const changePct = nowPrice ? ((nowPrice - entry.currentPrice) / entry.currentPrice) * 100 : null;
 
                 // Determine evaluation window from timeframes used
-                const timeframes = entry.result?.marketSummary?.timeframes ?? [];
-                const evalWindowH = getEvalWindowHours(timeframes);
+                const evalWindowH = entry.result ? getEvalWindowHours(entry.result) : 4;
                 const elapsedMs = Date.now() - new Date(entry.timestamp).getTime();
                 const elapsedH = elapsedMs / (1000 * 60 * 60);
                 const isExpired = elapsedH > evalWindowH;
