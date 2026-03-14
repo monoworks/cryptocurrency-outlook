@@ -3,34 +3,47 @@ import { AnalysisResult, NewsArticle } from './types';
 const TELEGRAM_API = 'https://api.telegram.org/bot';
 
 /**
+ * Parse TELEGRAM_CHAT_ID which can be a single ID or comma-separated list.
+ */
+function getChatIds(): string[] {
+  const raw = process.env.TELEGRAM_CHAT_ID;
+  if (!raw) return [];
+  return raw.split(',').map((s) => s.trim()).filter(Boolean);
+}
+
+/**
  * Send a Telegram message via Bot API.
  * Requires TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID env vars.
+ * TELEGRAM_CHAT_ID can be comma-separated to send to multiple chats.
  */
 async function sendMessage(text: string): Promise<boolean> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
-  const chatId = process.env.TELEGRAM_CHAT_ID;
-  if (!token || !chatId) return false;
+  const chatIds = getChatIds();
+  if (!token || chatIds.length === 0) return false;
 
-  try {
-    const res = await fetch(`${TELEGRAM_API}${token}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text,
-        parse_mode: 'HTML',
-        disable_web_page_preview: true,
-      }),
-    });
-    if (!res.ok) {
-      console.error(`[Telegram] sendMessage failed: ${res.status}`);
-      return false;
+  let anySuccess = false;
+  for (const chatId of chatIds) {
+    try {
+      const res = await fetch(`${TELEGRAM_API}${token}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text,
+          parse_mode: 'HTML',
+          disable_web_page_preview: true,
+        }),
+      });
+      if (!res.ok) {
+        console.error(`[Telegram] sendMessage failed for chat ${chatId}: ${res.status}`);
+      } else {
+        anySuccess = true;
+      }
+    } catch (err) {
+      console.error(`[Telegram] sendMessage error for chat ${chatId}:`, err);
     }
-    return true;
-  } catch (err) {
-    console.error('[Telegram] sendMessage error:', err);
-    return false;
   }
+  return anySuccess;
 }
 
 /** Map conclusion to emoji + Japanese label */
@@ -56,8 +69,7 @@ function fmt(n: number, decimals = 0): string {
  */
 export async function notifySignal(result: AnalysisResult): Promise<boolean> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
-  const chatId = process.env.TELEGRAM_CHAT_ID;
-  if (!token || !chatId) return false;
+  if (!token || getChatIds().length === 0) return false;
 
   const notifyAll = process.env.TELEGRAM_NOTIFY_ALL === 'true';
   const isActionable = result.conclusion === 'enter_long' || result.conclusion === 'enter_short';
@@ -122,8 +134,7 @@ const MAX_NOTIFIED_LINKS = 500;
  */
 export async function notifyNews(articles: NewsArticle[]): Promise<number> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
-  const chatId = process.env.TELEGRAM_CHAT_ID;
-  if (!token || !chatId) return 0;
+  if (!token || getChatIds().length === 0) return 0;
   if (!articles || articles.length === 0) return 0;
 
   // Filter out already-notified articles
