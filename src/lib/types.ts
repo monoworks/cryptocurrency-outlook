@@ -429,6 +429,8 @@ export interface AnalysisResult {
   sentiment?: SentimentAnalysis;
   // Economic calendar
   economicCalendar?: EconomicCalendarAnalysis;
+  // News analysis
+  newsAnalysis?: NewsAnalysis;
 }
 
 // ===== Economic Calendar =====
@@ -459,6 +461,7 @@ export interface EconomicCalendarAnalysis {
 // ===== News =====
 
 export type NewsTag = 'crypto' | 'geopolitical';
+export type NewsImpact = 'high' | 'medium' | 'low';
 
 export interface NewsArticle {
   title: string;
@@ -469,6 +472,16 @@ export interface NewsArticle {
   pubDateJST: string;
   category: string[];
   tag: NewsTag;
+  relevanceScore: number;   // 0-10: crypto price relevance
+  impact: NewsImpact;       // high/medium/low impact on crypto
+}
+
+export interface NewsAnalysis {
+  articles: NewsArticle[];
+  highImpactCount: number;
+  netSentiment: 'risk_off' | 'risk_on' | 'neutral';  // market-wide risk tone
+  sentimentScore: number;    // -1 (extreme risk-off) to +1 (risk-on)
+  description: string;
 }
 
 // ===== AI =====

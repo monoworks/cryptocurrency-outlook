@@ -4,6 +4,7 @@ import { generateSignal } from '@/lib/signal';
 import { Timeframe } from '@/lib/types';
 import { fetchFearGreedIndex } from '@/lib/sentiment';
 import { fetchEconomicCalendar } from '@/lib/economic-calendar';
+import { fetchNews } from '@/lib/news';
 
 export const preferredRegion = 'hnd1';
 
@@ -32,7 +33,7 @@ export async function GET(req: NextRequest) {
 
   try {
     // Fetch candles (with taker volume) for each timeframe + shared market data in parallel
-    const [candlesResults, ticker, openInterest, fundingRate, premiumIndex, oiHistory, fundingHistory, topTraderRatio, fearGreed, economicEvents] = await Promise.all([
+    const [candlesResults, ticker, openInterest, fundingRate, premiumIndex, oiHistory, fundingHistory, topTraderRatio, fearGreed, economicEvents, newsArticles] = await Promise.all([
       Promise.all(timeframes.map((tf) =>
         getKlinesWithTakerVolume(symbol, tf).then((r) => ({ timeframe: tf, candles: r.candles, takerBuyVolumes: r.takerBuyVolumes }))
       )),
@@ -45,6 +46,7 @@ export async function GET(req: NextRequest) {
       getTopTraderRatio(symbol).catch(() => null),
       fetchFearGreedIndex().catch(() => null),
       fetchEconomicCalendar().catch(() => null),
+      fetchNews().catch(() => null),
     ]);
 
     const result = generateSignal({
@@ -60,6 +62,7 @@ export async function GET(req: NextRequest) {
       topTraderRatio: topTraderRatio ?? undefined,
       fearGreed: fearGreed ?? undefined,
       economicEvents: economicEvents ?? undefined,
+      newsArticles,
     });
 
     return NextResponse.json(result);

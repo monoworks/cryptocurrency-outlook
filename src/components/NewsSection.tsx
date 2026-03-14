@@ -12,12 +12,19 @@ const tagStyle: Record<string, { label: string; color: string; bg: string }> = {
   geopolitical: { label: '地政学', color: 'text-orange-400', bg: 'bg-orange-900/40' },
 };
 
+const impactStyle: Record<string, { label: string; color: string; bg: string }> = {
+  high: { label: '高', color: 'text-red-400', bg: 'bg-red-900/40' },
+  medium: { label: '中', color: 'text-amber-400', bg: 'bg-amber-900/40' },
+  low: { label: '低', color: 'text-gray-400', bg: 'bg-gray-700/40' },
+};
+
 export default function NewsSection({ articles }: NewsSectionProps) {
   const [collapsed, setCollapsed] = useState(true);
 
   if (!articles || articles.length === 0) return null;
 
   const geoCount = articles.filter((a) => a.tag === 'geopolitical').length;
+  const highCount = articles.filter((a) => a.impact === 'high').length;
 
   return (
     <div className="border border-gray-600 bg-gray-800 rounded-lg p-3">
@@ -33,6 +40,11 @@ export default function NewsSection({ articles }: NewsSectionProps) {
               地政学 {geoCount}件
             </span>
           )}
+          {highCount > 0 && (
+            <span className="text-[10px] font-bold text-red-400 bg-red-900/40 px-1.5 py-0.5 rounded">
+              高影響 {highCount}件
+            </span>
+          )}
         </div>
         <span className="text-gray-500 text-xs">{collapsed ? '▼ 展開' : '▲ 折りたたむ'}</span>
       </button>
@@ -41,6 +53,7 @@ export default function NewsSection({ articles }: NewsSectionProps) {
         <div className="mt-2 space-y-2">
           {articles.map((article, i) => {
             const style = tagStyle[article.tag] ?? tagStyle.crypto;
+            const impact = impactStyle[article.impact ?? 'low'] ?? impactStyle.low;
             return (
               <div key={i} className="border-t border-gray-700 pt-2 first:border-t-0 first:pt-0">
                 <div className="flex items-start gap-2">
@@ -57,6 +70,14 @@ export default function NewsSection({ articles }: NewsSectionProps) {
                       <span className={`font-bold px-1 py-0.5 rounded ${style.color} ${style.bg}`}>
                         {style.label}
                       </span>
+                      <span className={`font-bold px-1 py-0.5 rounded ${impact.color} ${impact.bg}`}>
+                        影響{impact.label}
+                      </span>
+                      {article.relevanceScore != null && (
+                        <span className="text-gray-600">
+                          関連度{article.relevanceScore}/10
+                        </span>
+                      )}
                       <span>{article.pubDateJST}</span>
                       <span>|</span>
                       <span>{article.source}</span>
