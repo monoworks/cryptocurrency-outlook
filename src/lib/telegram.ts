@@ -51,15 +51,15 @@ function fmt(n: number, decimals = 0): string {
 
 /**
  * Send a trading signal notification to Telegram.
- * Only sends for actionable signals (enter_long / enter_short) by default.
- * Set TELEGRAM_NOTIFY_ALL=true to also notify on wait/skip.
+ * Sends for all conclusions by default.
+ * Set TELEGRAM_NOTIFY_ALL=false to only notify on enter_long / enter_short.
  */
 export async function notifySignal(result: AnalysisResult): Promise<boolean> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
   if (!token || !chatId) return false;
 
-  const notifyAll = process.env.TELEGRAM_NOTIFY_ALL === 'true';
+  const notifyAll = process.env.TELEGRAM_NOTIFY_ALL !== 'false';
   const isActionable = result.conclusion === 'enter_long' || result.conclusion === 'enter_short';
 
   if (!isActionable && !notifyAll) return false;
