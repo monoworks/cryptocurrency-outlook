@@ -27,8 +27,7 @@ export async function GET() {
   // Only notify medium+ impact articles (relevance >= 3 already filtered by fetchNews)
   const notable = articles.filter((a) => a.impact === 'high' || a.impact === 'medium');
 
-  // 6-minute window to cover 5-min cron interval with buffer
-  const notified = await notifyNews(notable, 6);
+  const notified = await notifyNews(notable);
 
   return NextResponse.json({
     notified,

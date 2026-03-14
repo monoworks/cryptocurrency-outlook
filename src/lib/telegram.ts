@@ -111,28 +111,24 @@ export async function notifySignal(result: AnalysisResult): Promise<boolean> {
   return sendMessage(lines.join('\n'));
 }
 
+/** Track notified article links to avoid duplicates (in-memory, resets on deploy) */
+const notifiedLinks = new Set<string>();
+const MAX_NOTIFIED_LINKS = 500;
+
 /**
  * Send news alert to Telegram.
- * Only sends articles published within the given window (minutes) to avoid duplicates.
+ * Uses link-based deduplication to avoid sending the same article twice.
  * Returns the number of articles notified.
  */
-export async function notifyNews(
-  articles: NewsArticle[],
-  windowMinutes: number = 6,
-): Promise<number> {
+export async function notifyNews(articles: NewsArticle[]): Promise<number> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
   if (!token || !chatId) return 0;
   if (!articles || articles.length === 0) return 0;
 
-  // Only notify articles published within the time window
-  const cutoff = Date.now() - windowMinutes * 60 * 1000;
-  const recent = articles.filter((a) => {
-    const pubTime = new Date(a.pubDate).getTime();
-    return !isNaN(pubTime) && pubTime >= cutoff;
-  });
-
-  if (recent.length === 0) return 0;
+  // Filter out already-notified articles
+  const fresh = articles.filter((a) => !notifiedLinks.has(a.link));
+  if (fresh.length === 0) return 0;
 
   const tagLabel = (tag: string) => tag === 'geopolitical' ? '🌍 地政学' : '📋 規制';
   const impactLabel = (impact: string) => {
@@ -144,11 +140,11 @@ export async function notifyNews(
   };
 
   const lines: string[] = [
-    `📰 <b>ニュース速報</b> (${recent.length}件)`,
+    `📰 <b>ニュース速報</b> (${fresh.length}件)`,
     ``,
   ];
 
-  for (const a of recent) {
+  for (const a of fresh) {
     lines.push(`${tagLabel(a.tag)} ${impactLabel(a.impact)} 関連度${a.relevanceScore}/10`);
     lines.push(`<b>${a.title}</b>`);
     lines.push(`${a.source} | ${a.pubDateJST}`);
@@ -156,5 +152,20 @@ export async function notifyNews(
     lines.push(``);
   }
 
-  return (await sendMessage(lines.join('\n'))) ? recent.length : 0;
+  const sent = await sendMessage(lines.join('\n'));
+  if (sent) {
+    for (const a of fresh) {
+      notifiedLinks.add(a.link);
+    }
+    // Prevent unbounded growth
+    if (notifiedLinks.size > MAX_NOTIFIED_LINKS) {
+      const excess = notifiedLinks.size - MAX_NOTIFIED_LINKS;
+      const iter = notifiedLinks.values();
+      for (let i = 0; i < excess; i++) {
+        notifiedLinks.delete(iter.next().value as string);
+      }
+    }
+    return fresh.length;
+  }
+  return 0;
 }
