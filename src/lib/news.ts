@@ -112,14 +112,12 @@ function scoreArticle(title: string, description: string | null): {
 
   let totalWeight = 0;
   let riskSum = 0;
-  let matchCount = 0;
 
   // High impact keywords
   for (const rule of HIGH_IMPACT_KEYWORDS) {
     if (rule.pattern.test(text)) {
       totalWeight += rule.weight;
       riskSum += rule.riskDirection * rule.weight;
-      matchCount++;
     }
   }
 
@@ -128,7 +126,6 @@ function scoreArticle(title: string, description: string | null): {
     if (rule.pattern.test(text)) {
       totalWeight += rule.weight;
       riskSum += rule.riskDirection * rule.weight;
-      matchCount++;
     }
   }
 
