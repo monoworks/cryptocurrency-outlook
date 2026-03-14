@@ -8,7 +8,7 @@ interface NewsSectionProps {
 }
 
 const tagStyle: Record<string, { label: string; color: string; bg: string }> = {
-  crypto: { label: '暗号資産', color: 'text-blue-400', bg: 'bg-blue-900/40' },
+  crypto: { label: '規制', color: 'text-yellow-400', bg: 'bg-yellow-900/40' },
   geopolitical: { label: '地政学', color: 'text-orange-400', bg: 'bg-orange-900/40' },
 };
 
@@ -26,7 +26,7 @@ export default function NewsSection({ articles }: NewsSectionProps) {
         className="w-full flex items-center justify-between text-left"
       >
         <div className="font-semibold text-sm text-gray-300 flex items-center gap-2">
-          世界情勢ニュース
+          リスクニュース
           <span className="text-xs text-gray-500">({articles.length}件)</span>
           {geoCount > 0 && (
             <span className="text-[10px] font-bold text-orange-400 bg-orange-900/40 px-1.5 py-0.5 rounded">

@@ -28,54 +28,19 @@ interface RawArticle {
   category?: string[];
 }
 
-/** Fetch a single query from NewsData.io and tag results */
-async function fetchQuery(
-  apiKey: string,
-  q: string,
-  tag: NewsTag,
-  size: number = 10,
-): Promise<NewsArticle[]> {
-  const params = new URLSearchParams({
-    apikey: apiKey,
-    q,
-    language: 'en',
-    size: String(size),
-  });
+/** Keywords that indicate crypto regulation (vs general geopolitical) */
+const CRYPTO_REGULATION_RE = /\b(SEC|crypto|bitcoin|stablecoin|CBDC|exchange hack|binance|coinbase|ripple|ethereum ETF|crypto ban)\b/i;
 
-  const res = await fetch(`${NEWSDATA_BASE}?${params.toString()}`, {
-    headers: { Accept: 'application/json' },
-    next: { revalidate: 1800 }, // cache 30 minutes (API credit conservation)
-  });
-
-  if (!res.ok) {
-    console.error(`[News:${tag}] API error: ${res.status}`);
-    return [];
-  }
-
-  const data = await res.json() as {
-    status: string;
-    results?: RawArticle[];
-  };
-
-  if (data.status !== 'success' || !Array.isArray(data.results)) {
-    return [];
-  }
-
-  return data.results.map((item) => ({
-    title: item.title,
-    description: item.description,
-    link: item.link,
-    source: item.source_name || item.source_id,
-    pubDate: item.pubDate,
-    pubDateJST: toJST(item.pubDate),
-    category: item.category ?? [],
-    tag,
-  }));
+/** Classify an article as geopolitical or crypto-regulation based on content */
+function classifyTag(article: RawArticle): NewsTag {
+  const text = `${article.title} ${article.description ?? ''}`;
+  return CRYPTO_REGULATION_RE.test(text) ? 'crypto' : 'geopolitical';
 }
 
 /**
- * Fetch latest news: crypto + geopolitical, merged and sorted by date.
- * Returns null if API key is not configured or both fetches fail.
+ * Fetch latest risk-relevant news: geopolitical events + crypto regulation.
+ * Single query combining both categories, then auto-tagged by content.
+ * Returns null if API key is not configured or fetch fails.
  */
 export async function fetchNews(): Promise<NewsArticle[] | null> {
   const apiKey = process.env.NEWSDATA_API_KEY;
@@ -85,31 +50,55 @@ export async function fetchNews(): Promise<NewsArticle[] | null> {
   }
 
   try {
-    const [crypto, geopolitical] = await Promise.all([
-      fetchQuery(apiKey, 'crypto OR bitcoin', 'crypto', 10),
-      fetchQuery(
-        apiKey,
-        'war OR conflict OR sanctions OR "Federal Reserve" OR "interest rate" OR missile OR airstrike OR military',
-        'geopolitical',
-        10,
-      ),
-    ]);
+    const q = [
+      // Geopolitical risk
+      'war', 'conflict', 'sanctions', '"Federal Reserve"', '"interest rate"',
+      'missile', 'airstrike', 'military', 'ceasefire', 'invasion',
+      // Crypto regulation
+      '"SEC crypto"', '"crypto regulation"', '"crypto ban"', '"exchange hack"', 'CBDC',
+    ].join(' OR ');
 
-    const all = [...crypto, ...geopolitical];
-    if (all.length === 0) return null;
-
-    // Dedupe by link
-    const seen = new Set<string>();
-    const deduped = all.filter((a) => {
-      if (seen.has(a.link)) return false;
-      seen.add(a.link);
-      return true;
+    const params = new URLSearchParams({
+      apikey: apiKey,
+      q,
+      language: 'en',
+      size: '20',
     });
 
-    // Sort newest first
-    deduped.sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
+    const res = await fetch(`${NEWSDATA_BASE}?${params.toString()}`, {
+      headers: { Accept: 'application/json' },
+      next: { revalidate: 1800 }, // cache 30 minutes
+    });
 
-    return deduped;
+    if (!res.ok) {
+      console.error(`[News] API error: ${res.status}`);
+      return null;
+    }
+
+    const data = await res.json() as {
+      status: string;
+      results?: RawArticle[];
+    };
+
+    if (data.status !== 'success' || !Array.isArray(data.results)) {
+      return null;
+    }
+
+    const articles: NewsArticle[] = data.results.map((item) => ({
+      title: item.title,
+      description: item.description,
+      link: item.link,
+      source: item.source_name || item.source_id,
+      pubDate: item.pubDate,
+      pubDateJST: toJST(item.pubDate),
+      category: item.category ?? [],
+      tag: classifyTag(item),
+    }));
+
+    // Sort newest first
+    articles.sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
+
+    return articles;
   } catch {
     return null;
   }
