@@ -87,6 +87,9 @@ export default function SymbolInput({ onAnalyze, loading }: Props) {
         <p className="text-xs text-gray-500 mt-2 leading-relaxed">
           💡 超短期（数分〜1時間程度）は5分足・15分足、デイトレード（数時間〜半日程度）は15分足・1時間足・4時間足、スイング（数日程度）は1時間足・4時間足・日足の組み合わせが効果的です。
         </p>
+        <p className="text-xs text-yellow-600/80 mt-1.5 leading-relaxed">
+          ⚠️ 本分析はテクニカル指標に基づく参考情報です。紛争・制裁・規制変更・取引所障害などの突発事象による急変動は予測できません。投資判断はご自身の責任でお願いします。
+        </p>
       </div>
     </div>
   );
