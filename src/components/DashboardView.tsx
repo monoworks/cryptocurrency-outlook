@@ -7,6 +7,7 @@ import PositionSimulator from './PositionSimulator';
 import PositionManager from './PositionManager';
 import AnalysisHistory, { HistoryEntry } from './AnalysisHistory';
 import NewsSection from './NewsSection';
+import BinanceChart from './BinanceChart';
 
 interface Props {
   result: AnalysisResult | null;
@@ -200,23 +201,26 @@ export default function DashboardView({
           </div>
         </div>
 
-        {/* Right column — Simulator */}
-        <div className="bg-gray-800 rounded-lg p-0 overflow-hidden">
-          {result ? (
-            <PositionSimulator
-              longSetup={result.longSetup}
-              shortSetup={result.shortSetup}
-              symbol={currentSymbol}
-              onSavePosition={addPosition}
-              positionCount={positions.length}
-              maxPositions={maxPositions}
-            />
-          ) : (
-            <div className="p-3">
-              <h2 className="text-base font-bold text-white mb-2">売買シミュレーター</h2>
-              <Placeholder text="分析を実行するとシミュレーターが使用可能になります" />
-            </div>
-          )}
+        {/* Right column — Chart + Simulator */}
+        <div className="flex flex-col gap-3">
+          <BinanceChart symbol={currentSymbol} />
+          <div className="bg-gray-800 rounded-lg p-0 overflow-hidden">
+            {result ? (
+              <PositionSimulator
+                longSetup={result.longSetup}
+                shortSetup={result.shortSetup}
+                symbol={currentSymbol}
+                onSavePosition={addPosition}
+                positionCount={positions.length}
+                maxPositions={maxPositions}
+              />
+            ) : (
+              <div className="p-3">
+                <h2 className="text-base font-bold text-white mb-2">売買シミュレーター</h2>
+                <Placeholder text="分析を実行するとシミュレーターが使用可能になります" />
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
