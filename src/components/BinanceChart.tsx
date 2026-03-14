@@ -243,9 +243,10 @@ export default function BinanceChart({ symbol }: Props) {
   return (
     <div className="bg-[#1a1a2e] border border-gray-700 rounded-lg p-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-white font-bold text-sm">
+        <h3 className="text-white font-bold text-sm flex items-center gap-2">
           {symbol} チャート
-          <span className="ml-2 inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" title="リアルタイム" />
+          <span className="text-[10px] text-gray-500 font-normal">Binance Futures</span>
+          <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" title="リアルタイム" />
         </h3>
         <div className="flex gap-1">
           {INTERVALS.map((iv) => (
