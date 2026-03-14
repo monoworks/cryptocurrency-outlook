@@ -48,7 +48,7 @@ const TIMEFRAME_MAX_HOLDING_MS: Record<Timeframe, number> = {
   '5m':  2 * 60 * 60 * 1000,        // 2 hours
   '15m': 4 * 60 * 60 * 1000,        // 4 hours
   '1h':  8 * 60 * 60 * 1000,        // 8 hours
-  '4h':  2 * 24 * 60 * 60 * 1000,   // 2 days
+  '4h':  24 * 60 * 60 * 1000,        // 1 day
   '1d':  5 * 24 * 60 * 60 * 1000,   // 5 days
 };
 

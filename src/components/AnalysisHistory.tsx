@@ -35,7 +35,7 @@ const tfEvalHoursFallback: Record<Timeframe, number> = {
   '5m': 2,
   '15m': 4,
   '1h': 8,
-  '4h': 48,
+  '4h': 24,
   '1d': 120,
 };
 
