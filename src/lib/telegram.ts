@@ -54,15 +54,16 @@ function fmt(n: number, decimals = 0): string {
  * Sends for all conclusions by default.
  * Set TELEGRAM_NOTIFY_ALL=false to only notify on enter_long / enter_short.
  */
-export async function notifySignal(result: AnalysisResult): Promise<boolean> {
+export async function notifySignal(result: AnalysisResult): Promise<boolean | string> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
-  if (!token || !chatId) return false;
+  if (!token) return 'no_token';
+  if (!chatId) return 'no_chat_id';
 
   const notifyAll = process.env.TELEGRAM_NOTIFY_ALL !== 'false';
   const isActionable = result.conclusion === 'enter_long' || result.conclusion === 'enter_short';
 
-  if (!isActionable && !notifyAll) return false;
+  if (!isActionable && !notifyAll) return 'filtered';
 
   const { marketSummary: ms } = result;
   const setup = result.conclusion === 'enter_long' ? result.longSetup : result.shortSetup;
