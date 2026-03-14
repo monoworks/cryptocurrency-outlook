@@ -90,6 +90,12 @@ const NOISE_PATTERNS: RegExp[] = [
   /\b(recipe|cooking|restaurant|food)\b/i,
   /\b(local police|traffic|accident|car crash)\b/i,
   /\b(obituar|funeral|memorial service)\b/i,
+  // Individual stock / equity news — not relevant to crypto macro
+  /\b(shares of|sells? \d[\d,]* shares|buys? \d[\d,]* shares|insider (sell|buy|trad))\b/i,
+  /\b(NASDAQ|NYSE):[A-Z]{1,5}\b/,  // Stock ticker like NASDAQ:CART
+  /\bshares (up|down|surge|drop|rise|fall)\s+\d/i,
+  /\b(dividend|earnings call|quarterly results|EPS|P\/E ratio)\b/i,
+  /\b(synagogue|church shooting|school shooting|mass shooting)\b/i,
 ];
 
 /**
@@ -227,16 +233,21 @@ export async function fetchNews(): Promise<NewsArticle[] | null> {
     const all = [...geopolitical, ...regulation];
     if (all.length === 0) return null;
 
-    // Dedupe by link
-    const seen = new Set<string>();
+    // Dedupe by link AND by normalized title (same story from different sources)
+    const seenLinks = new Set<string>();
+    const seenTitles = new Set<string>();
     const deduped = all.filter((a) => {
-      if (seen.has(a.link)) return false;
-      seen.add(a.link);
+      if (seenLinks.has(a.link)) return false;
+      seenLinks.add(a.link);
+      // Normalize title: lowercase, strip punctuation, collapse whitespace
+      const normTitle = a.title.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
+      if (seenTitles.has(normTitle)) return false;
+      seenTitles.add(normTitle);
       return true;
     });
 
-    // Filter out low-relevance articles (noise)
-    const relevant = deduped.filter((a) => a.relevanceScore >= 2);
+    // Filter out low-relevance articles (noise) — threshold 3 to exclude generic matches
+    const relevant = deduped.filter((a) => a.relevanceScore >= 3);
 
     // Sort by relevance (high first), then newest
     relevant.sort((a, b) => {
