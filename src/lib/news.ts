@@ -168,7 +168,7 @@ async function fetchQuery(
 
   const res = await fetch(`${NEWSDATA_BASE}?${params.toString()}`, {
     headers: { Accept: 'application/json' },
-    next: { revalidate: 1800 }, // cache 30 minutes (API credit conservation)
+    next: { revalidate: 300 }, // cache 5 minutes (aligned with news-notify cron)
   });
 
   if (!res.ok) {
