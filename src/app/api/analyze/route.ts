@@ -5,6 +5,7 @@ import { Timeframe } from '@/lib/types';
 import { fetchFearGreedIndex } from '@/lib/sentiment';
 import { fetchEconomicCalendar } from '@/lib/economic-calendar';
 import { fetchNews } from '@/lib/news';
+import { notifySignal } from '@/lib/telegram';
 
 export const preferredRegion = 'hnd1';
 
@@ -64,6 +65,9 @@ export async function GET(req: NextRequest) {
       economicEvents: economicEvents ?? undefined,
       newsArticles,
     });
+
+    // Fire-and-forget: send Telegram notification for actionable signals
+    notifySignal(result).catch(() => {});
 
     return NextResponse.json(result);
   } catch (err) {
