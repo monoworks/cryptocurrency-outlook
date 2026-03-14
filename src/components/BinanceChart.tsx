@@ -152,15 +152,18 @@ export default function BinanceChart({ symbol }: Props) {
     candleSeriesRef.current = candleSeries;
     volumeSeriesRef.current = volumeSeries;
 
-    const handleResize = () => {
-      if (containerRef.current) {
-        chart.applyOptions({ width: containerRef.current.clientWidth });
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const w = entry.contentRect.width;
+        if (w > 0) {
+          chart.applyOptions({ width: w });
+        }
       }
-    };
-    window.addEventListener('resize', handleResize);
+    });
+    ro.observe(containerRef.current);
 
     return () => {
-      window.removeEventListener('resize', handleResize);
+      ro.disconnect();
       chart.remove();
       chartRef.current = null;
       candleSeriesRef.current = null;
