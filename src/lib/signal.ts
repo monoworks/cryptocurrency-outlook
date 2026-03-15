@@ -619,16 +619,7 @@ function determineConclusion(
   if (sentimentSignal === 'contrarian_bullish') bullishScore += 0.3;
   else if (sentimentSignal === 'contrarian_bearish') bearishScore += 0.3;
 
-  // News impact on scoring
-  if (newsAnalysis && newsAnalysis.highImpactCount > 0) {
-    // Risk-off news → bearish for crypto, Risk-on → bullish
-    const newsWeight = Math.min(1.5, newsAnalysis.highImpactCount * 0.5);
-    if (newsAnalysis.netSentiment === 'risk_off') {
-      bearishScore += newsWeight;
-    } else if (newsAnalysis.netSentiment === 'risk_on') {
-      bullishScore += newsWeight;
-    }
-  }
+  // Note: News is displayed separately for user judgment — not factored into technical scoring
 
   const diff = bullishScore - bearishScore;
   const bestRR = Math.max(longSetup.riskRewardRatio, shortSetup.riskRewardRatio);
@@ -665,16 +656,6 @@ function determineConclusion(
   // Append hierarchical insight
   if (hierarchical) {
     reason += ` [階層分析: ${hierarchical.description}]`;
-  }
-
-  // News risk override — multiple high-impact risk-off news = caution
-  if (newsAnalysis && newsAnalysis.highImpactCount >= 3 && newsAnalysis.netSentiment === 'risk_off') {
-    if (conclusion === 'enter_long') {
-      conclusion = 'wait';
-    }
-    reason += ` ⚠ 高影響リスクオフニュース${newsAnalysis.highImpactCount}件検出 — ロングは慎重に。`;
-  } else if (newsAnalysis && newsAnalysis.highImpactCount > 0) {
-    reason += ` [ニュース: ${newsAnalysis.description}]`;
   }
 
   // Economic calendar override
@@ -807,18 +788,7 @@ function calcConfidence(
     factors.push({ name: '経済指標発表リスク', contribution: Math.abs(economicConfidenceImpact), positive: false });
   }
 
-  // 10. News impact
-  if (newsAnalysis) {
-    if (newsAnalysis.highImpactCount >= 2 && newsAnalysis.netSentiment !== 'neutral') {
-      // Strong directional news reduces confidence (uncertainty)
-      const impact = Math.min(10, newsAnalysis.highImpactCount * 3);
-      score -= impact;
-      factors.push({ name: `高影響ニュース${newsAnalysis.highImpactCount}件(不確実性)`, contribution: impact, positive: false });
-    } else if (newsAnalysis.highImpactCount === 1) {
-      score -= 3;
-      factors.push({ name: '高影響ニュース1件', contribution: 3, positive: false });
-    }
-  }
+  // Note: News is displayed separately — not factored into confidence scoring
 
   // Clamp 0-100
   score = Math.max(0, Math.min(100, score));
