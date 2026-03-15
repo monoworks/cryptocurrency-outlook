@@ -94,10 +94,10 @@ function CalendarBadge({ calendar }: { calendar: EconomicCalendarAnalysis | null
 
 function NewsBadge({ articles }: { articles: NewsArticle[] | null }) {
   const [open, setOpen] = useState(false);
-  if (!articles || articles.length === 0) return null;
+  const list = articles ?? [];
 
-  const geoCount = articles.filter((a) => a.tag === 'geopolitical').length;
-  const highCount = articles.filter((a) => a.impact === 'high').length;
+  const geoCount = list.filter((a) => a.tag === 'geopolitical').length;
+  const highCount = list.filter((a) => a.impact === 'high').length;
   const hasAlert = geoCount > 0 || highCount > 0;
 
   return (
@@ -111,7 +111,7 @@ function NewsBadge({ articles }: { articles: NewsArticle[] | null }) {
         }`}
       >
         <span>{hasAlert ? '⚠️' : '📰'}</span>
-        <span>ニュース ({articles.length})</span>
+        <span>ニュース ({list.length})</span>
         {geoCount > 0 && <span className="text-orange-400 font-bold">地政学{geoCount}</span>}
         {highCount > 0 && <span className="text-red-400 font-bold">高影響{highCount}</span>}
       </button>
