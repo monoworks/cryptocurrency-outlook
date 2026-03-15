@@ -18,16 +18,15 @@ const impactStyle: Record<string, { label: string; color: string; bg: string }> 
 };
 
 export default function NewsSection({ articles }: NewsSectionProps) {
-  if (!articles || articles.length === 0) return null;
-
-  const geoCount = articles.filter((a) => a.tag === 'geopolitical').length;
-  const highCount = articles.filter((a) => a.impact === 'high').length;
+  const list = articles ?? [];
+  const geoCount = list.filter((a) => a.tag === 'geopolitical').length;
+  const highCount = list.filter((a) => a.impact === 'high').length;
 
   return (
     <div className="border border-gray-600 bg-gray-800 rounded-lg p-3">
       <div className="font-semibold text-sm text-gray-300 flex items-center gap-2">
-        リスクニュース
-        <span className="text-xs text-gray-500">({articles.length}件)</span>
+        📰 リスクニュース
+        <span className="text-xs text-gray-500">({list.length}件)</span>
         {geoCount > 0 && (
           <span className="text-[10px] font-bold text-orange-400 bg-orange-900/40 px-1.5 py-0.5 rounded">
             地政学 {geoCount}件
@@ -40,8 +39,11 @@ export default function NewsSection({ articles }: NewsSectionProps) {
         )}
       </div>
 
+      {list.length === 0 ? (
+        <p className="text-xs text-gray-500 mt-2">該当するニュースはありません</p>
+      ) : (
       <div className="mt-2 space-y-2">
-        {articles.map((article, i) => {
+        {list.map((article, i) => {
           const style = tagStyle[article.tag] ?? tagStyle.crypto;
           const impact = impactStyle[article.impact ?? 'low'] ?? impactStyle.low;
           return (
@@ -78,6 +80,7 @@ export default function NewsSection({ articles }: NewsSectionProps) {
           );
         })}
       </div>
+      )}
     </div>
   );
 }
