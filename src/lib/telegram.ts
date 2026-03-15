@@ -67,6 +67,46 @@ function fmt(n: number, decimals = 0): string {
  * Only sends for actionable signals (enter_long / enter_short) by default.
  * Set TELEGRAM_NOTIFY_ALL=true to also notify on wait/skip.
  */
+/**
+ * Send a batch trading signal notification (multiple symbols in one message).
+ */
+export async function notifyBatchSignals(results: AnalysisResult[]): Promise<boolean> {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token || getChatIds().length === 0) return false;
+  if (results.length === 0) return false;
+
+  const lines: string[] = [
+    `<b>📊 マルチシンボル分析</b>`,
+    ``,
+  ];
+
+  for (const result of results) {
+    const { marketSummary: ms } = result;
+    const isActionable = result.conclusion === 'enter_long' || result.conclusion === 'enter_short';
+    const setup = result.conclusion === 'enter_long' ? result.longSetup : result.shortSetup;
+    const confidence = result.confidence?.score ?? 0;
+
+    lines.push(`━━━━━━━━━━━━━━━━`);
+    lines.push(`<b>${ms.symbol}</b>  ${conclusionLabel(result.conclusion)}`);
+    lines.push(`💰 ${fmt(ms.currentPrice, 1)} (${ms.priceChangePercent >= 0 ? '+' : ''}${ms.priceChangePercent.toFixed(2)}%)  📊 信頼度${confidence}`);
+
+    if (isActionable) {
+      lines.push(`📍 ${fmt(setup.entry, 1)} → 🎯 ${fmt(setup.target, 1)} / 🛑 ${fmt(setup.stopLoss, 1)}  RR${setup.riskRewardRatio.toFixed(2)}`);
+    }
+
+    lines.push(`📈 ${result.trend.direction} (${result.trend.strength})  ⏱ ${ms.timeframes.join(',')}`);
+
+    if (ms.fundingRate !== 0) {
+      lines.push(`💸 FR: ${(ms.fundingRate * 100).toFixed(4)}%`);
+    }
+
+    lines.push(`💬 ${result.conclusionReason}`);
+    lines.push(``);
+  }
+
+  return sendMessage(lines.join('\n'));
+}
+
 export async function notifySignal(result: AnalysisResult): Promise<boolean> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token || getChatIds().length === 0) return false;
