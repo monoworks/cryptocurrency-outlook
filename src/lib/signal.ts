@@ -1053,7 +1053,13 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
   );
 
   // News-adjusted conclusion (experimental)
-  const newsAdjusted = determineNewsAdjustedConclusion(conclusion, reason, newsAnalysisResult);
+  // If analyzeNews returned undefined but raw articles exist, create a minimal fallback
+  const newsForConclusion = newsAnalysisResult ?? (
+    input.newsArticles && input.newsArticles.length > 0
+      ? { articles: input.newsArticles, highImpactCount: 0, netSentiment: 'neutral' as const, sentimentScore: 0, description: `ニュース${input.newsArticles.length}件取得（暗号資産への直接的な影響は限定的）` }
+      : undefined
+  );
+  const newsAdjusted = determineNewsAdjustedConclusion(conclusion, reason, newsForConclusion);
 
   // Previous day high/low from daily candles
   const dailyAnalysis = details.find((d) => d.timeframe === '1d');
