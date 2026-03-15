@@ -400,9 +400,12 @@ export interface AnalysisResult {
   shortSetup: TradeSetup;
   // ⑤ Breakout Levels
   breakoutLevels: BreakoutLevel[];
-  // ⑥ Conclusion
+  // ⑥ Conclusion (technical only)
   conclusion: SignalConclusion;
   conclusionReason: string;
+  // ⑥-b Conclusion (news-adjusted, experimental)
+  newsAdjustedConclusion?: SignalConclusion;
+  newsAdjustedReason?: string;
   // Extra (from primary timeframe)
   indicators: IndicatorValues;
   patterns: CandlePattern[];

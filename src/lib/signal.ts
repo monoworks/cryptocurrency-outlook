@@ -620,8 +620,6 @@ function determineConclusion(
   if (sentimentSignal === 'contrarian_bullish') bullishScore += 0.3;
   else if (sentimentSignal === 'contrarian_bearish') bearishScore += 0.3;
 
-  // Note: News is displayed separately for user judgment — not factored into technical scoring
-
   const diff = bullishScore - bearishScore;
   const bestRR = Math.max(longSetup.riskRewardRatio, shortSetup.riskRewardRatio);
 
@@ -668,6 +666,67 @@ function determineConclusion(
   } else if (economicWarning === 'caution' && economicDescription) {
     reason += ` [${economicDescription}]`;
   }
+
+  return { conclusion, reason };
+}
+
+/**
+ * Adjust the technical conclusion by incorporating news sentiment.
+ * This is experimental — the technical conclusion remains the primary signal.
+ */
+function determineNewsAdjustedConclusion(
+  techConclusion: SignalConclusion,
+  techReason: string,
+  newsAnalysis?: NewsAnalysis,
+): { conclusion: SignalConclusion; reason: string } | undefined {
+  if (!newsAnalysis || newsAnalysis.articles.length === 0) return undefined;
+
+  const { sentimentScore, netSentiment, highImpactCount, description } = newsAnalysis;
+
+  let conclusion = techConclusion;
+  const parts: string[] = [];
+
+  // Strong news sentiment can shift the conclusion
+  if (Math.abs(sentimentScore) >= 0.5 && highImpactCount > 0) {
+    // News strongly disagrees with technical signal
+    if (sentimentScore <= -0.5 && techConclusion === 'enter_long') {
+      conclusion = 'wait';
+      parts.push('テクニカルは強気だがリスクオフニュースが優勢のため様子見に変更。');
+    } else if (sentimentScore >= 0.5 && techConclusion === 'enter_short') {
+      conclusion = 'wait';
+      parts.push('テクニカルは弱気だがリスクオンニュースが優勢のため様子見に変更。');
+    }
+    // News reinforces technical signal
+    else if (sentimentScore >= 0.5 && techConclusion === 'enter_long') {
+      parts.push('リスクオンニュースがロングシグナルを後押し。');
+    } else if (sentimentScore <= -0.5 && techConclusion === 'enter_short') {
+      parts.push('リスクオフニュースがショートシグナルを後押し。');
+    }
+    // News could tip a wait towards action
+    else if (techConclusion === 'wait') {
+      if (sentimentScore >= 0.5) {
+        parts.push('リスクオンニュースが後押し — テクニカルの押し目待ちと併せてロング方向優位。');
+      } else if (sentimentScore <= -0.5) {
+        parts.push('リスクオフニュースが後押し — テクニカルの戻り待ちと併せてショート方向優位。');
+      }
+    }
+  }
+
+  // Moderate news sentiment — just add context
+  if (parts.length === 0) {
+    if (netSentiment === 'risk_off') {
+      parts.push('ニュースはやや弱気寄り。');
+    } else if (netSentiment === 'risk_on') {
+      parts.push('ニュースはやや強気寄り。');
+    } else {
+      parts.push('ニュースに目立った偏りなし。');
+    }
+  }
+
+  parts.push(description);
+
+  // Build reason: start with the technical reason, then add news context
+  const reason = `${techReason} [ニュース: ${parts.join(' ')}]`;
 
   return { conclusion, reason };
 }
@@ -993,6 +1052,9 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
     newsAnalysisResult,
   );
 
+  // News-adjusted conclusion (experimental)
+  const newsAdjusted = determineNewsAdjustedConclusion(conclusion, reason, newsAnalysisResult);
+
   // Previous day high/low from daily candles
   const dailyAnalysis = details.find((d) => d.timeframe === '1d');
   const prevDayHigh = dailyAnalysis?.prevDayHigh;
@@ -1059,6 +1121,8 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
     breakoutLevels,
     conclusion,
     conclusionReason: reason,
+    newsAdjustedConclusion: newsAdjusted?.conclusion,
+    newsAdjustedReason: newsAdjusted?.reason,
     indicators: primary.indicators,
     patterns: primary.patterns,
     derivatives,

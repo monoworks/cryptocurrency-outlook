@@ -436,13 +436,23 @@ export default function Home() {
                 skip: { label: '見送り推奨', color: 'text-gray-400', bg: 'bg-gray-700/30 border-gray-500' },
               };
               const c = cfg[result.conclusion] ?? cfg.skip;
+              const nc = result.newsAdjustedConclusion ? (cfg[result.newsAdjustedConclusion] ?? cfg.skip) : null;
               return (
                 <div className="bg-gray-800 rounded-lg p-4">
-                  <h2 className="text-lg font-bold text-white mb-3">結論</h2>
+                  <h2 className="text-lg font-bold text-white mb-3">結論（テクニカル分析のみ）</h2>
                   <div className={`border rounded-lg p-4 ${c.bg}`}>
                     <div className={`text-xl font-bold ${c.color} mb-2`}>{c.label}</div>
                     <p className="text-gray-300 text-sm">{result.conclusionReason}</p>
                   </div>
+                  {nc && result.newsAdjustedReason && (
+                    <div className="mt-4">
+                      <h2 className="text-lg font-bold text-white mb-3">結論（ニュース要素加味 <span className="text-xs font-normal text-gray-400">※試行中</span>）</h2>
+                      <div className={`border rounded-lg p-4 ${nc.bg}`}>
+                        <div className={`text-xl font-bold ${nc.color} mb-2`}>{nc.label}</div>
+                        <p className="text-gray-300 text-sm">{result.newsAdjustedReason}</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })()}
@@ -490,6 +500,8 @@ export default function Home() {
                 <Conclusion
                   conclusion={result.conclusion}
                   reason={result.conclusionReason}
+                  newsAdjustedConclusion={result.newsAdjustedConclusion}
+                  newsAdjustedReason={result.newsAdjustedReason}
                   patterns={result.patterns}
                   derivatives={result.derivatives}
                   indicators={result.indicators}

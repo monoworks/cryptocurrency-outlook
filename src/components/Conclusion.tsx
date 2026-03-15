@@ -21,6 +21,8 @@ const REGIME_CONFIG: Record<string, { color: string; icon: string }> = {
 interface Props {
   conclusion: SignalConclusion;
   reason: string;
+  newsAdjustedConclusion?: SignalConclusion;
+  newsAdjustedReason?: string;
   patterns: CandlePattern[];
   derivatives: DerivativesAnalysis;
   indicators: IndicatorValues;
@@ -41,16 +43,27 @@ interface Props {
   economicCalendar?: EconomicCalendarAnalysis;
 }
 
-export default function Conclusion({ conclusion, reason, patterns, derivatives, indicators, hierarchical, falseBreakouts, wickRejections, volumeSpikes, confidence, divergences, topTraderRatio, marketRegime, volumeProfile, timeframeVolumeProfiles, liquidation, orderFlow, divergenceAggregation, sentiment, economicCalendar }: Props) {
+export default function Conclusion({ conclusion, reason, newsAdjustedConclusion, newsAdjustedReason, patterns, derivatives, indicators, hierarchical, falseBreakouts, wickRejections, volumeSpikes, confidence, divergences, topTraderRatio, marketRegime, volumeProfile, timeframeVolumeProfiles, liquidation, orderFlow, divergenceAggregation, sentiment, economicCalendar }: Props) {
   const config = CONCLUSION_CONFIG[conclusion];
+  const newsConfig = newsAdjustedConclusion ? CONCLUSION_CONFIG[newsAdjustedConclusion] : null;
 
   return (
     <div className="bg-gray-800 rounded-lg p-4">
-      <h2 className="text-lg font-bold text-white mb-3">結論</h2>
+      <h2 className="text-lg font-bold text-white mb-3">結論（テクニカル分析のみ）</h2>
       <div className={`border rounded-lg p-4 ${config.bg}`}>
         <div className={`text-xl font-bold ${config.color} mb-2`}>{config.label}</div>
         <p className="text-gray-300 text-sm">{reason}</p>
       </div>
+
+      {newsConfig && newsAdjustedReason && (
+        <div className="mt-4">
+          <h2 className="text-lg font-bold text-white mb-3">結論（ニュース要素加味 <span className="text-xs font-normal text-gray-400">※試行中</span>）</h2>
+          <div className={`border rounded-lg p-4 ${newsConfig.bg}`}>
+            <div className={`text-xl font-bold ${newsConfig.color} mb-2`}>{newsConfig.label}</div>
+            <p className="text-gray-300 text-sm">{newsAdjustedReason}</p>
+          </div>
+        </div>
+      )}
 
       {/* Economic Calendar Alert */}
       {economicCalendar && (

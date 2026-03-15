@@ -162,7 +162,7 @@ export default function DashboardView({
         <div className="flex flex-col gap-3">
           {/* Conclusion card */}
           <div className="bg-gray-800 rounded-lg p-3">
-            <h2 className="text-base font-bold text-white mb-2">結論</h2>
+            <h2 className="text-base font-bold text-white mb-2">結論（テクニカル分析のみ）</h2>
             {result ? (() => {
               const cfg: Record<string, { label: string; color: string; bg: string }> = {
                 enter_long: { label: 'ロングエントリー推奨', color: 'text-green-400', bg: 'bg-green-900/30 border-green-500' },
@@ -171,11 +171,23 @@ export default function DashboardView({
                 skip: { label: '見送り推奨', color: 'text-gray-400', bg: 'bg-gray-700/30 border-gray-500' },
               };
               const c = cfg[result.conclusion] ?? cfg.skip;
+              const nc = result.newsAdjustedConclusion ? (cfg[result.newsAdjustedConclusion] ?? cfg.skip) : null;
               return (
-                <div className={`border rounded-lg p-3 ${c.bg}`}>
-                  <div className={`text-lg font-bold ${c.color} mb-1`}>{c.label}</div>
-                  <p className="text-gray-300 text-sm">{result.conclusionReason}</p>
-                </div>
+                <>
+                  <div className={`border rounded-lg p-3 ${c.bg}`}>
+                    <div className={`text-lg font-bold ${c.color} mb-1`}>{c.label}</div>
+                    <p className="text-gray-300 text-sm">{result.conclusionReason}</p>
+                  </div>
+                  {nc && result.newsAdjustedReason && (
+                    <div className="mt-3">
+                      <h2 className="text-base font-bold text-white mb-2">結論（ニュース要素加味 <span className="text-xs font-normal text-gray-400">※試行中</span>）</h2>
+                      <div className={`border rounded-lg p-3 ${nc.bg}`}>
+                        <div className={`text-lg font-bold ${nc.color} mb-1`}>{nc.label}</div>
+                        <p className="text-gray-300 text-sm">{result.newsAdjustedReason}</p>
+                      </div>
+                    </div>
+                  )}
+                </>
               );
             })() : (
               <Placeholder text="分析を実行すると結論が表示されます" />
