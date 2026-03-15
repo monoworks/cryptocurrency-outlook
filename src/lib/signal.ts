@@ -475,6 +475,7 @@ function determineConclusion(
   sentimentSignal?: string,
   economicWarning?: 'none' | 'caution' | 'danger',
   economicDescription?: string,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _newsAnalysis?: NewsAnalysis,
 ): { conclusion: SignalConclusion; reason: string } {
   let bullishScore = 0;
@@ -680,6 +681,7 @@ function calcConfidence(
   hierarchical?: HierarchicalAnalysis,
   topTraderRatio?: TopTraderRatio,
   economicConfidenceImpact?: number,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _newsAnalysis?: NewsAnalysis,
 ): SignalConfidence {
   const factors: SignalConfidence['factors'] = [];
