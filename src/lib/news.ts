@@ -173,11 +173,16 @@ const OFFICIAL_SOURCE_BOOST = 2;
  * affect crypto markets or macro conditions.
  */
 const RSS_NOISE_PATTERNS: RegExp[] = [
-  // Fed routine bank supervision
+  // Fed routine bank supervision & administrative
   /\bannounces approval of (application|notice) by\b/i,
-  /\bissues enforcement action.* with (former )?employee of\b/i,
-  /\bannounces termination of enforcement action\b/i,
+  /\bissues enforcement actions? with (former )?employee of\b/i,
+  /\bannounces termination of enforcement actions?\b/i,
   /\bannounces (approval|denial) of.* (bank|bancorp|banc|savings|credit union|holding company)\b/i,
+  /\bsupervision of banks\b/i,
+  /\bpublic outreach meeting\b/i,
+  /\bregulatory paperwork reduction\b/i,
+  /\b(stress test|capital requirements).*(scenario|feedback|hypothetical)\b/i,
+  /\brequests comment on (proposal|rule)\b/i,
   // SEC routine individual/company enforcement (not crypto-related)
   /\bcharges .* (insider trading in|accounting fraud|auditing violations)\b/i,
   // Generic administrative filings
