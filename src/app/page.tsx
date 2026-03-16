@@ -165,7 +165,7 @@ export default function Home() {
 
     try {
       const tfParam = timeframes.join(',');
-      const res = await fetch(`/api/analyze?symbol=${encodeURIComponent(symbol)}&timeframes=${encodeURIComponent(tfParam)}`);
+      const res = await fetch(`/api/analyze?symbol=${encodeURIComponent(symbol)}&timeframes=${encodeURIComponent(tfParam)}&notify=false`);
       const data = await res.json();
 
       if (!res.ok) {

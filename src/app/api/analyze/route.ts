@@ -16,6 +16,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
   const symbol = searchParams.get('symbol');
   const timeframesParam = searchParams.get('timeframes');
+  const notify = searchParams.get('notify') !== 'false';
 
   if (!symbol) {
     return NextResponse.json({ error: 'symbol パラメータが必要です' }, { status: 400 });
@@ -82,8 +83,10 @@ export async function GET(req: NextRequest) {
       newsArticles,
     });
 
-    // Send Telegram notification for actionable signals
-    const notified = await notifySignal(result).catch(() => false);
+    // Send Telegram notification for actionable signals (skip when notify=false)
+    const notified = notify
+      ? await notifySignal(result).catch(() => false)
+      : false;
 
     return NextResponse.json({ ...result, _telegram: { notified, conclusion: result.conclusion } });
   } catch (err) {
