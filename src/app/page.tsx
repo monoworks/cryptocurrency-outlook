@@ -20,7 +20,7 @@ import AnalysisHistory, { HistoryEntry } from '@/components/AnalysisHistory';
 // import AIAnalysis from '@/components/AIAnalysis';
 // import ImageUpload from '@/components/ImageUpload';
 import CopyPrompt from '@/components/CopyPrompt';
-import BinanceChart from '@/components/BinanceChart';
+import HyperliquidChart from '@/components/HyperliquidChart';
 import NewsSection from '@/components/NewsSection';
 import DashboardView from '@/components/DashboardView';
 
@@ -543,7 +543,7 @@ export default function Home() {
                 /> */}
 
                 {/* Binance Chart */}
-                <BinanceChart symbol={currentSymbol} levels={result?.levels} volumeProfile={result?.volumeProfile} />
+                <HyperliquidChart symbol={currentSymbol} levels={result?.levels} volumeProfile={result?.volumeProfile} />
 
                 {/* Copy Prompt */}
                 <CopyPrompt prompt={buildAnalysisPrompt(result)} />

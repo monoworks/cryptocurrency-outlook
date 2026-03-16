@@ -7,7 +7,7 @@ import PositionSimulator from './PositionSimulator';
 import PositionManager from './PositionManager';
 import AnalysisHistory, { HistoryEntry } from './AnalysisHistory';
 import NewsSection from './NewsSection';
-import BinanceChart from './BinanceChart';
+import HyperliquidChart from './HyperliquidChart';
 import { analyzeNews } from '@/lib/news';
 import { determineNewsAdjustedConclusion } from '@/lib/signal';
 
@@ -316,7 +316,7 @@ export default function DashboardView({
 
         {/* Right column — Chart + Simulator */}
         <div className="flex flex-col gap-3">
-          <BinanceChart symbol={currentSymbol} levels={result?.levels} volumeProfile={result?.volumeProfile} />
+          <HyperliquidChart symbol={currentSymbol} levels={result?.levels} volumeProfile={result?.volumeProfile} />
           <div className="bg-gray-800 rounded-lg p-0 overflow-hidden">
             {result ? (
               <PositionSimulator
