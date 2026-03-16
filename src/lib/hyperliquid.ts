@@ -193,7 +193,8 @@ export async function getPremiumIndex(symbol: string): Promise<PremiumIndexData>
 
 // ── OI History (not available on Hyperliquid) ────────────────────────
 
-export async function getOIHistory(_symbol: string, _period = '1h', _limit = 24): Promise<{ time: number; oi: number }[]> {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function getOIHistory(_symbol: string, _period?: string, _limit?: number): Promise<{ time: number; oi: number }[]> {
   return [];
 }
 
@@ -224,13 +225,15 @@ export async function getFundingHistory(symbol: string, limit = 20): Promise<{ t
 
 // ── Top Trader Ratio (not available on Hyperliquid) ──────────────────
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function getTopTraderRatio(_symbol: string): Promise<{ longAccount: number; shortAccount: number; longShortRatio: number; timestamp: number } | null> {
   return null;
 }
 
 // ── Recent Trades (replaces Binance aggTrades) ───────────────────────
 
-export async function getAggTrades(symbol: string, _limit = 1000): Promise<{ id: number; price: number; qty: number; quoteQty: number; time: number; isBuyerMaker: boolean }[]> {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function getAggTrades(symbol: string, _limit?: number): Promise<{ id: number; price: number; qty: number; quoteQty: number; time: number; isBuyerMaker: boolean }[]> {
   const coin = toCoin(symbol);
 
   const raw = await postInfo<Array<{
@@ -261,7 +264,8 @@ export async function getAggTrades(symbol: string, _limit = 1000): Promise<{ id:
 
 // ── Order Book ───────────────────────────────────────────────────────
 
-export async function getOrderBookDepth(symbol: string, _limit: number = 20): Promise<{ bids: [number, number][]; asks: [number, number][] }> {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function getOrderBookDepth(symbol: string, _limit?: number): Promise<{ bids: [number, number][]; asks: [number, number][] }> {
   const coin = toCoin(symbol);
 
   const raw = await postInfo<{
