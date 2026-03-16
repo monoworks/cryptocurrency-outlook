@@ -1048,20 +1048,13 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
   const longSetup = buildTradeSetup('long', currentPrice, longEntry, longTarget, blendedAtr, levels);
   const shortSetup = buildTradeSetup('short', currentPrice, shortEntry, shortTarget, blendedAtr, levels);
 
-  // Compute weighted-average suggested max holding time based on analyzed timeframes
+  // Use the median timeframe's holding time (avoids upper timeframes dominating)
   {
-    let holdSum = 0;
-    let holdWeightSum = 0;
-    for (const tf of sortedTf) {
-      const w = TIMEFRAME_WEIGHT[tf.timeframe];
-      holdSum += TIMEFRAME_MAX_HOLDING_MS[tf.timeframe] * w;
-      holdWeightSum += w;
-    }
-    if (holdWeightSum > 0) {
-      const suggestedMs = Math.round(holdSum / holdWeightSum);
-      longSetup.suggestedMaxHoldingMs = suggestedMs;
-      shortSetup.suggestedMaxHoldingMs = suggestedMs;
-    }
+    const tfList = sortedTf.map((tf) => tf.timeframe);
+    const medianTf = tfList[Math.floor(tfList.length / 2)];
+    const suggestedMs = TIMEFRAME_MAX_HOLDING_MS[medianTf];
+    longSetup.suggestedMaxHoldingMs = suggestedMs;
+    shortSetup.suggestedMaxHoldingMs = suggestedMs;
   }
 
   // Breakout levels (enhanced with volume breakout info)
