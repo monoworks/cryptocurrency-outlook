@@ -2,12 +2,17 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-const WS_BASE = 'wss://fstream.binance.com/ws/';
+const WS_URL = 'wss://api.hyperliquid.xyz/ws';
 const RECONNECT_DELAY = 3000;
 
+/** Convert BTCUSDT → BTC */
+function toCoin(symbol: string): string {
+  return symbol.replace(/USDT$/i, '');
+}
+
 /**
- * Binance Futures WebSocket で指定シンボルのリアルタイム価格を取得するフック。
- * 複数シンボルを同時に監視する場合、シンボルごとにフックを呼ぶ。
+ * Hyperliquid WebSocket で指定シンボルのリアルタイム mid price を取得するフック。
+ * allMids subscription で全銘柄のmid priceを受信し、指定coinのみ返す。
  */
 export function useLivePrice(symbol: string | null): number | null {
   const [price, setPrice] = useState<number | null>(null);
@@ -21,18 +26,27 @@ export function useLivePrice(symbol: string | null): number | null {
     }
 
     let unmounted = false;
+    const coin = toCoin(symbol);
 
     function connect() {
-      if (unmounted || !symbol) return;
-      const stream = `${symbol.toLowerCase()}@miniTicker`;
-      const ws = new WebSocket(`${WS_BASE}${stream}`);
+      if (unmounted) return;
+      const ws = new WebSocket(WS_URL);
       wsRef.current = ws;
+
+      ws.onopen = () => {
+        ws.send(JSON.stringify({
+          method: 'subscribe',
+          subscription: { type: 'allMids' },
+        }));
+      };
 
       ws.onmessage = (event) => {
         try {
-          const data = JSON.parse(event.data);
-          if (data.c) {
-            setPrice(parseFloat(data.c));
+          const msg = JSON.parse(event.data);
+          if (msg.channel !== 'allMids') return;
+          const mids: Record<string, string> = msg.data?.mids;
+          if (mids && mids[coin]) {
+            setPrice(parseFloat(mids[coin]));
           }
         } catch {
           // ignore parse errors
@@ -66,8 +80,9 @@ export function useLivePrice(symbol: string | null): number | null {
 }
 
 /**
- * 複数シンボルのリアルタイム価格を1つの combined stream で取得するフック。
- * PositionManager 用。
+ * 複数シンボルのリアルタイム価格を1つの allMids subscription で取得するフック。
+ * PositionManager / AnalysisHistory 用。
+ * キーは元のシンボル形式 (BTCUSDT) で返す（既存コンポーネント互換）。
  */
 export function useLivePrices(symbols: string[]): Record<string, number> {
   const [prices, setPrices] = useState<Record<string, number>>({});
@@ -78,20 +93,41 @@ export function useLivePrices(symbols: string[]): Record<string, number> {
     if (symbols.length === 0) return;
 
     let unmounted = false;
-    const uniqueSymbols = Array.from(new Set(symbols.map((s) => s.toLowerCase())));
+
+    // Build coin → original symbol mapping
+    const coinToSymbol: Record<string, string> = {};
+    for (const sym of symbols) {
+      coinToSymbol[toCoin(sym)] = sym.toUpperCase();
+    }
+    const coins = Object.keys(coinToSymbol);
 
     function connect() {
       if (unmounted) return;
-      const streams = uniqueSymbols.map((s) => `${s}@miniTicker`).join('/');
-      const ws = new WebSocket(`wss://fstream.binance.com/stream?streams=${streams}`);
+      const ws = new WebSocket(WS_URL);
       wsRef.current = ws;
+
+      ws.onopen = () => {
+        ws.send(JSON.stringify({
+          method: 'subscribe',
+          subscription: { type: 'allMids' },
+        }));
+      };
 
       ws.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data);
-          const data = msg.data;
-          if (data && data.s && data.c) {
-            setPrices((prev) => ({ ...prev, [data.s]: parseFloat(data.c) }));
+          if (msg.channel !== 'allMids') return;
+          const mids: Record<string, string> = msg.data?.mids;
+          if (!mids) return;
+
+          const updates: Record<string, number> = {};
+          for (const coin of coins) {
+            if (mids[coin]) {
+              updates[coinToSymbol[coin]] = parseFloat(mids[coin]);
+            }
+          }
+          if (Object.keys(updates).length > 0) {
+            setPrices((prev) => ({ ...prev, ...updates }));
           }
         } catch {
           // ignore
@@ -124,3 +160,19 @@ export function useLivePrices(symbols: string[]): Record<string, number> {
 
   return prices;
 }
+
+// ── Binance版（非表示・バックアップ） ──────────────────────────────────
+// 以下のコードはBinance Futures WebSocket版のバックアップです。
+// 復元が必要な場合は export を戻してください。
+
+/*
+const WS_BASE_BINANCE = 'wss://fstream.binance.com/ws/';
+
+function useLivePrice_Binance(symbol: string | null): number | null {
+  // ... Binance版の実装 (BinanceChart.tsx と同様の miniTicker stream)
+}
+
+function useLivePrices_Binance(symbols: string[]): Record<string, number> {
+  // ... Binance版の実装 (combined stream)
+}
+*/

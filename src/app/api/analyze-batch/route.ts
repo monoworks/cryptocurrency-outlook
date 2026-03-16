@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getKlinesWithTakerVolume, getTicker, getOpenInterest, getFundingRate, getPremiumIndex, getOIHistory, getFundingHistory, getTopTraderRatio, getAggTrades, getOrderBookDepth } from '@/lib/binance';
+import { getKlinesWithTakerVolume, getTicker, getOpenInterest, getFundingRate, getPremiumIndex, getOIHistory, getFundingHistory, getTopTraderRatio, getAggTrades, getOrderBookDepth } from '@/lib/hyperliquid';
 import { analyzeWhaleActivity } from '@/lib/whale-detection';
 import { generateSignal } from '@/lib/signal';
 import { Timeframe, AnalysisResult } from '@/lib/types';
@@ -35,7 +35,7 @@ async function analyzeSymbol(
     getFundingHistory(symbol, 20).catch(() => []),
     getTopTraderRatio(symbol).catch(() => null),
     getAggTrades(symbol, 1000).catch(() => []),
-    getOrderBookDepth(symbol, 500).catch(() => ({ bids: [] as [number, number][], asks: [] as [number, number][] })),
+    getOrderBookDepth(symbol, 20).catch(() => ({ bids: [] as [number, number][], asks: [] as [number, number][] })),
   ]);
 
   const whaleActivity = (aggTrades.length > 0 || orderBook.bids.length > 0)
