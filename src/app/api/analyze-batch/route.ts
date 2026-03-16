@@ -141,24 +141,24 @@ export async function GET(req: NextRequest) {
       ? await notifyBatchSignals(results).catch(() => false)
       : false;
 
-    // When called from CRON (?lite=true), return only a compact summary
-    // to avoid exceeding CRON service output limits.
-    if (searchParams.get('lite') === 'true') {
+    // By default return a compact summary (safe for CRON output limits).
+    // UI passes ?full=true to get the complete AnalysisResult.
+    if (searchParams.get('full') === 'true') {
       return NextResponse.json({
-        results: results.map((r) => ({
-          symbol: r.marketSummary.symbol,
-          conclusion: r.conclusion,
-          conclusionReason: r.conclusionReason,
-          confidence: r.confidence?.score ?? null,
-          price: r.marketSummary.currentPrice,
-        })),
+        results,
         errors,
         _telegram: { notified, symbolCount: results.length },
       });
     }
 
     return NextResponse.json({
-      results,
+      results: results.map((r) => ({
+        symbol: r.marketSummary.symbol,
+        conclusion: r.conclusion,
+        conclusionReason: r.conclusionReason,
+        confidence: r.confidence?.score ?? null,
+        price: r.marketSummary.currentPrice,
+      })),
       errors,
       _telegram: { notified, symbolCount: results.length },
     });
