@@ -24,7 +24,8 @@ interface OrderBookDepth {
 }
 
 const DEFAULT_TRADE_THRESHOLD_MULTIPLE = 10;  // 10x median
-const DEFAULT_MIN_TRADE_USD = 50_000;         // at least $50k to count
+const DEFAULT_MIN_TRADE_USD = 50_000;         // absolute floor
+const VOLUME_THRESHOLD_RATIO = 0.00005;       // 0.005% of 24h quote volume
 
 export function analyzeWhaleActivity(
   trades: AggTrade[],
@@ -34,10 +35,15 @@ export function analyzeWhaleActivity(
     tradeThresholdMultiple?: number;
     minTradeUsd?: number;
     wallThresholdUsd?: number;
+    quoteVolume24h?: number;
   },
 ): WhaleActivity {
   const thresholdMultiple = options?.tradeThresholdMultiple ?? DEFAULT_TRADE_THRESHOLD_MULTIPLE;
-  const minTradeUsd = options?.minTradeUsd ?? DEFAULT_MIN_TRADE_USD;
+  // Dynamic minimum: 0.005% of 24h volume, floored at $50k
+  const dynamicMin = options?.quoteVolume24h
+    ? Math.max(options.quoteVolume24h * VOLUME_THRESHOLD_RATIO, DEFAULT_MIN_TRADE_USD)
+    : DEFAULT_MIN_TRADE_USD;
+  const minTradeUsd = options?.minTradeUsd ?? dynamicMin;
 
   // --- Large trade detection ---
   const quoteQtys = trades.map((t) => t.quoteQty).sort((a, b) => a - b);
@@ -120,9 +126,9 @@ export function analyzeWhaleActivity(
   if (largeTrades.length > 0) {
     const buyCount = largeTrades.filter((t) => t.side === 'buy').length;
     const sellCount = largeTrades.filter((t) => t.side === 'sell').length;
-    parts.push(`大口約定${largeTrades.length}件検出 (買${buyCount}/売${sellCount}, 買$${fmt(buyVolume)}/売$${fmt(sellVolume)})`);
+    parts.push(`大口約定${largeTrades.length}件検出 (買${buyCount}/売${sellCount}, 買$${fmt(buyVolume)}/売$${fmt(sellVolume)}, 閾値$${fmt(tradeThreshold)})`);
   } else {
-    parts.push('大口約定なし');
+    parts.push(`大口約定なし (閾値$${fmt(tradeThreshold)})`);
   }
 
   if (walls.length > 0) {

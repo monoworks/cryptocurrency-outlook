@@ -72,7 +72,9 @@ export async function GET(req: NextRequest) {
 
     // Whale activity detection
     const whaleActivity = (aggTrades.length > 0 || orderBook.bids.length > 0)
-      ? analyzeWhaleActivity(aggTrades, orderBook, ticker.lastPrice)
+      ? analyzeWhaleActivity(aggTrades, orderBook, ticker.lastPrice, {
+          quoteVolume24h: ticker.quoteVolume,
+        })
       : undefined;
 
     const result = generateSignal({
