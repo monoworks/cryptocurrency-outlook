@@ -1,3 +1,4 @@
+import { XMLParser } from 'fast-xml-parser';
 import { NewsArticle, NewsAnalysis, NewsImpact, NewsTag } from './types';
 
 const NEWSDATA_BASE = 'https://newsdata.io/api/1/latest';
@@ -155,6 +156,89 @@ function scoreArticle(title: string, description: string | null): {
   return { relevanceScore, impact, riskDirection };
 }
 
+// ── Official Regulatory RSS Feeds ────────────────────────────────────
+
+const RSS_FEEDS: { url: string; source: string; tag: NewsTag }[] = [
+  { url: 'https://www.sec.gov/news/pressreleases.rss', source: 'SEC', tag: 'crypto' },
+  { url: 'https://www.federalreserve.gov/feeds/press_all.xml', source: 'Federal Reserve', tag: 'geopolitical' },
+  { url: 'https://www.cftc.gov/Newsroom/PressReleases/RSS', source: 'CFTC', tag: 'crypto' },
+];
+
+/** Score boost for official/primary regulatory sources */
+const OFFICIAL_SOURCE_BOOST = 2;
+
+const xmlParser = new XMLParser({ ignoreAttributes: false });
+
+/**
+ * Fetch and parse official regulatory RSS feeds.
+ * Each feed is fetched independently — one failure does not block others.
+ */
+async function fetchRSSFeeds(): Promise<NewsArticle[]> {
+  const results = await Promise.allSettled(
+    RSS_FEEDS.map(async (feed) => {
+      const res = await fetch(feed.url, {
+        headers: { Accept: 'application/xml, text/xml, application/rss+xml' },
+        next: { revalidate: 300 },
+      });
+      if (!res.ok) {
+        console.error(`[RSS:${feed.source}] HTTP ${res.status}`);
+        return [];
+      }
+
+      const xml = await res.text();
+      const parsed = xmlParser.parse(xml);
+
+      // Handle RSS 2.0 (rss.channel.item) and Atom (feed.entry)
+      let items: { title?: string; description?: string; link?: string; pubDate?: string; updated?: string }[] = [];
+      if (parsed.rss?.channel?.item) {
+        const raw = parsed.rss.channel.item;
+        items = Array.isArray(raw) ? raw : [raw];
+      } else if (parsed.feed?.entry) {
+        const raw = parsed.feed.entry;
+        items = (Array.isArray(raw) ? raw : [raw]).map((e: Record<string, unknown>) => ({
+          title: e.title as string,
+          description: (e.summary ?? e.content) as string,
+          link: typeof e.link === 'object' && e.link !== null ? (e.link as Record<string, string>)['@_href'] : e.link as string,
+          pubDate: (e.updated ?? e.published) as string,
+        }));
+      }
+
+      return items
+        .filter((item) => item.title && item.link)
+        .slice(0, 10)
+        .map((item): NewsArticle => {
+          const title = String(item.title);
+          const description = item.description ? String(item.description) : null;
+          const { relevanceScore: baseScore, impact: baseImpact } = scoreArticle(title, description);
+
+          // Apply official source boost
+          const relevanceScore = Math.min(10, baseScore + OFFICIAL_SOURCE_BOOST);
+          let impact: NewsImpact;
+          if (relevanceScore >= 6) impact = 'high';
+          else if (relevanceScore >= 3) impact = 'medium';
+          else impact = baseImpact;
+
+          const pubDate = String(item.pubDate ?? item.updated ?? '');
+
+          return {
+            title,
+            description,
+            link: String(item.link),
+            source: feed.source,
+            pubDate,
+            pubDateJST: toJST(pubDate),
+            category: [],
+            tag: feed.tag,
+            relevanceScore,
+            impact,
+          };
+        });
+    }),
+  );
+
+  return results.flatMap((r) => (r.status === 'fulfilled' ? r.value : []));
+}
+
 // ── Fetching ────────────────────────────────────────────────────────
 
 /** Fetch a single query from NewsData.io and tag results */
@@ -212,33 +296,35 @@ async function fetchQuery(
 
 /**
  * Fetch latest risk-relevant news: geopolitical events + crypto regulation.
- * Returns null if API key is not configured or both fetches fail.
- * Articles with relevanceScore < 2 are filtered out (noise removal).
+ * Combines NewsData.io API (if configured) with official regulatory RSS feeds.
+ * Returns null if all sources fail or no relevant articles found.
  */
 export async function fetchNews(): Promise<NewsArticle[] | null> {
-  const apiKey = process.env.NEWSDATA_API_KEY;
-  if (!apiKey) {
-    console.log('[News] NEWSDATA_API_KEY is not configured');
-    return null;
-  }
-
   try {
-    const [geopolitical, regulation] = await Promise.all([
-      fetchQuery(
-        apiKey,
-        'war OR sanctions OR "Federal Reserve" OR "interest rate" OR missile OR airstrike OR military',
-        'geopolitical',
-        10,
-      ),
-      fetchQuery(
-        apiKey,
-        'SEC OR "crypto regulation" OR "crypto ban" OR CBDC OR "stablecoin bill"',
-        'crypto',
-        10,
-      ),
-    ]);
+    const promises: Promise<NewsArticle[]>[] = [fetchRSSFeeds()];
 
-    const all = [...geopolitical, ...regulation];
+    const apiKey = process.env.NEWSDATA_API_KEY;
+    if (apiKey) {
+      promises.push(
+        fetchQuery(
+          apiKey,
+          'war OR sanctions OR "Federal Reserve" OR "interest rate" OR missile OR airstrike OR military',
+          'geopolitical',
+          10,
+        ),
+        fetchQuery(
+          apiKey,
+          'SEC OR "crypto regulation" OR "crypto ban" OR CBDC OR "stablecoin bill"',
+          'crypto',
+          10,
+        ),
+      );
+    } else {
+      console.log('[News] NEWSDATA_API_KEY is not configured — using RSS feeds only');
+    }
+
+    const results = await Promise.all(promises);
+    const all = results.flat();
     if (all.length === 0) return null;
 
     // Dedupe by link AND by normalized title (same story from different sources)
