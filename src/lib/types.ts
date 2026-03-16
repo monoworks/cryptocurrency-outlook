@@ -116,6 +116,8 @@ export interface VolumeProfileLevel {
   priceMax: number;
   priceMid: number;
   volume: number;
+  buyVolume: number;
+  sellVolume: number;
   percentage: number;
 }
 

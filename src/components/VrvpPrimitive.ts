@@ -15,12 +15,22 @@ import type { VolumeProfileAnalysis } from '@/lib/types';
 interface BarRect {
   y: number;         // top (media coords)
   height: number;    // bar height (media coords)
-  widthRatio: number; // 0-1 ratio of max bar width
+  buyWidthRatio: number;  // 0-1 ratio for buy portion
+  sellWidthRatio: number; // 0-1 ratio for sell portion
   isPoc: boolean;
   inValueArea: boolean;
 }
 
 const MAX_BAR_WIDTH_RATIO = 0.25; // max 25% of chart width
+
+// Colors matching Tria's style
+const BUY_COLOR = 'rgba(0, 188, 212, 0.55)';       // cyan
+const BUY_COLOR_VA = 'rgba(0, 188, 212, 0.45)';
+const BUY_COLOR_OUT = 'rgba(0, 188, 212, 0.3)';
+const SELL_COLOR = 'rgba(233, 30, 99, 0.55)';       // pink
+const SELL_COLOR_VA = 'rgba(233, 30, 99, 0.45)';
+const SELL_COLOR_OUT = 'rgba(233, 30, 99, 0.3)';
+const POC_BORDER = 'rgba(255, 193, 7, 0.9)';
 
 class VrvpPaneRenderer implements IPrimitivePaneRenderer {
   private _bars: BarRect[] = [];
@@ -35,34 +45,35 @@ class VrvpPaneRenderer implements IPrimitivePaneRenderer {
       const maxBarWidth = chartWidth * MAX_BAR_WIDTH_RATIO;
 
       for (const bar of this._bars) {
-        const barWidth = bar.widthRatio * maxBarWidth;
-        // Draw from right side of chart
-        const x = chartWidth - barWidth;
+        const totalWidth = (bar.buyWidthRatio + bar.sellWidthRatio) * maxBarWidth;
+        const buyWidth = bar.buyWidthRatio * maxBarWidth;
+        const sellWidth = bar.sellWidthRatio * maxBarWidth;
         const h = Math.max(bar.height - 0.5, 1);
 
-        if (bar.isPoc) {
-          ctx.fillStyle = 'rgba(255, 193, 7, 0.45)';
-        } else if (bar.inValueArea) {
-          ctx.fillStyle = 'rgba(100, 181, 246, 0.3)';
-        } else {
-          ctx.fillStyle = 'rgba(156, 163, 175, 0.2)';
+        // Draw from right side: sell (pink) first, then buy (cyan) to the left
+        const xStart = chartWidth - totalWidth;
+
+        // Buy portion (left side - cyan)
+        if (buyWidth > 0) {
+          ctx.fillStyle = bar.isPoc ? BUY_COLOR : bar.inValueArea ? BUY_COLOR_VA : BUY_COLOR_OUT;
+          ctx.fillRect(xStart, bar.y, buyWidth, h);
         }
 
-        ctx.fillRect(x, bar.y, barWidth, h);
-
-        // Left edge border
-        if (bar.isPoc) {
-          ctx.strokeStyle = 'rgba(255, 193, 7, 0.8)';
-        } else if (bar.inValueArea) {
-          ctx.strokeStyle = 'rgba(100, 181, 246, 0.5)';
-        } else {
-          ctx.strokeStyle = 'rgba(156, 163, 175, 0.3)';
+        // Sell portion (right side - pink)
+        if (sellWidth > 0) {
+          ctx.fillStyle = bar.isPoc ? SELL_COLOR : bar.inValueArea ? SELL_COLOR_VA : SELL_COLOR_OUT;
+          ctx.fillRect(xStart + buyWidth, bar.y, sellWidth, h);
         }
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(x, bar.y);
-        ctx.lineTo(x, bar.y + h);
-        ctx.stroke();
+
+        // POC highlight border on left edge
+        if (bar.isPoc) {
+          ctx.strokeStyle = POC_BORDER;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(xStart, bar.y);
+          ctx.lineTo(xStart, bar.y + h);
+          ctx.stroke();
+        }
       }
     });
   }
@@ -200,14 +211,16 @@ export class VrvpPrimitive implements ISeriesPrimitive<Time> {
 
       const y = Math.min(yTop, yBottom);
       const height = Math.abs(yBottom - yTop);
-      const widthRatio = level.volume / maxVolume;
+
+      const buyWidthRatio = level.buyVolume / maxVolume;
+      const sellWidthRatio = level.sellVolume / maxVolume;
 
       const isPoc = level.priceMid === this._profile!.poc;
       const inValueArea =
         level.priceMid >= this._profile!.valueAreaLow &&
         level.priceMid <= this._profile!.valueAreaHigh;
 
-      bars.push({ y, height, widthRatio, isPoc, inValueArea });
+      bars.push({ y, height, buyWidthRatio, sellWidthRatio, isPoc, inValueArea });
     }
 
     return bars;
