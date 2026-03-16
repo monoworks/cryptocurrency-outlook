@@ -258,7 +258,7 @@ export default function Conclusion({ conclusion, reason, newsAdjustedConclusion,
       {/* Top Trader Ratio */}
       {topTraderRatio && (
         <div className="mt-3 border border-gray-600 rounded-lg p-3">
-          <h4 className="text-gray-400 font-semibold text-sm mb-2">トップトレーダー比率<HelpTip text="Binanceのトップトレーダーのロング/ショート口座比率です" /></h4>
+          <h4 className="text-gray-400 font-semibold text-sm mb-2">トップトレーダー比率<HelpTip text="トップトレーダーのロング/ショート口座比率です" /></h4>
           <div className="flex items-center gap-4 text-sm">
             <div className="flex-1">
               <div className="flex justify-between mb-1">
@@ -288,7 +288,7 @@ export default function Conclusion({ conclusion, reason, newsAdjustedConclusion,
               : 'text-gray-400'
           }`}>
             {whaleActivity.signal === 'accumulation' ? '🐋' : whaleActivity.signal === 'distribution' ? '🔴' : '🐳'} 大口動向検出
-            <HelpTip text="Binanceの直近約定と板情報から大口（クジラ）の売買動向を検出。蓄積=大口買い優勢、分配=大口売り優勢" />
+            <HelpTip text="直近約定と板情報から大口（クジラ）の売買動向を検出。蓄積=大口買い優勢、分配=大口売り優勢" />
           </h4>
           <div className="text-xs text-gray-300 mb-2">{whaleActivity.description}</div>
           <div className="flex gap-4 text-xs">

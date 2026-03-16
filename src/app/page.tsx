@@ -271,7 +271,7 @@ export default function Home() {
         {loading && (
           <div className="text-center py-12">
             <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-gray-600 border-t-blue-500" />
-            <p className="text-gray-400 mt-3">Binance APIからデータ取得中...</p>
+            <p className="text-gray-400 mt-3">Hyperliquid APIからデータ取得中...</p>
           </div>
         )}
 
@@ -542,7 +542,7 @@ export default function Home() {
                   imageBase64={imageBase64}
                 /> */}
 
-                {/* Binance Chart */}
+                {/* Hyperliquid Chart */}
                 <HyperliquidChart symbol={currentSymbol} levels={result?.levels} volumeProfile={result?.volumeProfile} />
 
                 {/* Copy Prompt */}
