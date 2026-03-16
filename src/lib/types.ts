@@ -434,6 +434,8 @@ export interface AnalysisResult {
   economicCalendar?: EconomicCalendarAnalysis;
   // News analysis
   newsAnalysis?: NewsAnalysis;
+  // Whale activity detection
+  whaleActivity?: WhaleActivity;
 }
 
 // ===== Economic Calendar =====
@@ -484,6 +486,34 @@ export interface NewsAnalysis {
   highImpactCount: number;
   netSentiment: 'risk_off' | 'risk_on' | 'neutral';  // market-wide risk tone
   sentimentScore: number;    // -1 (extreme risk-off) to +1 (risk-on)
+  description: string;
+}
+
+// ===== Whale Detection =====
+
+export interface WhaleTrade {
+  time: number;
+  price: number;
+  quoteQty: number;       // trade size in USD
+  side: 'buy' | 'sell';
+}
+
+export interface WhaleWall {
+  price: number;
+  quoteQty: number;       // wall size in USD
+  side: 'bid' | 'ask';
+}
+
+export interface WhaleActivity {
+  largeTrades: WhaleTrade[];
+  largeTradeCount: number;
+  buyVolume: number;       // total large buy volume (USD)
+  sellVolume: number;      // total large sell volume (USD)
+  netFlow: number;         // buy - sell (positive = accumulation)
+  walls: WhaleWall[];
+  bidWallVolume: number;   // total bid wall volume (USD)
+  askWallVolume: number;   // total ask wall volume (USD)
+  signal: 'accumulation' | 'distribution' | 'neutral';
   description: string;
 }
 

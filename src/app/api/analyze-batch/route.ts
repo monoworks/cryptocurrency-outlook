@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getKlinesWithTakerVolume, getTicker, getOpenInterest, getFundingRate, getPremiumIndex, getOIHistory, getFundingHistory, getTopTraderRatio } from '@/lib/binance';
+import { getKlinesWithTakerVolume, getTicker, getOpenInterest, getFundingRate, getPremiumIndex, getOIHistory, getFundingHistory, getTopTraderRatio, getAggTrades, getOrderBookDepth } from '@/lib/binance';
+import { analyzeWhaleActivity } from '@/lib/whale-detection';
 import { generateSignal } from '@/lib/signal';
 import { Timeframe, AnalysisResult } from '@/lib/types';
 import { fetchFearGreedIndex } from '@/lib/sentiment';
@@ -22,7 +23,7 @@ async function analyzeSymbol(
   timeframes: Timeframe[],
   sharedData: { fearGreed: unknown; economicEvents: unknown; newsArticles: unknown },
 ): Promise<AnalysisResult> {
-  const [candlesResults, ticker, openInterest, fundingRate, premiumIndex, oiHistory, fundingHistory, topTraderRatio] = await Promise.all([
+  const [candlesResults, ticker, openInterest, fundingRate, premiumIndex, oiHistory, fundingHistory, topTraderRatio, aggTrades, orderBook] = await Promise.all([
     Promise.all(timeframes.map((tf) =>
       getKlinesWithTakerVolume(symbol, tf).then((r) => ({ timeframe: tf, candles: r.candles, takerBuyVolumes: r.takerBuyVolumes }))
     )),
@@ -33,7 +34,13 @@ async function analyzeSymbol(
     getOIHistory(symbol, '1h', 24).catch(() => []),
     getFundingHistory(symbol, 20).catch(() => []),
     getTopTraderRatio(symbol).catch(() => null),
+    getAggTrades(symbol, 1000).catch(() => []),
+    getOrderBookDepth(symbol, 500).catch(() => ({ bids: [] as [number, number][], asks: [] as [number, number][] })),
   ]);
+
+  const whaleActivity = (aggTrades.length > 0 || orderBook.bids.length > 0)
+    ? analyzeWhaleActivity(aggTrades, orderBook, ticker.lastPrice)
+    : undefined;
 
   return generateSignal({
     symbol: symbol.toUpperCase(),
@@ -49,6 +56,7 @@ async function analyzeSymbol(
     fearGreed: sharedData.fearGreed ?? undefined,
     economicEvents: sharedData.economicEvents ?? undefined,
     newsArticles: sharedData.newsArticles,
+    whaleActivity,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any);
 }

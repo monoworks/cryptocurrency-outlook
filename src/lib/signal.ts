@@ -22,6 +22,7 @@ import {
   EconomicEvent,
   NewsArticle,
   NewsAnalysis,
+  WhaleActivity,
 } from './types';
 import { calcIndicators } from './indicators';
 import { detectPatterns, detectFalseBreakouts, detectWickRejections, detectVolumeSpikes } from './patterns';
@@ -477,6 +478,7 @@ function determineConclusion(
   economicDescription?: string,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _newsAnalysis?: NewsAnalysis,
+  whaleActivity?: WhaleActivity,
 ): { conclusion: SignalConclusion; reason: string } {
   let bullishScore = 0;
   let bearishScore = 0;
@@ -620,6 +622,12 @@ function determineConclusion(
   if (sentimentSignal === 'contrarian_bullish') bullishScore += 0.3;
   else if (sentimentSignal === 'contrarian_bearish') bearishScore += 0.3;
 
+  // Whale activity signal
+  if (whaleActivity && whaleActivity.largeTradeCount > 0) {
+    if (whaleActivity.signal === 'accumulation') bullishScore += 0.5;
+    else if (whaleActivity.signal === 'distribution') bearishScore += 0.5;
+  }
+
   const diff = bullishScore - bearishScore;
   const bestRR = Math.max(longSetup.riskRewardRatio, shortSetup.riskRewardRatio);
 
@@ -742,6 +750,7 @@ function calcConfidence(
   economicConfidenceImpact?: number,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _newsAnalysis?: NewsAnalysis,
+  whaleActivity?: WhaleActivity,
 ): SignalConfidence {
   const factors: SignalConfidence['factors'] = [];
   let score = 50; // base
@@ -851,6 +860,19 @@ function calcConfidence(
 
   // Note: News is displayed separately — not factored into confidence scoring
 
+  // 10. Whale activity confirmation
+  if (whaleActivity && whaleActivity.largeTradeCount > 0) {
+    if ((whaleActivity.signal === 'accumulation' && trend.direction === 'uptrend') ||
+        (whaleActivity.signal === 'distribution' && trend.direction === 'downtrend')) {
+      score += 5;
+      factors.push({ name: '大口がトレンド方向に一致', contribution: 5, positive: true });
+    } else if ((whaleActivity.signal === 'distribution' && trend.direction === 'uptrend') ||
+               (whaleActivity.signal === 'accumulation' && trend.direction === 'downtrend')) {
+      score -= 5;
+      factors.push({ name: '大口がトレンドに逆行', contribution: 5, positive: false });
+    }
+  }
+
   // Clamp 0-100
   score = Math.max(0, Math.min(100, score));
 
@@ -919,6 +941,7 @@ export interface MultiTimeframeInput {
   fearGreed?: FearGreedData;
   economicEvents?: EconomicEvent[];
   newsArticles?: NewsArticle[] | null;
+  whaleActivity?: WhaleActivity;
 }
 
 export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
@@ -1050,6 +1073,7 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
     economicCalendar.warningLevel,
     economicCalendar.description,
     newsAnalysisResult,
+    input.whaleActivity,
   );
 
   // News-adjusted conclusion (experimental)
@@ -1067,7 +1091,7 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
   const prevDayLow = dailyAnalysis?.prevDayLow;
 
   // Confidence scoring
-  const confidence = calcConfidence(trend, details, derivatives, longSetup, shortSetup, hierarchical, input.topTraderRatio, economicCalendar.confidenceImpact, newsAnalysisResult);
+  const confidence = calcConfidence(trend, details, derivatives, longSetup, shortSetup, hierarchical, input.topTraderRatio, economicCalendar.confidenceImpact, newsAnalysisResult, input.whaleActivity);
 
   // Use primary (highest weight) timeframe for top-level indicators/patterns
   const primary = details[details.length - 1];
@@ -1144,5 +1168,6 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
     sentiment,
     economicCalendar,
     newsAnalysis: newsAnalysisResult,
+    whaleActivity: input.whaleActivity,
   };
 }

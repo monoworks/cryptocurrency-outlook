@@ -148,6 +148,44 @@ export async function getTopTraderRatio(symbol: string): Promise<{ longAccount: 
   };
 }
 
+/**
+ * Fetch recent aggregated trades (for whale / large trade detection).
+ * Returns up to `limit` trades (max 1000).
+ */
+export async function getAggTrades(symbol: string, limit = 1000): Promise<{ id: number; price: number; qty: number; quoteQty: number; time: number; isBuyerMaker: boolean }[]> {
+  type AggTradeRaw = { a: number; p: string; q: string; f: number; l: number; T: number; m: boolean };
+  const data = await fetchJSON<AggTradeRaw[]>('/fapi/v1/aggTrades', {
+    symbol: symbol.toUpperCase(),
+    limit: String(limit),
+  });
+  return data.map((t) => {
+    const price = parseFloat(t.p);
+    const qty = parseFloat(t.q);
+    return {
+      id: t.a,
+      price,
+      qty,
+      quoteQty: price * qty,
+      time: t.T,
+      isBuyerMaker: t.m,  // true = sell (buyer is maker = taker sold)
+    };
+  });
+}
+
+/**
+ * Fetch order book depth (for whale wall detection).
+ */
+export async function getOrderBookDepth(symbol: string, limit: 5 | 10 | 20 | 50 | 100 | 500 | 1000 = 100): Promise<{ bids: [number, number][]; asks: [number, number][] }> {
+  const data = await fetchJSON<{ bids: [string, string][]; asks: [string, string][] }>('/fapi/v1/depth', {
+    symbol: symbol.toUpperCase(),
+    limit: String(limit),
+  });
+  return {
+    bids: data.bids.map(([p, q]) => [parseFloat(p), parseFloat(q)]),
+    asks: data.asks.map(([p, q]) => [parseFloat(p), parseFloat(q)]),
+  };
+}
+
 export async function getMarketData(symbol: string, timeframe: Timeframe): Promise<MarketData> {
   const [candles, ticker, openInterest, fundingRate, premiumIndex] = await Promise.all([
     getKlines(symbol, timeframe),

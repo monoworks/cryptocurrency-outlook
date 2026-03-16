@@ -1,6 +1,6 @@
 'use client';
 
-import { SignalConclusion, CandlePattern, DerivativesAnalysis, IndicatorValues, HierarchicalAnalysis, FalseBreakout, WickRejectionZone, VolumeSpike, SignalConfidence, Divergence, TopTraderRatio, MarketRegimeAnalysis, VolumeProfileAnalysis, LiquidationAnalysis, OrderFlowAnalysis, DivergenceAggregation, SentimentAnalysis, EconomicCalendarAnalysis, Timeframe } from '@/lib/types';
+import { SignalConclusion, CandlePattern, DerivativesAnalysis, IndicatorValues, HierarchicalAnalysis, FalseBreakout, WickRejectionZone, VolumeSpike, SignalConfidence, Divergence, TopTraderRatio, MarketRegimeAnalysis, VolumeProfileAnalysis, LiquidationAnalysis, OrderFlowAnalysis, DivergenceAggregation, SentimentAnalysis, EconomicCalendarAnalysis, WhaleActivity, Timeframe } from '@/lib/types';
 import HelpTip from './HelpTip';
 
 const CONCLUSION_CONFIG: Record<SignalConclusion, { label: string; color: string; bg: string }> = {
@@ -41,9 +41,10 @@ interface Props {
   divergenceAggregation?: DivergenceAggregation;
   sentiment?: SentimentAnalysis;
   economicCalendar?: EconomicCalendarAnalysis;
+  whaleActivity?: WhaleActivity;
 }
 
-export default function Conclusion({ conclusion, reason, newsAdjustedConclusion, newsAdjustedReason, patterns, derivatives, indicators, hierarchical, falseBreakouts, wickRejections, volumeSpikes, confidence, divergences, topTraderRatio, marketRegime, volumeProfile, timeframeVolumeProfiles, liquidation, orderFlow, divergenceAggregation, sentiment, economicCalendar }: Props) {
+export default function Conclusion({ conclusion, reason, newsAdjustedConclusion, newsAdjustedReason, patterns, derivatives, indicators, hierarchical, falseBreakouts, wickRejections, volumeSpikes, confidence, divergences, topTraderRatio, marketRegime, volumeProfile, timeframeVolumeProfiles, liquidation, orderFlow, divergenceAggregation, sentiment, economicCalendar, whaleActivity }: Props) {
   const config = CONCLUSION_CONFIG[conclusion];
   const newsConfig = newsAdjustedConclusion ? CONCLUSION_CONFIG[newsAdjustedConclusion] : null;
 
@@ -257,6 +258,41 @@ export default function Conclusion({ conclusion, reason, newsAdjustedConclusion,
               </div>
             </div>
             <span className="text-gray-300 text-xs">L/S比: {topTraderRatio.longShortRatio.toFixed(2)}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Whale Activity */}
+      {whaleActivity && whaleActivity.largeTradeCount > 0 && (
+        <div className={`mt-3 border rounded-lg p-3 ${
+          whaleActivity.signal === 'accumulation' ? 'border-green-500/30 bg-green-900/10'
+            : whaleActivity.signal === 'distribution' ? 'border-red-500/30 bg-red-900/10'
+            : 'border-gray-600'
+        }`}>
+          <h4 className={`font-semibold text-sm mb-2 ${
+            whaleActivity.signal === 'accumulation' ? 'text-green-400'
+              : whaleActivity.signal === 'distribution' ? 'text-red-400'
+              : 'text-gray-400'
+          }`}>
+            {whaleActivity.signal === 'accumulation' ? '🐋' : whaleActivity.signal === 'distribution' ? '🔴' : '🐳'} 大口動向検出
+            <HelpTip text="Binanceの直近約定と板情報から大口（クジラ）の売買動向を検出。蓄積=大口買い優勢、分配=大口売り優勢" />
+          </h4>
+          <div className="text-xs text-gray-300 mb-2">{whaleActivity.description}</div>
+          <div className="flex gap-4 text-xs">
+            <div>
+              <span className="text-gray-500">大口買い: </span>
+              <span className="text-green-400">${whaleActivity.buyVolume >= 1_000_000 ? `${(whaleActivity.buyVolume / 1_000_000).toFixed(1)}M` : `${(whaleActivity.buyVolume / 1_000).toFixed(0)}K`}</span>
+            </div>
+            <div>
+              <span className="text-gray-500">大口売り: </span>
+              <span className="text-red-400">${whaleActivity.sellVolume >= 1_000_000 ? `${(whaleActivity.sellVolume / 1_000_000).toFixed(1)}M` : `${(whaleActivity.sellVolume / 1_000).toFixed(0)}K`}</span>
+            </div>
+            {whaleActivity.walls.length > 0 && (
+              <div>
+                <span className="text-gray-500">壁: </span>
+                <span className="text-gray-300">買壁${whaleActivity.bidWallVolume >= 1_000_000 ? `${(whaleActivity.bidWallVolume / 1_000_000).toFixed(1)}M` : `${(whaleActivity.bidWallVolume / 1_000).toFixed(0)}K`} / 売壁${whaleActivity.askWallVolume >= 1_000_000 ? `${(whaleActivity.askWallVolume / 1_000_000).toFixed(1)}M` : `${(whaleActivity.askWallVolume / 1_000).toFixed(0)}K`}</span>
+              </div>
+            )}
           </div>
         </div>
       )}

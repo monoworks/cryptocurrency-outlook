@@ -520,6 +520,7 @@ export default function Home() {
                   divergenceAggregation={result.divergenceAggregation}
                   sentiment={result.sentiment}
                   economicCalendar={result.economicCalendar}
+                  whaleActivity={result.whaleActivity}
                 />
 
                 {/* AI Analysis - 将来用に非表示 */}

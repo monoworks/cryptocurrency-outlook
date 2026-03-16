@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { AnalysisResult, EconomicCalendarAnalysis, NewsArticle, SavedPosition, CloseReason } from '@/lib/types';
+import { AnalysisResult, EconomicCalendarAnalysis, NewsArticle, WhaleActivity, SavedPosition, CloseReason } from '@/lib/types';
 import PRComparison from './PRComparison';
 import PositionSimulator from './PositionSimulator';
 import PositionManager from './PositionManager';
@@ -132,6 +132,77 @@ function NewsBadge({ articles }: { articles: NewsArticle[] | null }) {
   );
 }
 
+function WhaleBadge({ whale }: { whale: WhaleActivity | undefined }) {
+  const [open, setOpen] = useState(false);
+  if (!whale) return null;
+
+  const hasActivity = whale.largeTradeCount > 0 || whale.walls.length > 0;
+  const color = whale.signal === 'accumulation' ? 'border-green-600/60 text-green-400 bg-green-900/20 hover:bg-green-900/30'
+    : whale.signal === 'distribution' ? 'border-red-600/60 text-red-400 bg-red-900/20 hover:bg-red-900/30'
+    : 'border-gray-600 text-gray-400 bg-gray-800 hover:bg-gray-700';
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className={`flex items-center gap-1.5 text-xs border rounded-md px-2 py-1 transition-colors ${color}`}
+      >
+        <span>{whale.signal === 'accumulation' ? '🐋' : whale.signal === 'distribution' ? '🔴' : '🐳'}</span>
+        <span>大口動向</span>
+        {whale.largeTradeCount > 0 && <span className="font-bold">{whale.largeTradeCount}件</span>}
+        {whale.signal !== 'neutral' && (
+          <span className="font-bold">{whale.signal === 'accumulation' ? '蓄積' : '分配'}</span>
+        )}
+      </button>
+      {open && (
+        <div className="absolute top-full mt-1 left-0 z-50 w-96 bg-gray-800 border border-gray-600 rounded-lg p-3 shadow-xl">
+          <div className="text-xs text-gray-300 mb-2">{whale.description}</div>
+          {hasActivity && (
+            <div className="space-y-2">
+              {whale.largeTrades.length > 0 && (
+                <div>
+                  <div className="text-xs text-gray-400 font-semibold mb-1">直近の大口約定</div>
+                  <div className="space-y-0.5 max-h-32 overflow-y-auto">
+                    {whale.largeTrades.slice(0, 10).map((t, i) => (
+                      <div key={i} className="flex items-center gap-2 text-xs">
+                        <span className={`px-1 py-0.5 rounded text-[10px] font-bold ${
+                          t.side === 'buy' ? 'bg-green-800 text-green-200' : 'bg-red-800 text-red-200'
+                        }`}>
+                          {t.side === 'buy' ? '買' : '売'}
+                        </span>
+                        <span className="text-gray-400">${t.price.toLocaleString()}</span>
+                        <span className="text-gray-300">${(t.quoteQty / 1000).toFixed(0)}K</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {whale.walls.length > 0 && (
+                <div>
+                  <div className="text-xs text-gray-400 font-semibold mb-1">板の大口壁</div>
+                  <div className="space-y-0.5">
+                    {whale.walls.slice(0, 6).map((w, i) => (
+                      <div key={i} className="flex items-center gap-2 text-xs">
+                        <span className={`px-1 py-0.5 rounded text-[10px] font-bold ${
+                          w.side === 'bid' ? 'bg-green-800 text-green-200' : 'bg-red-800 text-red-200'
+                        }`}>
+                          {w.side === 'bid' ? '買壁' : '売壁'}
+                        </span>
+                        <span className="text-gray-400">${w.price.toLocaleString()}</span>
+                        <span className="text-gray-300">${(w.quoteQty / 1000).toFixed(0)}K</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function DashboardView({
   result,
   currentSymbol,
@@ -170,9 +241,10 @@ export default function DashboardView({
   return (
     <div className="flex flex-col gap-3">
       {/* ===== Row 0: Header badges (経済指標 + ニュース) ===== */}
-      <div className="flex items-center gap-2 justify-start">
+      <div className="flex items-center gap-2 justify-start flex-wrap">
         <CalendarBadge calendar={calendar} />
         <NewsBadge articles={news} />
+        <WhaleBadge whale={result?.whaleActivity} />
       </div>
 
       {/* ===== Row 1: Main content — Left (結論+PR比較) | Right (売買シミュレーター) ===== */}
