@@ -81,7 +81,7 @@ function toVolumeData(data: KlineData[]): HistogramData<Time>[] {
   }));
 }
 
-/** Convert BTCUSDT -> BTC */
+/** Convert symbol to Hyperliquid coin name (e.g. BTC, BTCUSDT → BTC) */
 function toCoin(symbol: string): string {
   return symbol.replace(/USDT$/i, '');
 }

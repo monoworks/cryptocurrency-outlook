@@ -10,7 +10,7 @@ import {
 
 const INFO_URL = 'https://api.hyperliquid.xyz/info';
 
-/** Convert BTCUSDT → BTC */
+/** Convert symbol to Hyperliquid coin name (e.g. BTC, BTCUSDT → BTC) */
 function toCoin(symbol: string): string {
   return symbol.replace(/USDT$/i, '');
 }

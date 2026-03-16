@@ -11,7 +11,7 @@ const TIMEFRAMES: { value: Timeframe; label: string }[] = [
   { value: '1d', label: '日足' },
 ];
 
-const POPULAR_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'XRPUSDT', 'DOGEUSDT'];
+const POPULAR_SYMBOLS = ['BTC', 'ETH', 'SOL', 'XRP', 'DOGE'];
 
 interface Props {
   onAnalyze: (symbol: string, timeframes: Timeframe[]) => void;
@@ -19,7 +19,7 @@ interface Props {
 }
 
 export default function SymbolInput({ onAnalyze, loading }: Props) {
-  const [symbol, setSymbol] = useState('BTCUSDT');
+  const [symbol, setSymbol] = useState('BTC');
   const [selectedTimeframes, setSelectedTimeframes] = useState<Timeframe[]>(['15m', '1h', '4h']);
 
   const toggleTimeframe = (tf: Timeframe) => {
@@ -42,7 +42,7 @@ export default function SymbolInput({ onAnalyze, loading }: Props) {
             value={symbol}
             onChange={(e) => setSymbol(e.target.value.toUpperCase())}
             className="w-full bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
-            placeholder="例: BTCUSDT"
+            placeholder="例: BTC"
           />
         </div>
         <button

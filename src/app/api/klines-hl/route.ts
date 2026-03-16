@@ -4,12 +4,12 @@ const HYPERLIQUID_INFO = 'https://api.hyperliquid.xyz/info';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
-  const symbol = searchParams.get('symbol') || 'BTCUSDT';
+  const symbol = searchParams.get('symbol') || 'BTC';
   const interval = searchParams.get('interval') || '1h';
   const limit = Math.min(Number(searchParams.get('limit') || '200'), 1000);
   const endTime = searchParams.get('endTime');
 
-  // Convert symbol: BTCUSDT -> BTC, ETHUSDT -> ETH
+  // Ensure coin name without USDT suffix
   const coin = symbol.replace(/USDT$/i, '');
 
   // Calculate startTime from endTime and interval to get `limit` candles

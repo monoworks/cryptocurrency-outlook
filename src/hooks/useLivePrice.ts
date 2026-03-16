@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 const WS_URL = 'wss://api.hyperliquid.xyz/ws';
 const RECONNECT_DELAY = 3000;
 
-/** Convert BTCUSDT → BTC */
+/** Convert symbol to Hyperliquid coin name (e.g. BTC, BTCUSDT → BTC) */
 function toCoin(symbol: string): string {
   return symbol.replace(/USDT$/i, '');
 }
@@ -82,7 +82,7 @@ export function useLivePrice(symbol: string | null): number | null {
 /**
  * 複数シンボルのリアルタイム価格を1つの allMids subscription で取得するフック。
  * PositionManager / AnalysisHistory 用。
- * キーは元のシンボル形式 (BTCUSDT) で返す（既存コンポーネント互換）。
+ * キーは元のシンボル形式で返す（既存コンポーネント互換）。
  */
 export function useLivePrices(symbols: string[]): Record<string, number> {
   const [prices, setPrices] = useState<Record<string, number>>({});

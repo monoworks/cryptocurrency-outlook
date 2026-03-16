@@ -13,7 +13,7 @@ export const preferredRegion = 'hnd1';
 export const maxDuration = 60;
 
 const VALID_TIMEFRAMES: Timeframe[] = ['5m', '15m', '1h', '4h', '1d'];
-const DEFAULT_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'];
+const DEFAULT_SYMBOLS = ['BTC', 'ETH', 'SOL'];
 
 /**
  * Analyze a single symbol (same logic as /api/analyze).
@@ -64,10 +64,10 @@ async function analyzeSymbol(
 }
 
 /**
- * GET /api/analyze-batch?symbols=BTCUSDT,ETHUSDT,SOLUSDT&timeframes=15m,1h,4h
+ * GET /api/analyze-batch?symbols=BTC,ETH,SOL&timeframes=15m,1h,4h
  *
  * Analyzes multiple symbols in parallel and sends a single combined Telegram notification.
- * - symbols: comma-separated (default: BTCUSDT,ETHUSDT,SOLUSDT)
+ * - symbols: comma-separated (default: BTC,ETH,SOL)
  * - timeframes: comma-separated (required)
  */
 export async function GET(req: NextRequest) {

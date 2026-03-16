@@ -56,7 +56,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AnalysisResult | null>(null);
-  const [currentSymbol, setCurrentSymbol] = useState('BTCUSDT');
+  const [currentSymbol, setCurrentSymbol] = useState('BTC');
   const { pendingPositions, openPositions, closedPositions, addPosition, fillPosition, removePosition, closePosition, resetAll, maxPositions, positions } = useSavedPositions();
   const [viewMode, setViewMode] = useState<'simple' | 'detail' | 'dashboard'>('dashboard');
   const livePrice = useLivePrice(result ? currentSymbol : null);

@@ -4,7 +4,7 @@ const BINANCE_API = 'https://api.binance.com/api/v3/klines';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
-  const symbol = searchParams.get('symbol') || 'BTCUSDT';
+  const symbol = searchParams.get('symbol') || 'BTC';
   const interval = searchParams.get('interval') || '1h';
   const limit = Math.min(Number(searchParams.get('limit') || '200'), 1000);
 
