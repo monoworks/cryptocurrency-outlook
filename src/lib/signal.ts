@@ -39,6 +39,7 @@ import { analyzeNews } from './news';
 
 // Weight for each timeframe (higher = more influence on combined result)
 const TIMEFRAME_WEIGHT: Record<Timeframe, number> = {
+  '1m': 0.5,
   '5m': 1,
   '15m': 1.5,
   '1h': 2,
@@ -48,6 +49,7 @@ const TIMEFRAME_WEIGHT: Record<Timeframe, number> = {
 
 // Suggested max holding time per timeframe (in milliseconds)
 const TIMEFRAME_MAX_HOLDING_MS: Record<Timeframe, number> = {
+  '1m':  30 * 60 * 1000,            // 30 minutes
   '5m':  2 * 60 * 60 * 1000,        // 2 hours
   '15m': 4 * 60 * 60 * 1000,        // 4 hours
   '1h':  8 * 60 * 60 * 1000,        // 8 hours

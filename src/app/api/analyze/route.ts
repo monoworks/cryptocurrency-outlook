@@ -10,7 +10,7 @@ import { getNewsCache, getFearGreedCache, getEconomicCalendarCache, isFresh } fr
 
 export const preferredRegion = 'hnd1';
 
-const VALID_TIMEFRAMES: Timeframe[] = ['5m', '15m', '1h', '4h', '1d'];
+const VALID_TIMEFRAMES: Timeframe[] = ['1m', '5m', '15m', '1h', '4h', '1d'];
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;

@@ -10,7 +10,7 @@ function formatPercent(n: number): string {
 }
 
 const TIMEFRAME_LABELS: Record<string, string> = {
-  '5m': '5分足', '15m': '15分足', '1h': '1時間足', '4h': '4時間足', '1d': '日足',
+  '1m': '1分足', '5m': '5分足', '15m': '15分足', '1h': '1時間足', '4h': '4時間足', '1d': '日足',
 };
 const TREND_LABELS: Record<string, string> = {
   uptrend: '上昇トレンド', downtrend: '下落トレンド', range: 'レンジ',

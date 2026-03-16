@@ -32,6 +32,7 @@ const conclusionLabel: Record<string, { text: string; color: string }> = {
 
 /** Fallback: map the longest timeframe to an evaluation window (hours) for legacy entries */
 const tfEvalHoursFallback: Record<Timeframe, number> = {
+  '1m': 0.5,
   '5m': 2,
   '15m': 4,
   '1h': 8,

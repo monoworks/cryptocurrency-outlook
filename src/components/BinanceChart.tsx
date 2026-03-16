@@ -15,9 +15,10 @@ import {
 import { PriceLevel, VolumeProfileAnalysis } from '@/lib/types';
 import { VrvpPrimitive } from './VrvpPrimitive';
 
-type Interval = '5m' | '15m' | '1h' | '4h' | '1d';
+type Interval = '1m' | '5m' | '15m' | '1h' | '4h' | '1d';
 
 const INTERVALS: { label: string; value: Interval }[] = [
+  { label: '1分', value: '1m' },
   { label: '5分', value: '5m' },
   { label: '15分', value: '15m' },
   { label: '1時間', value: '1h' },
