@@ -62,6 +62,14 @@ function fmt(n: number, decimals = 0): string {
   return n.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 }
 
+/** Format milliseconds to human-readable duration (e.g. "約8時間", "約2日") */
+function fmtDuration(ms: number): string {
+  const hours = Math.round(ms / (60 * 60 * 1000));
+  if (hours < 24) return `約${hours}時間`;
+  const days = Math.round(hours / 24);
+  return `約${days}日`;
+}
+
 /**
  * Send a trading signal notification to Telegram.
  * Only sends for actionable signals (enter_long / enter_short) by default.
@@ -94,7 +102,10 @@ export async function notifyBatchSignals(results: AnalysisResult[]): Promise<boo
       lines.push(`📍 ${fmt(setup.entry, 1)} → 🎯 ${fmt(setup.target, 1)} / 🛑 ${fmt(setup.stopLoss, 1)}  RR${setup.riskRewardRatio.toFixed(2)}`);
     }
 
-    lines.push(`📈 ${result.trend.direction} (${result.trend.strength})  ⏱ ${ms.timeframes.join(',')}`);
+    const holdingLine = setup.suggestedMaxHoldingMs
+      ? `  ⏳ ${fmtDuration(setup.suggestedMaxHoldingMs)}`
+      : '';
+    lines.push(`📈 ${result.trend.direction} (${result.trend.strength})  ⏱ ${ms.timeframes.join(',')}${holdingLine}`);
 
     if (ms.fundingRate !== 0) {
       lines.push(`💸 FR: ${(ms.fundingRate * 100).toFixed(4)}%`);
@@ -135,10 +146,13 @@ export async function notifySignal(result: AnalysisResult): Promise<boolean> {
     lines.push(`⚖️ RR比: ${setup.riskRewardRatio.toFixed(2)}`);
   }
 
-  // Trend
+  // Trend & holding time
   lines.push(``);
   lines.push(`📈 トレンド: ${result.trend.direction} (${result.trend.strength})`);
   lines.push(`⏱ 時間足: ${ms.timeframes.join(', ')}`);
+  if (isActionable && setup.suggestedMaxHoldingMs) {
+    lines.push(`⏳ 決済目安: ${fmtDuration(setup.suggestedMaxHoldingMs)}`);
+  }
 
   // Derivatives
   if (ms.fundingRate !== 0) {
