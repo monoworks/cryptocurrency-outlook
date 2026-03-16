@@ -48,6 +48,10 @@ function CalendarBadge({ calendar }: { calendar: EconomicCalendarAnalysis | null
   const [open, setOpen] = useState(false);
   if (!calendar) return null;
 
+  const events = calendar.events;
+  const highCount = events.filter((e) => e.impact === 'high').length;
+  const medCount = events.filter((e) => e.impact === 'medium').length;
+
   const color = calendar.warningLevel === 'danger' ? 'text-red-400 border-red-500'
     : calendar.warningLevel === 'caution' ? 'text-yellow-400 border-yellow-500'
     : 'text-gray-400 border-gray-600';
@@ -61,7 +65,9 @@ function CalendarBadge({ calendar }: { calendar: EconomicCalendarAnalysis | null
         className={`flex items-center gap-1.5 text-xs border rounded-md px-2 py-1 ${color} bg-gray-800 hover:bg-gray-700 transition-colors`}
       >
         <span>{icon}</span>
-        <span>経済指標</span>
+        <span>経済指標 ({events.length}件)</span>
+        {highCount > 0 && <span className="text-red-400 font-bold">高{highCount}</span>}
+        {medCount > 0 && <span className="text-yellow-400 font-bold">中{medCount}</span>}
       </button>
       {open && (
         <div className="absolute top-full mt-1 left-0 z-50 w-80 bg-gray-800 border border-gray-600 rounded-lg p-3 shadow-xl">
