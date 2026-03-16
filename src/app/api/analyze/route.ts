@@ -97,6 +97,19 @@ export async function GET(req: NextRequest) {
       ? await notifySignal(result).catch(() => false)
       : false;
 
+    // When called from CRON (?lite=true), return only a compact summary
+    // to avoid exceeding CRON service output limits.
+    if (searchParams.get('lite') === 'true') {
+      return NextResponse.json({
+        symbol: result.marketSummary.symbol,
+        conclusion: result.conclusion,
+        conclusionReason: result.conclusionReason,
+        confidence: result.confidence?.score ?? null,
+        price: result.marketSummary.currentPrice,
+        _telegram: { notified },
+      });
+    }
+
     return NextResponse.json({ ...result, _telegram: { notified, conclusion: result.conclusion } });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
