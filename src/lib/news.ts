@@ -167,6 +167,23 @@ const RSS_FEEDS: { url: string; source: string; tag: NewsTag }[] = [
 /** Score boost for official/primary regulatory sources */
 const OFFICIAL_SOURCE_BOOST = 2;
 
+/**
+ * Noise patterns for official regulatory RSS feeds.
+ * These match routine supervisory/administrative actions that do not
+ * affect crypto markets or macro conditions.
+ */
+const RSS_NOISE_PATTERNS: RegExp[] = [
+  // Fed routine bank supervision
+  /\bannounces approval of (application|notice) by\b/i,
+  /\bissues enforcement action.* with (former )?employee of\b/i,
+  /\bannounces termination of enforcement action\b/i,
+  /\bannounces (approval|denial) of.* (bank|bancorp|banc|savings|credit union|holding company)\b/i,
+  // SEC routine individual/company enforcement (not crypto-related)
+  /\bcharges .* (insider trading in|accounting fraud|auditing violations)\b/i,
+  // Generic administrative filings
+  /\b(board meeting|advisory committee|public meeting|sunshine act)\b/i,
+];
+
 const xmlParser = new XMLParser({ ignoreAttributes: false });
 
 /**
@@ -204,7 +221,12 @@ async function fetchRSSFeeds(): Promise<NewsArticle[]> {
       }
 
       return items
-        .filter((item) => item.title && item.link)
+        .filter((item) => {
+          if (!item.title || !item.link) return false;
+          // Filter out routine regulatory noise
+          const text = `${item.title} ${item.description ?? ''}`;
+          return !RSS_NOISE_PATTERNS.some((p) => p.test(text));
+        })
         .slice(0, 10)
         .map((item): NewsArticle => {
           const title = String(item.title);
