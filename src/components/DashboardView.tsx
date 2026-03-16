@@ -65,7 +65,7 @@ function CalendarBadge({ calendar }: { calendar: EconomicCalendarAnalysis | null
         className={`flex items-center gap-1.5 text-xs border rounded-md px-2 py-1 ${color} bg-gray-800 hover:bg-gray-700 transition-colors`}
       >
         <span>{icon}</span>
-        <span>経済指標 ({events.length}件)</span>
+        <span>経済指標</span>
         {highCount > 0 && <span className="text-red-400 font-bold">高{highCount}</span>}
         {medCount > 0 && <span className="text-yellow-400 font-bold">中{medCount}</span>}
       </button>
