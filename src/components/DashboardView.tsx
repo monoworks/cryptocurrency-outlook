@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { AnalysisResult, EconomicCalendarAnalysis, NewsArticle, SavedPosition, CloseReason } from '@/lib/types';
 import PRComparison from './PRComparison';
 import PositionSimulator from './PositionSimulator';
@@ -8,6 +8,8 @@ import PositionManager from './PositionManager';
 import AnalysisHistory, { HistoryEntry } from './AnalysisHistory';
 import NewsSection from './NewsSection';
 import BinanceChart from './BinanceChart';
+import { analyzeNews } from '@/lib/news';
+import { determineNewsAdjustedConclusion } from '@/lib/signal';
 
 interface Props {
   result: AnalysisResult | null;
@@ -154,6 +156,17 @@ export default function DashboardView({
 }: Props) {
   const calendar = result?.economicCalendar ?? standaloneCalendar;
 
+  // Fallback: if result lacks newsAdjusted but we have news articles, compute it client-side
+  const newsAdjusted = useMemo(() => {
+    if (result?.newsAdjustedConclusion && result?.newsAdjustedReason) {
+      return { conclusion: result.newsAdjustedConclusion, reason: result.newsAdjustedReason };
+    }
+    if (!result || !news || news.length === 0) return null;
+    const analysis = analyzeNews(news);
+    if (!analysis) return null;
+    return determineNewsAdjustedConclusion(result.conclusion, result.conclusionReason, analysis) ?? null;
+  }, [result, news]);
+
   return (
     <div className="flex flex-col gap-3">
       {/* ===== Row 0: Header badges (経済指標 + ニュース) ===== */}
@@ -177,19 +190,19 @@ export default function DashboardView({
                 skip: { label: '見送り推奨', color: 'text-gray-400', bg: 'bg-gray-700/30 border-gray-500' },
               };
               const c = cfg[result.conclusion] ?? cfg.skip;
-              const nc = result.newsAdjustedConclusion ? (cfg[result.newsAdjustedConclusion] ?? cfg.skip) : null;
+              const nc = newsAdjusted ? (cfg[newsAdjusted.conclusion] ?? cfg.skip) : null;
               return (
                 <>
                   <div className={`border rounded-lg p-3 ${c.bg}`}>
                     <div className={`text-lg font-bold ${c.color} mb-1`}>{c.label}</div>
                     <p className="text-gray-300 text-sm">{result.conclusionReason}</p>
                   </div>
-                  {nc && result.newsAdjustedReason && (
+                  {nc && newsAdjusted && (
                     <div className="mt-3">
                       <h2 className="text-base font-bold text-white mb-2">結論（ニュース要素加味 <span className="text-xs font-normal text-gray-400">※試行中</span>）</h2>
                       <div className={`border rounded-lg p-3 ${nc.bg}`}>
                         <div className={`text-lg font-bold ${nc.color} mb-1`}>{nc.label}</div>
-                        <p className="text-gray-300 text-sm">{result.newsAdjustedReason}</p>
+                        <p className="text-gray-300 text-sm">{newsAdjusted.reason}</p>
                       </div>
                     </div>
                   )}

@@ -674,7 +674,7 @@ function determineConclusion(
  * Adjust the technical conclusion by incorporating news sentiment.
  * This is experimental — the technical conclusion remains the primary signal.
  */
-function determineNewsAdjustedConclusion(
+export function determineNewsAdjustedConclusion(
   techConclusion: SignalConclusion,
   techReason: string,
   newsAnalysis?: NewsAnalysis,
