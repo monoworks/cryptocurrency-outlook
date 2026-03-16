@@ -478,7 +478,6 @@ function determineConclusion(
   economicDescription?: string,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _newsAnalysis?: NewsAnalysis,
-  whaleActivity?: WhaleActivity,
 ): { conclusion: SignalConclusion; reason: string } {
   let bullishScore = 0;
   let bearishScore = 0;
@@ -622,12 +621,6 @@ function determineConclusion(
   if (sentimentSignal === 'contrarian_bullish') bullishScore += 0.3;
   else if (sentimentSignal === 'contrarian_bearish') bearishScore += 0.3;
 
-  // Whale activity signal
-  if (whaleActivity && whaleActivity.largeTradeCount > 0) {
-    if (whaleActivity.signal === 'accumulation') bullishScore += 0.5;
-    else if (whaleActivity.signal === 'distribution') bearishScore += 0.5;
-  }
-
   const diff = bullishScore - bearishScore;
   const bestRR = Math.max(longSetup.riskRewardRatio, shortSetup.riskRewardRatio);
 
@@ -739,6 +732,69 @@ export function determineNewsAdjustedConclusion(
   return { conclusion, reason };
 }
 
+/**
+ * Adjust the technical conclusion by incorporating whale activity.
+ * This is experimental — the technical conclusion remains the primary signal.
+ */
+export function determineWhaleAdjustedConclusion(
+  techConclusion: SignalConclusion,
+  techReason: string,
+  whaleActivity?: WhaleActivity,
+): { conclusion: SignalConclusion; reason: string } | undefined {
+  if (!whaleActivity || whaleActivity.largeTradeCount === 0) return undefined;
+
+  let conclusion = techConclusion;
+  const parts: string[] = [];
+
+  const { signal, buyVolume, sellVolume } = whaleActivity;
+
+  // Strong whale signal can shift the conclusion
+  if (signal === 'accumulation' && techConclusion === 'enter_short') {
+    conclusion = 'wait';
+    parts.push('テクニカルは弱気だが大口が買い集め中のため様子見に変更。');
+  } else if (signal === 'distribution' && techConclusion === 'enter_long') {
+    conclusion = 'wait';
+    parts.push('テクニカルは強気だが大口が売り抜け中のため様子見に変更。');
+  }
+  // Whale reinforces technical signal
+  else if (signal === 'accumulation' && techConclusion === 'enter_long') {
+    parts.push('大口の買い集めがロングシグナルを後押し。');
+  } else if (signal === 'distribution' && techConclusion === 'enter_short') {
+    parts.push('大口の売り抜けがショートシグナルを後押し。');
+  }
+  // Whale could tip a wait
+  else if (techConclusion === 'wait') {
+    if (signal === 'accumulation') {
+      parts.push('大口が買い集め中 — ロング方向優位の可能性。');
+    } else if (signal === 'distribution') {
+      parts.push('大口が売り抜け中 — ショート方向優位の可能性。');
+    }
+  }
+
+  // Neutral whale or no strong shift — just add context
+  if (parts.length === 0) {
+    if (signal === 'accumulation') {
+      parts.push('大口はやや買い優勢。');
+    } else if (signal === 'distribution') {
+      parts.push('大口はやや売り優勢。');
+    } else {
+      parts.push('大口の売買に偏りなし。');
+    }
+  }
+
+  const volLabel = `買$${fmtUsd(buyVolume)}/売$${fmtUsd(sellVolume)}`;
+  parts.push(`大口${whaleActivity.largeTradeCount}件 (${volLabel})`);
+
+  const reason = `${techReason} [大口動向: ${parts.join(' ')}]`;
+  return { conclusion, reason };
+}
+
+function fmtUsd(usd: number): string {
+  if (usd >= 1_000_000) return `${(usd / 1_000_000).toFixed(1)}M`;
+  if (usd >= 1_000) return `${(usd / 1_000).toFixed(0)}K`;
+  return usd.toFixed(0);
+}
+
 function calcConfidence(
   trend: TrendAnalysis,
   details: TimeframeAnalysis[],
@@ -750,7 +806,6 @@ function calcConfidence(
   economicConfidenceImpact?: number,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _newsAnalysis?: NewsAnalysis,
-  whaleActivity?: WhaleActivity,
 ): SignalConfidence {
   const factors: SignalConfidence['factors'] = [];
   let score = 50; // base
@@ -859,19 +914,7 @@ function calcConfidence(
   }
 
   // Note: News is displayed separately — not factored into confidence scoring
-
-  // 10. Whale activity confirmation
-  if (whaleActivity && whaleActivity.largeTradeCount > 0) {
-    if ((whaleActivity.signal === 'accumulation' && trend.direction === 'uptrend') ||
-        (whaleActivity.signal === 'distribution' && trend.direction === 'downtrend')) {
-      score += 5;
-      factors.push({ name: '大口がトレンド方向に一致', contribution: 5, positive: true });
-    } else if ((whaleActivity.signal === 'distribution' && trend.direction === 'uptrend') ||
-               (whaleActivity.signal === 'accumulation' && trend.direction === 'downtrend')) {
-      score -= 5;
-      factors.push({ name: '大口がトレンドに逆行', contribution: 5, positive: false });
-    }
-  }
+  // Note: Whale activity is displayed separately — not factored into confidence scoring
 
   // Clamp 0-100
   score = Math.max(0, Math.min(100, score));
@@ -1073,7 +1116,6 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
     economicCalendar.warningLevel,
     economicCalendar.description,
     newsAnalysisResult,
-    input.whaleActivity,
   );
 
   // News-adjusted conclusion (experimental)
@@ -1085,13 +1127,16 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
   );
   const newsAdjusted = determineNewsAdjustedConclusion(conclusion, reason, newsForConclusion);
 
+  // Whale-adjusted conclusion (experimental)
+  const whaleAdjusted = determineWhaleAdjustedConclusion(conclusion, reason, input.whaleActivity);
+
   // Previous day high/low from daily candles
   const dailyAnalysis = details.find((d) => d.timeframe === '1d');
   const prevDayHigh = dailyAnalysis?.prevDayHigh;
   const prevDayLow = dailyAnalysis?.prevDayLow;
 
   // Confidence scoring
-  const confidence = calcConfidence(trend, details, derivatives, longSetup, shortSetup, hierarchical, input.topTraderRatio, economicCalendar.confidenceImpact, newsAnalysisResult, input.whaleActivity);
+  const confidence = calcConfidence(trend, details, derivatives, longSetup, shortSetup, hierarchical, input.topTraderRatio, economicCalendar.confidenceImpact, newsAnalysisResult);
 
   // Use primary (highest weight) timeframe for top-level indicators/patterns
   const primary = details[details.length - 1];
@@ -1153,6 +1198,8 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
     conclusionReason: reason,
     newsAdjustedConclusion: newsAdjusted?.conclusion,
     newsAdjustedReason: newsAdjusted?.reason,
+    whaleAdjustedConclusion: whaleAdjusted?.conclusion,
+    whaleAdjustedReason: whaleAdjusted?.reason,
     indicators: primary.indicators,
     patterns: primary.patterns,
     derivatives,

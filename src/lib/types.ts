@@ -406,6 +406,9 @@ export interface AnalysisResult {
   // ⑥-b Conclusion (news-adjusted, experimental)
   newsAdjustedConclusion?: SignalConclusion;
   newsAdjustedReason?: string;
+  // ⑥-c Conclusion (whale-adjusted, experimental)
+  whaleAdjustedConclusion?: SignalConclusion;
+  whaleAdjustedReason?: string;
   // Extra (from primary timeframe)
   indicators: IndicatorValues;
   patterns: CandlePattern[];

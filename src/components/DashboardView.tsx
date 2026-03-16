@@ -263,6 +263,7 @@ export default function DashboardView({
               };
               const c = cfg[result.conclusion] ?? cfg.skip;
               const nc = newsAdjusted ? (cfg[newsAdjusted.conclusion] ?? cfg.skip) : null;
+              const wc = result.whaleAdjustedConclusion ? (cfg[result.whaleAdjustedConclusion] ?? cfg.skip) : null;
               return (
                 <>
                   <div className={`border rounded-lg p-3 ${c.bg}`}>
@@ -275,6 +276,15 @@ export default function DashboardView({
                       <div className={`border rounded-lg p-3 ${nc.bg}`}>
                         <div className={`text-lg font-bold ${nc.color} mb-1`}>{nc.label}</div>
                         <p className="text-gray-300 text-sm">{newsAdjusted.reason}</p>
+                      </div>
+                    </div>
+                  )}
+                  {wc && result.whaleAdjustedReason && (
+                    <div className="mt-3">
+                      <h2 className="text-base font-bold text-white mb-2">結論（大口動向加味 <span className="text-xs font-normal text-gray-400">※試行中</span>）</h2>
+                      <div className={`border rounded-lg p-3 ${wc.bg}`}>
+                        <div className={`text-lg font-bold ${wc.color} mb-1`}>{wc.label}</div>
+                        <p className="text-gray-300 text-sm">{result.whaleAdjustedReason}</p>
                       </div>
                     </div>
                   )}

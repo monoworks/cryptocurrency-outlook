@@ -42,11 +42,14 @@ interface Props {
   sentiment?: SentimentAnalysis;
   economicCalendar?: EconomicCalendarAnalysis;
   whaleActivity?: WhaleActivity;
+  whaleAdjustedConclusion?: SignalConclusion;
+  whaleAdjustedReason?: string;
 }
 
-export default function Conclusion({ conclusion, reason, newsAdjustedConclusion, newsAdjustedReason, patterns, derivatives, indicators, hierarchical, falseBreakouts, wickRejections, volumeSpikes, confidence, divergences, topTraderRatio, marketRegime, volumeProfile, timeframeVolumeProfiles, liquidation, orderFlow, divergenceAggregation, sentiment, economicCalendar, whaleActivity }: Props) {
+export default function Conclusion({ conclusion, reason, newsAdjustedConclusion, newsAdjustedReason, patterns, derivatives, indicators, hierarchical, falseBreakouts, wickRejections, volumeSpikes, confidence, divergences, topTraderRatio, marketRegime, volumeProfile, timeframeVolumeProfiles, liquidation, orderFlow, divergenceAggregation, sentiment, economicCalendar, whaleActivity, whaleAdjustedConclusion, whaleAdjustedReason }: Props) {
   const config = CONCLUSION_CONFIG[conclusion];
   const newsConfig = newsAdjustedConclusion ? CONCLUSION_CONFIG[newsAdjustedConclusion] : null;
+  const whaleConfig = whaleAdjustedConclusion ? CONCLUSION_CONFIG[whaleAdjustedConclusion] : null;
 
   return (
     <div className="bg-gray-800 rounded-lg p-4">
@@ -62,6 +65,16 @@ export default function Conclusion({ conclusion, reason, newsAdjustedConclusion,
           <div className={`border rounded-lg p-4 ${newsConfig.bg}`}>
             <div className={`text-xl font-bold ${newsConfig.color} mb-2`}>{newsConfig.label}</div>
             <p className="text-gray-300 text-sm">{newsAdjustedReason}</p>
+          </div>
+        </div>
+      )}
+
+      {whaleConfig && whaleAdjustedReason && (
+        <div className="mt-4">
+          <h2 className="text-lg font-bold text-white mb-3">結論（大口動向加味 <span className="text-xs font-normal text-gray-400">※試行中</span>）</h2>
+          <div className={`border rounded-lg p-4 ${whaleConfig.bg}`}>
+            <div className={`text-xl font-bold ${whaleConfig.color} mb-2`}>{whaleConfig.label}</div>
+            <p className="text-gray-300 text-sm">{whaleAdjustedReason}</p>
           </div>
         </div>
       )}
