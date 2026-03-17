@@ -60,6 +60,31 @@ const HIGH_IMPACT_KEYWORDS: KeywordRule[] = [
   { pattern: /\b(exchange hack|exchange bankrupt|exchange collapse)\b/i, weight: 5, riskDirection: -1 },
   { pattern: /\b(tether|usdt|usdc)\s+(depeg|collapse|ban)/i, weight: 5, riskDirection: -1 },
   { pattern: /\b(halving|halvening)\b/i, weight: 3, riskDirection: 1 },
+
+  // ── Japanese keywords (CoinTelegraph JP) ──
+  // Fed / interest rates
+  { pattern: /(連邦準備|FRB|パウエル|利下げ|利上げ|金利)/, weight: 5, riskDirection: 0 },
+  { pattern: /利下げ/, weight: 5, riskDirection: 1 },
+  { pattern: /利上げ/, weight: 5, riskDirection: -1 },
+  { pattern: /(FOMC|金融政策|量的緩和|量的引き締め)/, weight: 4, riskDirection: 0 },
+  // Tariffs / trade war
+  { pattern: /(関税|貿易戦争|貿易摩擦|輸入規制|輸出規制)/, weight: 5, riskDirection: -1 },
+  // War / geopolitical
+  { pattern: /(核|世界大戦|侵攻|宣戦布告)/, weight: 5, riskDirection: -1 },
+  { pattern: /(停戦|和平|平和合意)/, weight: 4, riskDirection: 1 },
+  { pattern: /(空爆|ミサイル|爆撃|軍事作戦|制裁)/, weight: 3, riskDirection: -1 },
+  // Crypto regulation
+  { pattern: /(ビットコインETF|イーサリアムETF|仮想通貨ETF|暗号資産ETF)/, weight: 5, riskDirection: 1 },
+  { pattern: /(仮想通貨禁止|暗号資産禁止|マイニング禁止)/, weight: 5, riskDirection: -1 },
+  { pattern: /(SEC|証券取引委員会).*(訴訟|起訴|承認|却下)/, weight: 4, riskDirection: 0 },
+  { pattern: /(仮想通貨規制|暗号資産規制|ステーブルコイン法案|CBDC|デジタル通貨)/, weight: 3, riskDirection: 0 },
+  // Market-wide risk
+  { pattern: /(銀行危機|銀行破綻|取り付け騒ぎ)/, weight: 4, riskDirection: -1 },
+  { pattern: /(債務上限|政府閉鎖|デフォルト|景気後退|リセッション)/, weight: 3, riskDirection: -1 },
+  // Crypto market events
+  { pattern: /(取引所ハッキング|取引所破綻|取引所閉鎖)/, weight: 5, riskDirection: -1 },
+  { pattern: /(テザー|USDT|USDC).*(デペッグ|崩壊|禁止)/, weight: 5, riskDirection: -1 },
+  { pattern: /(半減期)/, weight: 3, riskDirection: 1 },
 ];
 
 const MEDIUM_IMPACT_KEYWORDS: KeywordRule[] = [
@@ -69,6 +94,13 @@ const MEDIUM_IMPACT_KEYWORDS: KeywordRule[] = [
   { pattern: /\b(treasury|bond yield|10-year|2-year)\b/i, weight: 2, riskDirection: 0 },
   { pattern: /\b(dollar index|dxy|gold price|oil price)\b/i, weight: 2, riskDirection: 0 },
   { pattern: /\b(china|russia|iran|north korea)\b/i, weight: 1, riskDirection: 0 },
+  // Japanese
+  { pattern: /(ビットコイン|イーサリアム|仮想通貨|暗号資産)/, weight: 2, riskDirection: 0 },
+  { pattern: /(ブロックチェーン|DeFi|NFT)/, weight: 1, riskDirection: 0 },
+  { pattern: /(株式市場|ナスダック|ダウ|ウォール街)/, weight: 2, riskDirection: 0 },
+  { pattern: /(米国債|国債利回り)/, weight: 2, riskDirection: 0 },
+  { pattern: /(ドル指数|金価格|原油価格)/, weight: 2, riskDirection: 0 },
+  { pattern: /(中国|ロシア|イラン|北朝鮮)/, weight: 1, riskDirection: 0 },
 ];
 
 // Keywords that indicate the article is NOT relevant to crypto/markets
@@ -85,6 +117,11 @@ const NOISE_PATTERNS: RegExp[] = [
   /\bshares (up|down|surge|drop|rise|fall)\s+\d/i,
   /\b(dividend|earnings call|quarterly results|EPS|P\/E ratio)\b/i,
   /\b(synagogue|church shooting|school shooting|mass shooting)\b/i,
+  // Japanese noise
+  /(スポーツ|サッカー|野球|バスケ|テニス|オリンピック)/,
+  /(映画|芸能|音楽|アルバム|コンサート)/,
+  /(天気|台風|地震速報|津波警報)/,
+  /(レシピ|料理|グルメ|レストラン)/,
 ];
 
 /**
@@ -142,11 +179,14 @@ function scoreArticle(title: string, description: string | null): {
 // ── RSS Feeds ─────────────────────────────────────────────────────────
 
 const RSS_FEEDS: { url: string; source: string; tag: NewsTag; official?: boolean }[] = [
-  // Crypto media
-  { url: 'https://cointelegraph.com/rss', source: 'CoinTelegraph', tag: 'crypto' },
-  { url: 'https://cointelegraph.com/rss/tag/regulation', source: 'CoinTelegraph', tag: 'crypto' },
-  { url: 'https://cointelegraph.com/rss/tag/bitcoin', source: 'CoinTelegraph', tag: 'crypto' },
+  // Crypto media (日本語)
+  { url: 'https://jp.cointelegraph.com/rss', source: 'CoinTelegraph JP', tag: 'crypto' },
+  { url: 'https://jp.cointelegraph.com/rss/tag/regulation', source: 'CoinTelegraph JP', tag: 'crypto' },
+  { url: 'https://jp.cointelegraph.com/rss/tag/bitcoin', source: 'CoinTelegraph JP', tag: 'crypto' },
   { url: 'https://thedefiant.io/api/feed', source: 'The Defiant', tag: 'crypto' },
+  // Geopolitical / macro (Google News RSS)
+  { url: 'https://news.google.com/rss/search?q=war+OR+sanctions+OR+missile+OR+military+OR+geopolitical&hl=en&gl=US&ceid=US:en', source: 'Google News', tag: 'geopolitical' },
+  { url: 'https://news.google.com/rss/search?q=Federal+Reserve+OR+interest+rate+OR+tariff+OR+trade+war&hl=en&gl=US&ceid=US:en', source: 'Google News', tag: 'geopolitical' },
   // Official regulatory
   { url: 'https://www.sec.gov/news/pressreleases.rss', source: 'SEC', tag: 'crypto', official: true },
   { url: 'https://www.federalreserve.gov/feeds/press_all.xml', source: 'Federal Reserve', tag: 'geopolitical', official: true },
