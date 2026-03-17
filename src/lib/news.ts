@@ -166,7 +166,7 @@ function scoreArticle(title: string, description: string | null): {
 
   // Determine impact level
   let impact: NewsImpact;
-  if (totalWeight >= 6) impact = 'high';
+  if (totalWeight >= 7) impact = 'high';
   else if (totalWeight >= 3) impact = 'medium';
   else impact = 'low';
 
@@ -276,7 +276,7 @@ async function fetchRSSFeeds(): Promise<NewsArticle[]> {
           const boost = isOfficial ? OFFICIAL_SOURCE_BOOST : 0;
           const relevanceScore = Math.min(10, baseScore + boost);
           let impact: NewsImpact;
-          if (relevanceScore >= 6) impact = 'high';
+          if (relevanceScore >= 7) impact = 'high';
           else if (relevanceScore >= 3) impact = 'medium';
           else impact = baseImpact;
 
@@ -329,10 +329,11 @@ export async function fetchNews(): Promise<NewsArticle[] | null> {
     // Filter out low-relevance articles (noise) — threshold 4 to exclude single-keyword matches
     const relevant = deduped.filter((a) => a.relevanceScore >= 4);
 
-    // Sort by relevance (high first), then newest
+    // Sort by newest first, then by relevance (high first)
     relevant.sort((a, b) => {
-      if (b.relevanceScore !== a.relevanceScore) return b.relevanceScore - a.relevanceScore;
-      return new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime();
+      const timeDiff = new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime();
+      if (timeDiff !== 0) return timeDiff;
+      return b.relevanceScore - a.relevanceScore;
     });
 
     return relevant.length > 0 ? relevant : null;

@@ -24,8 +24,8 @@ export async function GET() {
     return NextResponse.json({ notified: 0, message: 'No relevant news' });
   }
 
-  // Only notify medium+ impact articles (relevance >= 3 already filtered by fetchNews)
-  const notable = articles.filter((a) => a.impact === 'high' || a.impact === 'medium');
+  // Only notify high impact articles
+  const notable = articles.filter((a) => a.impact === 'high');
 
   const notified = await notifyNews(notable);
 
