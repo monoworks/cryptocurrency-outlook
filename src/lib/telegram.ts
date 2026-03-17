@@ -183,8 +183,30 @@ export async function notifySignal(result: AnalysisResult): Promise<boolean> {
  * Uses link-based deduplication (notified-store) to avoid sending the same article twice.
  * Upstash Redis 設定時はデプロイ/コールドスタートを跨いで永続化される。
  * Returns the number of articles notified.
+ *
+ * 重複防止: markNotified() を送信前に呼び出し、並行リクエストによる二重送信を防ぐ。
+ * 送信失敗時は次回 cron で再取得されるため、未送信記事が永久に消えることはない
+ * （RSS フィードに残っている限り filterUnnotified を通過しないだけ）。
  */
+let _notifyLock: Promise<number> | null = null;
+
 export async function notifyNews(articles: NewsArticle[]): Promise<number> {
+  // 同一インスタンス内の並行呼び出しを直列化し、race condition を防止
+  if (_notifyLock) {
+    await _notifyLock;
+  }
+  let resolve: (v: number) => void;
+  _notifyLock = new Promise<number>((r) => { resolve = r; });
+
+  try {
+    return await _notifyNewsInner(articles);
+  } finally {
+    resolve!(0);
+    _notifyLock = null;
+  }
+}
+
+async function _notifyNewsInner(articles: NewsArticle[]): Promise<number> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token || getChatIds().length === 0) return 0;
   if (!articles || articles.length === 0) return 0;
@@ -192,6 +214,9 @@ export async function notifyNews(articles: NewsArticle[]): Promise<number> {
   // Filter out already-notified articles (persistent store)
   const fresh = await filterUnnotified(articles);
   if (fresh.length === 0) return 0;
+
+  // 先にマーク → 並行リクエストが同じ記事を送信するのを防止
+  await markNotified(fresh.map((a) => a.link));
 
   const tagLabel = (tag: string) => tag === 'geopolitical' ? '🌍 地政学' : '📋 規制';
   const impactLabel = (impact: string) => {
@@ -216,9 +241,5 @@ export async function notifyNews(articles: NewsArticle[]): Promise<number> {
   }
 
   const sent = await sendMessage(lines.join('\n'));
-  if (sent) {
-    await markNotified(fresh.map((a) => a.link));
-    return fresh.length;
-  }
-  return 0;
+  return sent ? fresh.length : 0;
 }
