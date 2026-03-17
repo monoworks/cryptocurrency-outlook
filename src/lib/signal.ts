@@ -1120,8 +1120,7 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
   );
   const newsAdjusted = determineNewsAdjustedConclusion(conclusion, reason, newsForConclusion);
 
-  // Whale-adjusted conclusion (experimental)
-  const whaleAdjusted = determineWhaleAdjustedConclusion(conclusion, reason, input.whaleActivity);
+  // Whale activity is kept as reference data only — no longer adjusts the conclusion
 
   // Previous day high/low from daily candles
   const dailyAnalysis = details.find((d) => d.timeframe === '1d');
@@ -1191,8 +1190,6 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
     conclusionReason: reason,
     newsAdjustedConclusion: newsAdjusted?.conclusion,
     newsAdjustedReason: newsAdjusted?.reason,
-    whaleAdjustedConclusion: whaleAdjusted?.conclusion,
-    whaleAdjustedReason: whaleAdjusted?.reason,
     indicators: primary.indicators,
     patterns: primary.patterns,
     derivatives,

@@ -392,7 +392,6 @@ export default function Home() {
               };
               const c = cfg[result.conclusion] ?? cfg.skip;
               const nc = result.newsAdjustedConclusion ? (cfg[result.newsAdjustedConclusion] ?? cfg.skip) : null;
-              const wc = result.whaleAdjustedConclusion ? (cfg[result.whaleAdjustedConclusion] ?? cfg.skip) : null;
               return (
                 <div className="bg-gray-800 rounded-lg p-4">
                   <h2 className="text-lg font-bold text-white mb-3">結論（テクニカル分析のみ）</h2>
@@ -406,15 +405,6 @@ export default function Home() {
                       <div className={`border rounded-lg p-4 ${nc.bg}`}>
                         <div className={`text-xl font-bold ${nc.color} mb-2`}>{nc.label}</div>
                         <p className="text-gray-300 text-sm">{result.newsAdjustedReason}</p>
-                      </div>
-                    </div>
-                  )}
-                  {wc && result.whaleAdjustedReason && (
-                    <div className="mt-4">
-                      <h2 className="text-lg font-bold text-white mb-3">結論（大口動向加味 <span className="text-xs font-normal text-gray-400">※試行中</span>）</h2>
-                      <div className={`border rounded-lg p-4 ${wc.bg}`}>
-                        <div className={`text-xl font-bold ${wc.color} mb-2`}>{wc.label}</div>
-                        <p className="text-gray-300 text-sm">{result.whaleAdjustedReason}</p>
                       </div>
                     </div>
                   )}
@@ -479,8 +469,6 @@ export default function Home() {
                   sentiment={result.sentiment}
                   economicCalendar={result.economicCalendar}
                   whaleActivity={result.whaleActivity}
-                  whaleAdjustedConclusion={result.whaleAdjustedConclusion}
-                  whaleAdjustedReason={result.whaleAdjustedReason}
                 />
 
                 {/* AI Analysis - 将来用に非表示 */}
