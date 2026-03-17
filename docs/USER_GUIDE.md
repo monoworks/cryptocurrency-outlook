@@ -151,7 +151,7 @@ FOMC、CPI、雇用統計などの重要経済指標の発表スケジュール�
 - 高影響リスクオフニュースが3件以上 → ロングエントリーが自動的に**wait**に変更
 - ニュースのセンチメント（リスクオン/リスクオフ）がスコアリングに反映
 
-**必要なAPIキー:** NewsData.io（無料） — `NEWSDATA_API_KEY`
+**APIキー不要** — RSSフィード（CoinTelegraph、SEC、FRB等）から自動取得
 
 ---
 
@@ -243,7 +243,7 @@ FOMC、CPI、雇用統計などの重要経済指標の発表スケジュール�
 | `TELEGRAM_CHAT_ID` | 通知に必要 | 通知先のTelegramチャットID |
 | `TELEGRAM_NOTIFY_ALL` | 任意 | `true` にすると wait/skip でも通知 |
 | `FINNHUB_API_KEY` | 任意 | Finnhub APIキー（経済指標カレンダー用） |
-| `NEWSDATA_API_KEY` | 任意 | NewsData.io APIキー（ニュース取得用） |
+
 
 ---
 
@@ -347,6 +347,6 @@ npm run build
 | Telegram通知が来ない | 環境変数の設定確認 → Redeployしたか確認 → `/api/analyze` のレスポンスで `_telegram.notified` を確認 |
 | ニュース通知が来ない | `/api/news-notify` を直接叩いて `notified` の値を確認。デプロイ直後は重複チェック用のSetがリセットされるため初回は通知される |
 | 経済カレンダーが表示されない | `FINNHUB_API_KEY` が設定されているか確認 |
-| ニュースが表示されない | `NEWSDATA_API_KEY` が設定されているか確認 |
+| ニュースが表示されない | RSSフィードの取得状況をサーバーログで確認 |
 | 分析が遅い | 選択する時間足が多いほどAPI呼び出しが増えて遅くなります |
 | cronが動いていない | cron-job.org のStatisticsタブでHTTPステータスコードを確認（200なら正常） |

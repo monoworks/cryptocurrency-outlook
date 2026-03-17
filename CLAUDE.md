@@ -51,7 +51,7 @@ src/
 | Binance Futures API | 不要 | ローソク足(Taker買い出来高付き)、OI履歴、Top Trader比率 |
 | Alternative.me | 不要 | Fear & Greed Index |
 | Forex Factory | 不要 | 経済カレンダー |
-| NewsData.io | APIキー必要 | ニュース取得 (オプション) |
+| RSS Feeds (CoinTelegraph等) | 不要 | ニュース取得 |
 
 ### テクニカル指標 (`indicators.ts`)
 
@@ -127,7 +127,6 @@ RSI(14), MACD(12/26/9), SMA(20/50/200), EMA(20/50), VWAP, ボリンジャーバ�
 ## 環境変数 (オプション)
 
 ```
-NEWSDATA_API_KEY=       # NewsData.io (拡張ニュース)
 TELEGRAM_BOT_TOKEN=     # Telegram通知
 TELEGRAM_CHAT_ID=       # 通知先チャット
 ```

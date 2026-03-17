@@ -1,13 +1,6 @@
 import { XMLParser } from 'fast-xml-parser';
 import { NewsArticle, NewsAnalysis, NewsImpact, NewsTag } from './types';
 
-const NEWSDATA_BASE = 'https://newsdata.io/api/1/latest';
-
-/** Sources to exclude (low-quality or flagged as unsafe) */
-const EXCLUDED_SOURCES = new Set([
-  'techbullion',
-]);
-
 /**
  * Format a UTC date string to JST display string (e.g. "3/12 22:30")
  */
@@ -22,16 +15,6 @@ function toJST(utcDateStr: string): string {
     minute: '2-digit',
     hour12: false,
   });
-}
-
-interface RawArticle {
-  title: string;
-  description: string | null;
-  link: string;
-  source_id: string;
-  source_name?: string;
-  pubDate: string;
-  category?: string[];
 }
 
 // ── Relevance scoring ───────────────────────────────────────────────
@@ -156,12 +139,18 @@ function scoreArticle(title: string, description: string | null): {
   return { relevanceScore, impact, riskDirection };
 }
 
-// ── Official Regulatory RSS Feeds ────────────────────────────────────
+// ── RSS Feeds ─────────────────────────────────────────────────────────
 
-const RSS_FEEDS: { url: string; source: string; tag: NewsTag }[] = [
-  { url: 'https://www.sec.gov/news/pressreleases.rss', source: 'SEC', tag: 'crypto' },
-  { url: 'https://www.federalreserve.gov/feeds/press_all.xml', source: 'Federal Reserve', tag: 'geopolitical' },
-  { url: 'https://www.cftc.gov/Newsroom/PressReleases/RSS', source: 'CFTC', tag: 'crypto' },
+const RSS_FEEDS: { url: string; source: string; tag: NewsTag; official?: boolean }[] = [
+  // Crypto media
+  { url: 'https://cointelegraph.com/rss', source: 'CoinTelegraph', tag: 'crypto' },
+  { url: 'https://cointelegraph.com/rss/tag/regulation', source: 'CoinTelegraph', tag: 'crypto' },
+  { url: 'https://cointelegraph.com/rss/tag/bitcoin', source: 'CoinTelegraph', tag: 'crypto' },
+  { url: 'https://thedefiant.io/api/feed', source: 'The Defiant', tag: 'crypto' },
+  // Official regulatory
+  { url: 'https://www.sec.gov/news/pressreleases.rss', source: 'SEC', tag: 'crypto', official: true },
+  { url: 'https://www.federalreserve.gov/feeds/press_all.xml', source: 'Federal Reserve', tag: 'geopolitical', official: true },
+  { url: 'https://www.cftc.gov/Newsroom/PressReleases/RSS', source: 'CFTC', tag: 'crypto', official: true },
 ];
 
 /** Score boost for official/primary regulatory sources */
@@ -192,7 +181,7 @@ const RSS_NOISE_PATTERNS: RegExp[] = [
 const xmlParser = new XMLParser({ ignoreAttributes: false });
 
 /**
- * Fetch and parse official regulatory RSS feeds.
+ * Fetch and parse RSS feeds from all configured sources.
  * Each feed is fetched independently — one failure does not block others.
  */
 async function fetchRSSFeeds(): Promise<NewsArticle[]> {
@@ -225,12 +214,17 @@ async function fetchRSSFeeds(): Promise<NewsArticle[]> {
         }));
       }
 
+      const isOfficial = feed.official === true;
+
       return items
         .filter((item) => {
           if (!item.title || !item.link) return false;
-          // Filter out routine regulatory noise
-          const text = `${item.title} ${item.description ?? ''}`;
-          return !RSS_NOISE_PATTERNS.some((p) => p.test(text));
+          // Filter out routine regulatory noise (official feeds only)
+          if (isOfficial) {
+            const text = `${item.title} ${item.description ?? ''}`;
+            if (RSS_NOISE_PATTERNS.some((p) => p.test(text))) return false;
+          }
+          return true;
         })
         .slice(0, 10)
         .map((item): NewsArticle => {
@@ -238,8 +232,9 @@ async function fetchRSSFeeds(): Promise<NewsArticle[]> {
           const description = item.description ? String(item.description) : null;
           const { relevanceScore: baseScore, impact: baseImpact } = scoreArticle(title, description);
 
-          // Apply official source boost
-          const relevanceScore = Math.min(10, baseScore + OFFICIAL_SOURCE_BOOST);
+          // Apply official source boost for regulatory feeds
+          const boost = isOfficial ? OFFICIAL_SOURCE_BOOST : 0;
+          const relevanceScore = Math.min(10, baseScore + boost);
           let impact: NewsImpact;
           if (relevanceScore >= 6) impact = 'high';
           else if (relevanceScore >= 3) impact = 'medium';
@@ -268,90 +263,14 @@ async function fetchRSSFeeds(): Promise<NewsArticle[]> {
 
 // ── Fetching ────────────────────────────────────────────────────────
 
-/** Fetch a single query from NewsData.io and tag results */
-async function fetchQuery(
-  apiKey: string,
-  q: string,
-  tag: NewsTag,
-  size: number = 10,
-): Promise<NewsArticle[]> {
-  const params = new URLSearchParams({
-    apikey: apiKey,
-    q,
-    language: 'en',
-    size: String(size),
-  });
-
-  const res = await fetch(`${NEWSDATA_BASE}?${params.toString()}`, {
-    headers: { Accept: 'application/json' },
-    next: { revalidate: 300 }, // cache 5 minutes (aligned with news-notify cron)
-  });
-
-  if (!res.ok) {
-    console.error(`[News:${tag}] API error: ${res.status}`);
-    return [];
-  }
-
-  const data = await res.json() as {
-    status: string;
-    results?: RawArticle[];
-  };
-
-  if (data.status !== 'success' || !Array.isArray(data.results)) {
-    return [];
-  }
-
-  return data.results.filter((item) => {
-    const src = (item.source_name || item.source_id || '').toLowerCase();
-    return !EXCLUDED_SOURCES.has(src);
-  }).map((item) => {
-    const { relevanceScore, impact } = scoreArticle(item.title, item.description);
-    return {
-      title: item.title,
-      description: item.description,
-      link: item.link,
-      source: item.source_name || item.source_id,
-      pubDate: item.pubDate,
-      pubDateJST: toJST(item.pubDate),
-      category: item.category ?? [],
-      tag,
-      relevanceScore,
-      impact,
-    };
-  });
-}
-
 /**
- * Fetch latest risk-relevant news: geopolitical events + crypto regulation.
- * Combines NewsData.io API (if configured) with official regulatory RSS feeds.
+ * Fetch latest risk-relevant news from RSS feeds.
+ * Sources: crypto media (CoinTelegraph, The Defiant) + official regulatory (SEC, Fed, CFTC).
  * Returns null if all sources fail or no relevant articles found.
  */
 export async function fetchNews(): Promise<NewsArticle[] | null> {
   try {
-    const promises: Promise<NewsArticle[]>[] = [fetchRSSFeeds()];
-
-    const apiKey = process.env.NEWSDATA_API_KEY;
-    if (apiKey) {
-      promises.push(
-        fetchQuery(
-          apiKey,
-          'war OR sanctions OR "Federal Reserve" OR "interest rate" OR missile OR airstrike OR military',
-          'geopolitical',
-          10,
-        ),
-        fetchQuery(
-          apiKey,
-          'SEC OR "crypto regulation" OR "crypto ban" OR CBDC OR "stablecoin bill"',
-          'crypto',
-          10,
-        ),
-      );
-    } else {
-      console.log('[News] NEWSDATA_API_KEY is not configured — using RSS feeds only');
-    }
-
-    const results = await Promise.all(promises);
-    const all = results.flat();
+    const all = await fetchRSSFeeds();
     if (all.length === 0) return null;
 
     // Dedupe by link AND by normalized title (same story from different sources)
