@@ -326,8 +326,15 @@ export async function fetchNews(): Promise<NewsArticle[] | null> {
       return true;
     });
 
-    // Filter out low-relevance articles (noise) — threshold 4 to exclude single-keyword matches
-    const relevant = deduped.filter((a) => a.relevanceScore >= 4);
+    // Filter out old articles (>12 hours) and low-relevance noise
+    const now = Date.now();
+    const MAX_AGE_MS = 12 * 60 * 60 * 1000; // 12 hours
+    const relevant = deduped.filter((a) => {
+      if (a.relevanceScore < 4) return false;
+      const pubTime = new Date(a.pubDate).getTime();
+      if (isNaN(pubTime)) return true; // keep if date is unparseable
+      return now - pubTime <= MAX_AGE_MS;
+    });
 
     // Sort by newest first, then by relevance (high first)
     relevant.sort((a, b) => {
