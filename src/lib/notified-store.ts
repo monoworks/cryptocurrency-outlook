@@ -4,17 +4,18 @@
  * - KV_REST_API_URL + KV_REST_API_TOKEN が設定されていれば Upstash Redis で永続化
  * - 未設定時はインメモリ Set にフォールバック（コールドスタートでリセット）
  *
- * Redis 側は SADD + EXPIRE(24h) で自動クリーンアップ。
+ * Redis: 各リンクを個別キー (SETEX) で保存し、24h TTL で自動削除。
+ * キーが個別なので追加時に既存リンクの TTL がリセットされず、確実に期限切れになる。
  */
 
-const KV_KEY = 'notified_news_links';
+const KEY_PREFIX = 'notified:';
 const MAX_IN_MEMORY = 500;
 const EXPIRE_SECONDS = 86400; // 24h
 
 // --------------- in-memory fallback ---------------
 const memorySet = new Set<string>();
 
-// --------------- Upstash Redis REST ---------------
+// --------------- Upstash Redis REST (pipeline) ---------------
 
 function kvConfig(): { url: string; token: string } | null {
   const url = process.env.KV_REST_API_URL;
@@ -23,40 +24,28 @@ function kvConfig(): { url: string; token: string } | null {
   return { url, token };
 }
 
-async function redisCommand<T = unknown>(...args: string[]): Promise<T | null> {
+/** Upstash REST pipeline — 複数コマンドを1リクエストで実行 */
+async function redisPipeline(commands: string[][]): Promise<unknown[] | null> {
   const cfg = kvConfig();
   if (!cfg) return null;
   try {
-    const res = await fetch(cfg.url, {
+    const res = await fetch(`${cfg.url}/pipeline`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${cfg.token}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(args),
+      body: JSON.stringify(commands),
     });
     if (!res.ok) {
-      console.error(`[notified-store] Redis ${args[0]} failed: ${res.status}`);
+      console.error(`[notified-store] pipeline failed: ${res.status}`);
       return null;
     }
     const data = await res.json();
-    return data.result as T;
+    return data as unknown[];
   } catch (err) {
     console.error('[notified-store] Redis error:', err);
     return null;
-  }
-}
-
-// Redis から既存リンクをメモリにロード（初回のみ）
-let loaded = false;
-
-async function ensureLoaded(): Promise<void> {
-  if (loaded) return;
-  loaded = true;
-  if (!kvConfig()) return;
-  const members = await redisCommand<string[]>('SMEMBERS', KV_KEY);
-  if (members && Array.isArray(members)) {
-    for (const m of members) memorySet.add(m);
   }
 }
 
@@ -64,19 +53,40 @@ async function ensureLoaded(): Promise<void> {
 
 /**
  * 未配信の記事だけを返す。
+ * Redis 設定時はサーバー側で EXISTS チェック、未設定時はインメモリ Set で判定。
  */
 export async function filterUnnotified<T extends { link: string }>(articles: T[]): Promise<T[]> {
-  await ensureLoaded();
-  return articles.filter((a) => !memorySet.has(a.link));
+  if (articles.length === 0) return [];
+
+  const cfg = kvConfig();
+  if (!cfg) {
+    // インメモリフォールバック
+    return articles.filter((a) => !memorySet.has(a.link));
+  }
+
+  // Redis: EXISTS を pipeline で一括チェック
+  const commands = articles.map((a) => ['EXISTS', `${KEY_PREFIX}${a.link}`]);
+  const results = await redisPipeline(commands);
+
+  if (!results) {
+    // Redis 障害時はインメモリにフォールバック
+    return articles.filter((a) => !memorySet.has(a.link));
+  }
+
+  return articles.filter((_, i) => {
+    const entry = results[i] as { result?: number } | null;
+    return !entry || entry.result === 0;
+  });
 }
 
 /**
  * 配信済みとしてマークする。
  */
 export async function markNotified(links: string[]): Promise<void> {
-  for (const link of links) memorySet.add(link);
+  if (links.length === 0) return;
 
-  // メモリ上限を超えたら古いものから削除
+  // インメモリにも記録（同一インスタンス内の高速チェック用）
+  for (const link of links) memorySet.add(link);
   if (memorySet.size > MAX_IN_MEMORY) {
     const excess = memorySet.size - MAX_IN_MEMORY;
     const iter = memorySet.values();
@@ -85,9 +95,11 @@ export async function markNotified(links: string[]): Promise<void> {
     }
   }
 
-  // Redis に永続化
-  if (kvConfig() && links.length > 0) {
-    await redisCommand('SADD', KV_KEY, ...links);
-    await redisCommand('EXPIRE', KV_KEY, String(EXPIRE_SECONDS));
+  // Redis: SETEX で個別キー + 24h TTL
+  if (kvConfig()) {
+    const commands = links.map((link) => [
+      'SETEX', `${KEY_PREFIX}${link}`, String(EXPIRE_SECONDS), '1',
+    ]);
+    await redisPipeline(commands);
   }
 }
