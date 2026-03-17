@@ -1,4 +1,5 @@
 import { AnalysisResult, NewsArticle } from './types';
+import { filterUnnotified, markNotified } from './notified-store';
 
 const TELEGRAM_API = 'https://api.telegram.org/bot';
 
@@ -177,13 +178,10 @@ export async function notifySignal(result: AnalysisResult): Promise<boolean> {
   return sendMessage(lines.join('\n'));
 }
 
-/** Track notified article links to avoid duplicates (in-memory, resets on deploy) */
-const notifiedLinks = new Set<string>();
-const MAX_NOTIFIED_LINKS = 500;
-
 /**
  * Send news alert to Telegram.
- * Uses link-based deduplication to avoid sending the same article twice.
+ * Uses link-based deduplication (notified-store) to avoid sending the same article twice.
+ * Upstash Redis 設定時はデプロイ/コールドスタートを跨いで永続化される。
  * Returns the number of articles notified.
  */
 export async function notifyNews(articles: NewsArticle[]): Promise<number> {
@@ -191,8 +189,8 @@ export async function notifyNews(articles: NewsArticle[]): Promise<number> {
   if (!token || getChatIds().length === 0) return 0;
   if (!articles || articles.length === 0) return 0;
 
-  // Filter out already-notified articles
-  const fresh = articles.filter((a) => !notifiedLinks.has(a.link));
+  // Filter out already-notified articles (persistent store)
+  const fresh = await filterUnnotified(articles);
   if (fresh.length === 0) return 0;
 
   const tagLabel = (tag: string) => tag === 'geopolitical' ? '🌍 地政学' : '📋 規制';
@@ -219,17 +217,7 @@ export async function notifyNews(articles: NewsArticle[]): Promise<number> {
 
   const sent = await sendMessage(lines.join('\n'));
   if (sent) {
-    for (const a of fresh) {
-      notifiedLinks.add(a.link);
-    }
-    // Prevent unbounded growth
-    if (notifiedLinks.size > MAX_NOTIFIED_LINKS) {
-      const excess = notifiedLinks.size - MAX_NOTIFIED_LINKS;
-      const iter = notifiedLinks.values();
-      for (let i = 0; i < excess; i++) {
-        notifiedLinks.delete(iter.next().value as string);
-      }
-    }
+    await markNotified(fresh.map((a) => a.link));
     return fresh.length;
   }
   return 0;
