@@ -5,7 +5,6 @@ import { AnalysisResult, EconomicCalendarAnalysis, NewsArticle, WhaleActivity, S
 import PRComparison from './PRComparison';
 import PositionSimulator from './PositionSimulator';
 import PositionManager from './PositionManager';
-import { HistoryEntry } from './AnalysisHistory';
 import NewsSection from './NewsSection';
 import HyperliquidChart from './HyperliquidChart';
 import { analyzeNews } from '@/lib/news';
@@ -29,12 +28,6 @@ interface Props {
   resetAll: () => void;
   positions: SavedPosition[];
   maxPositions: number;
-  // History
-  history: HistoryEntry[];
-  loadFromHistory: (entry: HistoryEntry) => void;
-  deleteFromHistory: (id: string) => void;
-  importHistory: (entries: HistoryEntry[]) => void;
-  clearHistory: () => void;
 }
 
 function Placeholder({ text }: { text: string }) {
@@ -219,11 +212,6 @@ export default function DashboardView({
   resetAll,
   positions,
   maxPositions,
-  history,
-  loadFromHistory,
-  deleteFromHistory,
-  importHistory,
-  clearHistory,
 }: Props) {
   const calendar = result?.economicCalendar ?? standaloneCalendar;
 

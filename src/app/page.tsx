@@ -63,7 +63,7 @@ export default function Home() {
   const [standaloneCalendar, setStandaloneCalendar] = useState<EconomicCalendarAnalysis | null>(null);
   const [calendarCollapsed, setCalendarCollapsed] = useState(true);
   const [news, setNews] = useState<NewsArticle[] | null>(null);
-  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [, setHistory] = useState<HistoryEntry[]>([]);
   const [inputCollapsed, setInputCollapsed] = useState(false);
 
   // Load history from localStorage
@@ -72,11 +72,6 @@ export default function Home() {
       const stored = localStorage.getItem(HISTORY_KEY);
       if (stored) setHistory(JSON.parse(stored));
     } catch { /* ignore */ }
-  }, []);
-
-  const saveHistory = useCallback((entries: HistoryEntry[]) => {
-    setHistory(entries);
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(entries));
   }, []);
 
   const addToHistory = useCallback((res: AnalysisResult, symbol: string) => {
@@ -96,32 +91,6 @@ export default function Home() {
     });
   }, []);
 
-  const loadFromHistory = useCallback((entry: HistoryEntry) => {
-    setResult(entry.result);
-    setCurrentSymbol(entry.symbol);
-  }, []);
-
-  const deleteFromHistory = useCallback((id: string) => {
-    setHistory((prev) => {
-      const next = prev.filter((e) => e.id !== id);
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
-      return next;
-    });
-  }, []);
-
-  const importHistory = useCallback((entries: HistoryEntry[]) => {
-    setHistory((prev) => {
-      const existingIds = new Set(prev.map((e) => e.id));
-      const newEntries = entries.filter((e) => !existingIds.has(e.id));
-      const next = [...newEntries, ...prev].slice(0, MAX_HISTORY);
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
-      return next;
-    });
-  }, []);
-
-  const clearHistory = useCallback(() => {
-    saveHistory([]);
-  }, [saveHistory]);
 
   // Fetch economic calendar on page load (independent of analysis)
   useEffect(() => {
@@ -293,11 +262,6 @@ export default function Home() {
             resetAll={resetAll}
             positions={positions}
             maxPositions={maxPositions}
-            history={history}
-            loadFromHistory={loadFromHistory}
-            deleteFromHistory={deleteFromHistory}
-            importHistory={importHistory}
-            clearHistory={clearHistory}
           />
         )}
 
