@@ -14,7 +14,7 @@ import PositionSimulator from '@/components/PositionSimulator';
 import PositionManager from '@/components/PositionManager';
 import BreakoutLevels from '@/components/BreakoutLevels';
 import Conclusion from '@/components/Conclusion';
-import AnalysisHistory, { HistoryEntry } from '@/components/AnalysisHistory';
+import { HistoryEntry } from '@/components/AnalysisHistory';
 // 将来用に残す
 // import AISettings from '@/components/AISettings';
 // import AIAnalysis from '@/components/AIAnalysis';
@@ -359,16 +359,7 @@ export default function Home() {
             {/* Standalone News */}
             <NewsSection articles={news} />
 
-            {/* Analysis History (before analysis) */}
-            {!loading && history.length > 0 && (
-              <AnalysisHistory
-                history={history}
-                onLoad={loadFromHistory}
-                onDelete={deleteFromHistory}
-                onImport={importHistory}
-                onClearAll={clearHistory}
-              />
-            )}
+            {/* Analysis History (hidden) */}
           </>
         )}
 
@@ -491,14 +482,7 @@ export default function Home() {
               onResetAll={resetAll}
             />
 
-            {/* Analysis History */}
-            <AnalysisHistory
-              history={history}
-              onLoad={loadFromHistory}
-              onDelete={deleteFromHistory}
-              onImport={importHistory}
-              onClearAll={clearHistory}
-            />
+            {/* Analysis History (hidden) */}
 
             {/* Detail mode only */}
             {viewMode === 'detail' && (

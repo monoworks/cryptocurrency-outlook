@@ -5,7 +5,7 @@ import { AnalysisResult, EconomicCalendarAnalysis, NewsArticle, WhaleActivity, S
 import PRComparison from './PRComparison';
 import PositionSimulator from './PositionSimulator';
 import PositionManager from './PositionManager';
-import AnalysisHistory, { HistoryEntry } from './AnalysisHistory';
+import { HistoryEntry } from './AnalysisHistory';
 import NewsSection from './NewsSection';
 import HyperliquidChart from './HyperliquidChart';
 import { analyzeNews } from '@/lib/news';
@@ -337,8 +337,8 @@ export default function DashboardView({
         </div>
       </div>
 
-      {/* ===== Row 2: Bottom — ポジション管理 | 分析履歴 ===== */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+      {/* ===== Row 2: Bottom — ポジション管理 ===== */}
+      <div className="grid grid-cols-1 gap-3">
         {/* Position Manager */}
         <div className="bg-gray-800 rounded-lg p-0 overflow-hidden max-h-[250px] overflow-y-auto">
           {(pendingPositions.length + openPositions.length + closedPositions.length) > 0 ? (
@@ -359,23 +359,7 @@ export default function DashboardView({
           )}
         </div>
 
-        {/* Analysis History */}
-        <div className="bg-gray-800 rounded-lg p-0 overflow-hidden max-h-[250px] overflow-y-auto">
-          {history.length > 0 ? (
-            <AnalysisHistory
-              history={history}
-              onLoad={loadFromHistory}
-              onDelete={deleteFromHistory}
-              onImport={importHistory}
-              onClearAll={clearHistory}
-            />
-          ) : (
-            <div className="p-3">
-              <h2 className="text-base font-bold text-white mb-2">分析履歴</h2>
-              <Placeholder text="分析を実行すると履歴が保存されます" />
-            </div>
-          )}
-        </div>
+        {/* Analysis History (hidden) */}
       </div>
 
     </div>
