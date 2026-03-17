@@ -215,8 +215,8 @@ async function _notifyNewsInner(articles: NewsArticle[]): Promise<number> {
   const fresh = await filterUnnotified(articles);
   if (fresh.length === 0) return 0;
 
-  // 先にマーク → 並行リクエストが同じ記事を送信するのを防止
-  await markNotified(fresh.map((a) => a.link));
+  // 先にマーク → 並行リクエストが同じ記事を送信するのを防止（link + title 両方）
+  await markNotified(fresh.map((a) => a.link), fresh.map((a) => a.title));
 
   const tagLabel = (tag: string) => tag === 'geopolitical' ? '🌍 地政学' : '📋 規制';
   const impactLabel = (impact: string) => {
