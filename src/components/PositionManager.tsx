@@ -180,7 +180,7 @@ export default function PositionManager({ pendingPositions, openPositions, close
       <div className="rounded-lg p-3 mb-4 bg-gray-700/30 border border-gray-600/30 space-y-1">
         <div className="flex justify-between items-baseline">
           <span className="text-sm text-gray-400">合計投資金額</span>
-          <span className="text-white font-bold font-mono">${fmt(totalInvestedAll, 0)} USDT</span>
+          <span className="text-white font-bold font-mono">${fmt(totalInvestedAll, 0)} USDC</span>
         </div>
         {connectedCount > 0 && (
           <div className="flex justify-between items-baseline">
@@ -192,7 +192,7 @@ export default function PositionManager({ pendingPositions, openPositions, close
             </span>
             <div className="text-right">
               <span className={`font-bold font-mono ${totalUnrealizedPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                {totalUnrealizedPnl >= 0 ? '+' : ''}{fmt(totalUnrealizedPnl)} USDT
+                {totalUnrealizedPnl >= 0 ? '+' : ''}{fmt(totalUnrealizedPnl)} USDC
               </span>
               <span className={`ml-2 text-sm font-mono ${totalUnrealizedPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                 ({unrealizedRoi >= 0 ? '+' : ''}{fmt(unrealizedRoi)}%)
@@ -205,7 +205,7 @@ export default function PositionManager({ pendingPositions, openPositions, close
             <span className="text-sm text-gray-400">確定損益 ({closedPositions.length}件)</span>
             <div className="text-right">
               <span className={`font-bold font-mono ${totalRealizedPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                {totalRealizedPnl >= 0 ? '+' : ''}{fmt(totalRealizedPnl)} USDT
+                {totalRealizedPnl >= 0 ? '+' : ''}{fmt(totalRealizedPnl)} USDC
               </span>
               <span className={`ml-2 text-sm font-mono ${totalRealizedPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                 ({realizedRoi >= 0 ? '+' : ''}{fmt(realizedRoi)}%)

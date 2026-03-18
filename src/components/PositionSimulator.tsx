@@ -120,7 +120,7 @@ export default function PositionSimulator({ longSetup, shortSetup, symbol, onSav
       <div className="grid grid-cols-2 gap-3 mb-4">
         <div>
           <label className="block text-xs text-gray-400 mb-1">
-            投資金額 (USDT)<HelpTip text="取引に使う元手の金額です" />
+            投資金額 (USDC)<HelpTip text="取引に使う元手の金額です" />
           </label>
           <input
             type="number"
