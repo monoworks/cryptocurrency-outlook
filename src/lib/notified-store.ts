@@ -98,7 +98,15 @@ export async function filterUnnotified<T extends { link: string; title?: string;
         if (!a.pubDate) return true; // pubDate が無い場合は通す
         const pubTime = new Date(a.pubDate).getTime();
         if (isNaN(pubTime)) return true; // パース不能は通す
-        return pubTime >= cutoff;
+        if (pubTime >= cutoff) return true;
+        // 拒否した記事を memorySet に追加し、同一インスタンスの次回以降の
+        // 呼び出しですり抜けるのを防止する
+        memorySet.add(a.link);
+        if (a.title) {
+          const norm = normalizeTitle(a.title);
+          if (norm) memoryTitleSet.add(norm);
+        }
+        return false;
       });
       hasRunOnce = true;
     }
