@@ -5,8 +5,12 @@ import { useEffect, useRef, useState } from 'react';
 const WS_URL = 'wss://api.hyperliquid.xyz/ws';
 const RECONNECT_DELAY = 3000;
 
-/** Convert symbol to Hyperliquid coin name (e.g. BTC, BTCUSDT → BTC) */
+/** Normalize symbol for Hyperliquid WebSocket.
+ *  If already qualified (contains ":"), pass through (e.g. "xyz:TSLA").
+ *  Otherwise strip USDT suffix (e.g. "BTCUSDT" → "BTC").
+ */
 function toCoin(symbol: string): string {
+  if (symbol.includes(':')) return symbol;
   return symbol.replace(/USDT$/i, '');
 }
 

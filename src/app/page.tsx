@@ -64,7 +64,8 @@ export default function Home() {
   const [tradingStyle, setTradingStyle] = useState<TradingStyle>('day_trade');
   const [useCustomTf, setUseCustomTf] = useState(false);
   const [selectedTimeframes, setSelectedTimeframes] = useState<Timeframe[]>(TRADING_STYLE_CONFIGS['day_trade'].timeframes);
-  const livePrice = useLivePrice(result ? currentSymbol : null);
+  const [resolvedCoin, setResolvedCoin] = useState<string>('BTC');
+  const livePrice = useLivePrice(result ? resolvedCoin : null);
   const [standaloneCalendar, setStandaloneCalendar] = useState<EconomicCalendarAnalysis | null>(null);
   const [calendarCollapsed, setCalendarCollapsed] = useState(true);
   const [news, setNews] = useState<NewsArticle[] | null>(null);
@@ -147,6 +148,7 @@ export default function Home() {
         setError(data.error || '分析に失敗しました');
       } else {
         setResult(data);
+        setResolvedCoin(data._resolvedCoin || symbol.toUpperCase());
         addToHistory(data, symbol);
       }
     } catch (err) {
@@ -277,6 +279,7 @@ export default function Home() {
           <DashboardView
             result={result}
             currentSymbol={currentSymbol}
+            resolvedCoin={resolvedCoin}
             livePrice={livePrice}
             standaloneCalendar={standaloneCalendar}
             news={news}
@@ -508,7 +511,7 @@ export default function Home() {
                 /> */}
 
                 {/* Hyperliquid Chart */}
-                <HyperliquidChart symbol={currentSymbol} levels={result?.levels} volumeProfile={result?.volumeProfile} />
+                <HyperliquidChart symbol={resolvedCoin} levels={result?.levels} volumeProfile={result?.volumeProfile} />
 
                 {/* Copy Prompt */}
                 <CopyPrompt prompt={buildAnalysisPrompt(result)} />

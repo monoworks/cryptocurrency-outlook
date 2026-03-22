@@ -81,8 +81,12 @@ function toVolumeData(data: KlineData[]): HistogramData<Time>[] {
   }));
 }
 
-/** Convert symbol to Hyperliquid coin name (e.g. BTC, BTCUSDT → BTC) */
+/** Normalize symbol for Hyperliquid API/WebSocket.
+ *  If already qualified (contains ":"), pass through (e.g. "xyz:TSLA").
+ *  Otherwise strip USDT suffix (e.g. "BTCUSDT" → "BTC").
+ */
 function toCoin(symbol: string): string {
+  if (symbol.includes(':')) return symbol;
   return symbol.replace(/USDT$/i, '');
 }
 

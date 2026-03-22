@@ -1,6 +1,7 @@
 'use client';
 
-import { Timeframe, TradingStyle } from '@/lib/types';
+import { useState, useEffect } from 'react';
+import { Timeframe, TradingStyle, AssetCategory, SymbolInfo } from '@/lib/types';
 import { TRADING_STYLE_CONFIGS } from '@/lib/trading-style';
 
 const TIMEFRAMES: { value: Timeframe; label: string }[] = [
@@ -17,7 +18,22 @@ const TRADING_STYLES: { value: TradingStyle; label: string; desc: string }[] = [
   { value: 'swing', label: 'スイング', desc: '数日' },
 ];
 
-const POPULAR_SYMBOLS = ['BTC', 'ETH', 'SOL', 'XRP', 'DOGE'];
+const CATEGORY_TABS: { value: AssetCategory; label: string }[] = [
+  { value: 'crypto', label: '暗号通貨' },
+  { value: 'stock', label: '株式' },
+  { value: 'commodity', label: 'コモディティ' },
+  { value: 'fx', label: 'FX' },
+  { value: 'index', label: '指数' },
+];
+
+// Fallback popular symbols when API hasn't loaded yet
+const FALLBACK_POPULAR: Record<AssetCategory, string[]> = {
+  crypto: ['BTC', 'ETH', 'SOL', 'XRP', 'DOGE'],
+  stock: ['TSLA', 'NVDA', 'AAPL', 'MSFT', 'AMZN'],
+  commodity: ['GOLD', 'SILVER', 'CL'],
+  fx: ['JPY', 'EUR', 'GBP'],
+  index: ['SP500', 'XYZ100'],
+};
 
 interface Props {
   onAnalyze: (symbol: string, timeframes: Timeframe[], tradingStyle?: TradingStyle) => void;
@@ -44,6 +60,23 @@ export default function SymbolInput({
   selectedTimeframes,
   onSelectedTimeframesChange,
 }: Props) {
+  const [category, setCategory] = useState<AssetCategory>('crypto');
+  const [popularSymbols, setPopularSymbols] = useState<Record<AssetCategory, string[]>>(FALLBACK_POPULAR);
+  const [allSymbols, setAllSymbols] = useState<Record<AssetCategory, SymbolInfo[]> | null>(null);
+
+  // Fetch symbol categories from API on mount
+  useEffect(() => {
+    fetch('/api/symbols')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.popular) setPopularSymbols(data.popular);
+        if (data?.categories) setAllSymbols(data.categories);
+      })
+      .catch(() => {
+        // Keep fallback values
+      });
+  }, []);
+
   const handleStyleChange = (style: TradingStyle) => {
     onTradingStyleChange(style);
     onUseCustomTfChange(false);
@@ -68,8 +101,48 @@ export default function SymbolInput({
     }
   };
 
+  const handleCategoryChange = (cat: AssetCategory) => {
+    setCategory(cat);
+    // Auto-select first popular symbol of the category
+    const popular = popularSymbols[cat];
+    if (popular.length > 0) {
+      onSymbolChange(popular[0]);
+    }
+  };
+
+  const currentPopular = popularSymbols[category] ?? [];
+
+  // Check if non-crypto categories have any symbols
+  const hasNonCryptoSymbols = allSymbols
+    ? (allSymbols.stock.length > 0 || allSymbols.commodity.length > 0 || allSymbols.fx.length > 0 || allSymbols.index.length > 0)
+    : true; // Show tabs by default until API responds
+
   return (
     <div className="bg-gray-800 rounded-lg p-4 space-y-4">
+      {/* Asset Category Tabs */}
+      {hasNonCryptoSymbols && (
+        <div className="flex gap-1 bg-gray-900 rounded-lg p-1">
+          {CATEGORY_TABS.map((tab) => {
+            // Hide empty categories once we know the data
+            if (allSymbols && allSymbols[tab.value].length === 0 && tab.value !== 'crypto') return null;
+            const isActive = category === tab.value;
+            return (
+              <button
+                key={tab.value}
+                onClick={() => handleCategoryChange(tab.value)}
+                className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                  isActive
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-400 hover:text-gray-200'
+                }`}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-3 items-end">
         <div className="flex-1 min-w-[200px]">
           <label className="block text-sm text-gray-400 mb-1">シンボル</label>
@@ -78,7 +151,7 @@ export default function SymbolInput({
             value={symbol}
             onChange={(e) => onSymbolChange(e.target.value.toUpperCase())}
             className="w-full bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
-            placeholder="例: BTC"
+            placeholder={category === 'crypto' ? '例: BTC' : category === 'stock' ? '例: TSLA' : category === 'commodity' ? '例: GOLD' : category === 'fx' ? '例: JPY' : '例: SP500'}
           />
         </div>
         <button
@@ -90,7 +163,7 @@ export default function SymbolInput({
         </button>
       </div>
       <div className="flex gap-2 flex-wrap">
-        {POPULAR_SYMBOLS.map((s) => (
+        {currentPopular.map((s) => (
           <button
             key={s}
             onClick={() => onSymbolChange(s)}

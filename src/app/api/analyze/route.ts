@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getKlinesWithTakerVolume, getTicker, getOpenInterest, getFundingRate, getPremiumIndex, getOIHistory, getFundingHistory, getTopTraderRatio, getAggTrades, getOrderBookDepth } from '@/lib/hyperliquid';
+import { resolveCoin } from '@/lib/symbol-resolver';
 import { analyzeWhaleActivity } from '@/lib/whale-detection';
 import { generateSignal } from '@/lib/signal';
 import { Timeframe, TradingStyle } from '@/lib/types';
@@ -51,6 +52,9 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    // Resolve symbol to Hyperliquid API coin name (e.g. "TSLA" → "xyz:TSLA")
+    const resolvedCoin = await resolveCoin(symbol);
+
     // Read external data from cache (populated by /api/news-notify and /api/refresh-external crons).
     // Fall back to direct fetch only if cache is empty (e.g. first run after deploy).
     const NEWS_MAX_AGE = 10 * 60 * 1000;       // 10 min (news-notify runs every 5 min)
@@ -63,15 +67,15 @@ export async function GET(req: NextRequest) {
     // Fetch Binance data + fallback external data in parallel
     const [candlesResults, ticker, openInterest, fundingRate, premiumIndex, oiHistory, fundingHistory, topTraderRatio, fearGreed, economicEvents, newsArticles, aggTrades, orderBook] = await Promise.all([
       Promise.all(timeframes.map((tf) =>
-        getKlinesWithTakerVolume(symbol, tf).then((r) => ({ timeframe: tf, candles: r.candles, takerBuyVolumes: r.takerBuyVolumes }))
+        getKlinesWithTakerVolume(resolvedCoin, tf).then((r) => ({ timeframe: tf, candles: r.candles, takerBuyVolumes: r.takerBuyVolumes }))
       )),
-      getTicker(symbol),
-      getOpenInterest(symbol),
-      getFundingRate(symbol),
-      getPremiumIndex(symbol),
-      getOIHistory(symbol, '1h', 24).catch(() => []),
-      getFundingHistory(symbol, 20).catch(() => []),
-      getTopTraderRatio(symbol).catch(() => null),
+      getTicker(resolvedCoin),
+      getOpenInterest(resolvedCoin),
+      getFundingRate(resolvedCoin),
+      getPremiumIndex(resolvedCoin),
+      getOIHistory(resolvedCoin, '1h', 24).catch(() => []),
+      getFundingHistory(resolvedCoin, 20).catch(() => []),
+      getTopTraderRatio(resolvedCoin).catch(() => null),
       isFresh(cachedFearGreed, EXTERNAL_MAX_AGE)
         ? Promise.resolve(cachedFearGreed!.data)
         : fetchFearGreedIndex().catch(() => null),
@@ -81,8 +85,8 @@ export async function GET(req: NextRequest) {
       isFresh(cachedNews, NEWS_MAX_AGE)
         ? Promise.resolve(cachedNews!.data)
         : fetchNews().catch(() => null),
-      getAggTrades(symbol, 1000).catch(() => []),
-      getOrderBookDepth(symbol, 20).catch(() => ({ bids: [] as [number, number][], asks: [] as [number, number][] })),
+      getAggTrades(resolvedCoin, 1000).catch(() => []),
+      getOrderBookDepth(resolvedCoin, 20).catch(() => ({ bids: [] as [number, number][], asks: [] as [number, number][] })),
     ]);
 
     // Whale activity detection
@@ -118,7 +122,7 @@ export async function GET(req: NextRequest) {
     // By default return a compact summary (safe for CRON output limits).
     // UI passes ?full=true to get the complete AnalysisResult.
     if (searchParams.get('full') === 'true') {
-      return NextResponse.json({ ...result, _telegram: { notified, conclusion: result.conclusion } });
+      return NextResponse.json({ ...result, _resolvedCoin: resolvedCoin, _telegram: { notified, conclusion: result.conclusion } });
     }
 
     return NextResponse.json({

@@ -13,6 +13,7 @@ import { determineNewsAdjustedConclusion } from '@/lib/signal';
 interface Props {
   result: AnalysisResult | null;
   currentSymbol: string;
+  resolvedCoin?: string;
   livePrice: number | null | undefined;
   // Economic calendar & news
   standaloneCalendar: EconomicCalendarAnalysis | null;
@@ -199,6 +200,7 @@ function WhaleBadge({ whale }: { whale: WhaleActivity | undefined }) {
 export default function DashboardView({
   result,
   currentSymbol,
+  resolvedCoin,
   livePrice,
   standaloneCalendar,
   news,
@@ -294,7 +296,7 @@ export default function DashboardView({
 
         {/* Right column — Chart + Simulator */}
         <div className="flex flex-col gap-3">
-          <HyperliquidChart symbol={currentSymbol} levels={result?.levels} volumeProfile={result?.volumeProfile} />
+          <HyperliquidChart symbol={resolvedCoin || currentSymbol} levels={result?.levels} volumeProfile={result?.volumeProfile} />
           <div className="bg-gray-800 rounded-lg p-0 overflow-hidden">
             {result ? (
               <PositionSimulator

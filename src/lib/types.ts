@@ -1,3 +1,13 @@
+// ===== Asset Category Types =====
+
+export type AssetCategory = 'crypto' | 'stock' | 'commodity' | 'fx' | 'index';
+
+export interface SymbolInfo {
+  displayName: string;  // e.g., "TSLA", "BTC"
+  apiCoin: string;      // e.g., "xyz:TSLA", "BTC"
+  category: AssetCategory;
+}
+
 // ===== Market Data Types =====
 
 export interface OHLCV {

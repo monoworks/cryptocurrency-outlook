@@ -10,8 +10,12 @@ import {
 
 const INFO_URL = 'https://api.hyperliquid.xyz/info';
 
-/** Convert symbol to Hyperliquid coin name (e.g. BTC, BTCUSDT → BTC) */
-function toCoin(symbol: string): string {
+/** Normalize symbol for Hyperliquid API.
+ *  - If already qualified (contains ":"), pass through (e.g. "xyz:TSLA" → "xyz:TSLA")
+ *  - Otherwise strip USDT suffix (e.g. "BTCUSDT" → "BTC")
+ */
+function normalizeCoin(symbol: string): string {
+  if (symbol.includes(':')) return symbol;
   return symbol.replace(/USDT$/i, '');
 }
 
@@ -50,22 +54,35 @@ interface MetaAndCtxs {
   ctxs: AssetCtx[];
 }
 
-let cachedMetaCtxs: { data: MetaAndCtxs; ts: number } | null = null;
+const cachedMetaCtxs: Record<string, { data: MetaAndCtxs; ts: number }> = {};
 const META_CACHE_TTL = 5_000; // 5 seconds
 
-async function getMetaAndCtxs(): Promise<MetaAndCtxs> {
-  if (cachedMetaCtxs && Date.now() - cachedMetaCtxs.ts < META_CACHE_TTL) {
-    return cachedMetaCtxs.data;
+async function getMetaAndCtxs(dex?: string): Promise<MetaAndCtxs> {
+  const cacheKey = dex || '';
+  const cached = cachedMetaCtxs[cacheKey];
+  if (cached && Date.now() - cached.ts < META_CACHE_TTL) {
+    return cached.data;
   }
-  const raw = await postInfo<[MetaAndCtxs['meta'], AssetCtx[]]>({ type: 'metaAndAssetCtxs' });
+  const body: Record<string, unknown> = { type: 'metaAndAssetCtxs' };
+  if (dex) body.dex = dex;
+  const raw = await postInfo<[MetaAndCtxs['meta'], AssetCtx[]]>(body);
   const data: MetaAndCtxs = { meta: raw[0], ctxs: raw[1] };
-  cachedMetaCtxs = { data, ts: Date.now() };
+  cachedMetaCtxs[cacheKey] = { data, ts: Date.now() };
   return data;
 }
 
 async function getAssetCtx(coin: string): Promise<{ ctx: AssetCtx; markPrice: number }> {
-  const { meta, ctxs } = await getMetaAndCtxs();
-  const idx = meta.universe.findIndex((u) => u.name === coin);
+  let dex: string | undefined;
+  let lookupName = coin;
+
+  if (coin.includes(':')) {
+    const parts = coin.split(':');
+    dex = parts[0];
+    lookupName = parts[1];
+  }
+
+  const { meta, ctxs } = await getMetaAndCtxs(dex);
+  const idx = meta.universe.findIndex((u) => u.name === lookupName);
   if (idx === -1) throw new Error(`Coin ${coin} not found in Hyperliquid universe`);
   const ctx = ctxs[idx];
   return { ctx, markPrice: parseFloat(ctx.markPx) };
@@ -79,7 +96,7 @@ export async function getKlines(symbol: string, interval: Timeframe, limit = 200
 }
 
 export async function getKlinesWithTakerVolume(symbol: string, interval: Timeframe, limit = 200): Promise<{ candles: OHLCV[]; takerBuyVolumes: number[] }> {
-  const coin = toCoin(symbol);
+  const coin = normalizeCoin(symbol);
   const intervalMs = getIntervalMs(interval);
   const endTime = Date.now();
   const startTime = endTime - intervalMs * limit;
@@ -108,7 +125,7 @@ export async function getKlinesWithTakerVolume(symbol: string, interval: Timefra
 // ── Ticker ───────────────────────────────────────────────────────────
 
 export async function getTicker(symbol: string): Promise<TickerData> {
-  const coin = toCoin(symbol);
+  const coin = normalizeCoin(symbol);
 
   // Fetch asset context + 24h candle for high/low in parallel
   const [{ ctx, markPrice }, dailyCandles] = await Promise.all([
@@ -151,7 +168,7 @@ export async function getTicker(symbol: string): Promise<TickerData> {
 // ── Open Interest ────────────────────────────────────────────────────
 
 export async function getOpenInterest(symbol: string): Promise<OpenInterestData> {
-  const coin = toCoin(symbol);
+  const coin = normalizeCoin(symbol);
   const { ctx } = await getAssetCtx(coin);
 
   return {
@@ -164,7 +181,7 @@ export async function getOpenInterest(symbol: string): Promise<OpenInterestData>
 // ── Funding Rate ─────────────────────────────────────────────────────
 
 export async function getFundingRate(symbol: string): Promise<FundingRateData> {
-  const coin = toCoin(symbol);
+  const coin = normalizeCoin(symbol);
   const { ctx, markPrice } = await getAssetCtx(coin);
 
   return {
@@ -178,7 +195,7 @@ export async function getFundingRate(symbol: string): Promise<FundingRateData> {
 // ── Premium Index ────────────────────────────────────────────────────
 
 export async function getPremiumIndex(symbol: string): Promise<PremiumIndexData> {
-  const coin = toCoin(symbol);
+  const coin = normalizeCoin(symbol);
   const { ctx } = await getAssetCtx(coin);
 
   return {
@@ -201,7 +218,7 @@ export async function getOIHistory(_symbol: string, _period?: string, _limit?: n
 // ── Funding History ──────────────────────────────────────────────────
 
 export async function getFundingHistory(symbol: string, limit = 20): Promise<{ time: number; rate: number }[]> {
-  const coin = toCoin(symbol);
+  const coin = normalizeCoin(symbol);
 
   // Hyperliquid funding is every 1 hour, fetch enough history
   const startTime = Date.now() - limit * 3_600_000;
@@ -234,7 +251,7 @@ export async function getTopTraderRatio(_symbol: string): Promise<{ longAccount:
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function getAggTrades(symbol: string, _limit?: number): Promise<{ id: number; price: number; qty: number; quoteQty: number; time: number; isBuyerMaker: boolean }[]> {
-  const coin = toCoin(symbol);
+  const coin = normalizeCoin(symbol);
 
   const raw = await postInfo<Array<{
     coin: string;
@@ -266,7 +283,7 @@ export async function getAggTrades(symbol: string, _limit?: number): Promise<{ i
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function getOrderBookDepth(symbol: string, _limit?: number): Promise<{ bids: [number, number][]; asks: [number, number][] }> {
-  const coin = toCoin(symbol);
+  const coin = normalizeCoin(symbol);
 
   const raw = await postInfo<{
     levels: Array<Array<{ px: string; sz: string; n: number }>>;
