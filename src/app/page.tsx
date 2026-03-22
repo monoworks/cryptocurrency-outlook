@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { AnalysisResult, EconomicCalendarAnalysis, NewsArticle, Timeframe, TradingStyle } from '@/lib/types';
+import { TRADING_STYLE_CONFIGS } from '@/lib/trading-style';
 import { buildAnalysisPrompt } from '@/lib/prompt-builder';
 import { useSavedPositions } from '@/hooks/useSavedPositions';
 import { useLivePrice } from '@/hooks/useLivePrice';
@@ -59,6 +60,10 @@ export default function Home() {
   const [currentSymbol, setCurrentSymbol] = useState('BTC');
   const { pendingPositions, openPositions, closedPositions, addPosition, fillPosition, removePosition, closePosition, resetAll, maxPositions, positions } = useSavedPositions();
   const [viewMode, setViewMode] = useState<'simple' | 'detail' | 'dashboard'>('dashboard');
+  const [inputSymbol, setInputSymbol] = useState('BTC');
+  const [tradingStyle, setTradingStyle] = useState<TradingStyle>('day_trade');
+  const [useCustomTf, setUseCustomTf] = useState(false);
+  const [selectedTimeframes, setSelectedTimeframes] = useState<Timeframe[]>(TRADING_STYLE_CONFIGS['day_trade'].timeframes);
   const livePrice = useLivePrice(result ? currentSymbol : null);
   const [standaloneCalendar, setStandaloneCalendar] = useState<EconomicCalendarAnalysis | null>(null);
   const [calendarCollapsed, setCalendarCollapsed] = useState(true);
@@ -189,12 +194,34 @@ export default function Home() {
             </button>
             {!inputCollapsed && (
               <div className="mt-2">
-                <SymbolInput onAnalyze={handleAnalyze} loading={loading} />
+                <SymbolInput
+                  onAnalyze={handleAnalyze}
+                  loading={loading}
+                  symbol={inputSymbol}
+                  onSymbolChange={setInputSymbol}
+                  tradingStyle={tradingStyle}
+                  onTradingStyleChange={setTradingStyle}
+                  useCustomTf={useCustomTf}
+                  onUseCustomTfChange={setUseCustomTf}
+                  selectedTimeframes={selectedTimeframes}
+                  onSelectedTimeframesChange={setSelectedTimeframes}
+                />
               </div>
             )}
           </div>
         ) : (
-          <SymbolInput onAnalyze={handleAnalyze} loading={loading} />
+          <SymbolInput
+            onAnalyze={handleAnalyze}
+            loading={loading}
+            symbol={inputSymbol}
+            onSymbolChange={setInputSymbol}
+            tradingStyle={tradingStyle}
+            onTradingStyleChange={setTradingStyle}
+            useCustomTf={useCustomTf}
+            onUseCustomTfChange={setUseCustomTf}
+            selectedTimeframes={selectedTimeframes}
+            onSelectedTimeframesChange={setSelectedTimeframes}
+          />
         )}
 
         {/* AI Settings - 将来用に非表示 */}

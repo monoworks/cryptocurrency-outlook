@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { Timeframe, TradingStyle } from '@/lib/types';
 import { TRADING_STYLE_CONFIGS } from '@/lib/trading-style';
 
@@ -23,38 +22,48 @@ const POPULAR_SYMBOLS = ['BTC', 'ETH', 'SOL', 'XRP', 'DOGE'];
 interface Props {
   onAnalyze: (symbol: string, timeframes: Timeframe[], tradingStyle?: TradingStyle) => void;
   loading: boolean;
+  symbol: string;
+  onSymbolChange: (symbol: string) => void;
+  tradingStyle: TradingStyle;
+  onTradingStyleChange: (style: TradingStyle) => void;
+  useCustomTf: boolean;
+  onUseCustomTfChange: (custom: boolean) => void;
+  selectedTimeframes: Timeframe[];
+  onSelectedTimeframesChange: (timeframes: Timeframe[]) => void;
 }
 
-export default function SymbolInput({ onAnalyze, loading }: Props) {
-  const [symbol, setSymbol] = useState('BTC');
-  const [tradingStyle, setTradingStyle] = useState<TradingStyle>('swing');
-  const [useCustomTf, setUseCustomTf] = useState(false);
-  const [selectedTimeframes, setSelectedTimeframes] = useState<Timeframe[]>(['15m', '1h', '4h']);
-
+export default function SymbolInput({
+  onAnalyze,
+  loading,
+  symbol,
+  onSymbolChange,
+  tradingStyle,
+  onTradingStyleChange,
+  useCustomTf,
+  onUseCustomTfChange,
+  selectedTimeframes,
+  onSelectedTimeframesChange,
+}: Props) {
   const handleStyleChange = (style: TradingStyle) => {
-    setTradingStyle(style);
-    setUseCustomTf(false);
-    // Update displayed timeframes to match the style
-    setSelectedTimeframes(TRADING_STYLE_CONFIGS[style].timeframes);
+    onTradingStyleChange(style);
+    onUseCustomTfChange(false);
+    onSelectedTimeframesChange(TRADING_STYLE_CONFIGS[style].timeframes);
   };
 
   const toggleTimeframe = (tf: Timeframe) => {
-    setUseCustomTf(true);
-    setSelectedTimeframes((prev) => {
-      if (prev.includes(tf)) {
-        if (prev.length <= 1) return prev;
-        return prev.filter((t) => t !== tf);
-      }
-      return [...prev, tf];
-    });
+    onUseCustomTfChange(true);
+    if (selectedTimeframes.includes(tf)) {
+      if (selectedTimeframes.length <= 1) return;
+      onSelectedTimeframesChange(selectedTimeframes.filter((t) => t !== tf));
+    } else {
+      onSelectedTimeframesChange([...selectedTimeframes, tf]);
+    }
   };
 
   const handleAnalyze = () => {
     if (useCustomTf) {
-      // Custom timeframe selection — don't pass tradingStyle (use swing defaults)
       onAnalyze(symbol, selectedTimeframes);
     } else {
-      // Style-based — pass tradingStyle
       onAnalyze(symbol, selectedTimeframes, tradingStyle);
     }
   };
@@ -67,7 +76,7 @@ export default function SymbolInput({ onAnalyze, loading }: Props) {
           <input
             type="text"
             value={symbol}
-            onChange={(e) => setSymbol(e.target.value.toUpperCase())}
+            onChange={(e) => onSymbolChange(e.target.value.toUpperCase())}
             className="w-full bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
             placeholder="例: BTC"
           />
@@ -84,7 +93,7 @@ export default function SymbolInput({ onAnalyze, loading }: Props) {
         {POPULAR_SYMBOLS.map((s) => (
           <button
             key={s}
-            onClick={() => setSymbol(s)}
+            onClick={() => onSymbolChange(s)}
             className={`text-xs px-3 py-1 rounded ${symbol === s ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
           >
             {s}
