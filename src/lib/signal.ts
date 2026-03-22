@@ -226,6 +226,29 @@ function findStructureSL(
   }
 }
 
+/**
+ * 価格を実用的な指値単位に丸める。
+ * 価格帯に応じて丸め単位を変える（BTC=$10単位、ETH=$5単位など）。
+ */
+function roundToTradingPrice(price: number, direction: 'up' | 'down' | 'nearest' = 'nearest'): number {
+  let unit: number;
+  if (price >= 10000) unit = 10;        // BTC等: $10単位
+  else if (price >= 1000) unit = 5;     // ETH等: $5単位
+  else if (price >= 100) unit = 1;      // SOL等: $1単位
+  else if (price >= 10) unit = 0.1;     // 中位アルト: $0.1単位
+  else unit = 0.01;                     // 小型アルト: $0.01単位
+
+  switch (direction) {
+    case 'up':
+      return Math.ceil(price / unit) * unit;
+    case 'down':
+      return Math.floor(price / unit) * unit;
+    case 'nearest':
+    default:
+      return Math.round(price / unit) * unit;
+  }
+}
+
 function buildTradeSetup(
   direction: 'long' | 'short',
   currentPrice: number,
@@ -249,15 +272,22 @@ function buildTradeSetup(
       finalTarget = entry + risk * 1.5;
     }
 
-    const reward = finalTarget - entry;
+    // 丸め処理: ユーザーに有利な方向に丸める
+    const roundedEntry = roundToTradingPrice(entry, 'down');           // 安く買う
+    const roundedSL = roundToTradingPrice(stopLoss, 'down');           // SLを広めに
+    const roundedTarget = roundToTradingPrice(finalTarget, 'up');      // 利確を遠めに
+
+    const roundedRisk = roundedEntry - roundedSL;
+    const roundedReward = roundedTarget - roundedEntry;
+
     return {
       direction: 'long',
-      entry: Math.round(entry * 100) / 100,
-      stopLoss: Math.round(stopLoss * 100) / 100,
-      target: Math.round(finalTarget * 100) / 100,
-      riskRewardRatio: risk > 0 ? Math.round((reward / risk) * 100) / 100 : 0,
-      riskPercent: Math.round(((entry - stopLoss) / entry) * 10000) / 100,
-      rewardPercent: Math.round(((finalTarget - entry) / entry) * 10000) / 100,
+      entry: roundedEntry,
+      stopLoss: roundedSL,
+      target: roundedTarget,
+      riskRewardRatio: roundedRisk > 0 ? Math.round((roundedReward / roundedRisk) * 100) / 100 : 0,
+      riskPercent: Math.round(((roundedEntry - roundedSL) / roundedEntry) * 10000) / 100,
+      rewardPercent: Math.round(((roundedTarget - roundedEntry) / roundedEntry) * 10000) / 100,
     };
   } else {
     const stopLoss = findStructureSL('short', entry, atr, levels);
@@ -272,15 +302,21 @@ function buildTradeSetup(
       finalTarget = entry - risk * 1.5;
     }
 
-    const reward = entry - finalTarget;
+    const roundedEntry = roundToTradingPrice(entry, 'up');             // 高く売る
+    const roundedSL = roundToTradingPrice(stopLoss, 'up');             // SLを広めに
+    const roundedTarget = roundToTradingPrice(finalTarget, 'down');    // 利確を遠めに
+
+    const roundedRisk = roundedSL - roundedEntry;
+    const roundedReward = roundedEntry - roundedTarget;
+
     return {
       direction: 'short',
-      entry: Math.round(entry * 100) / 100,
-      stopLoss: Math.round(stopLoss * 100) / 100,
-      target: Math.round(finalTarget * 100) / 100,
-      riskRewardRatio: risk > 0 ? Math.round((reward / risk) * 100) / 100 : 0,
-      riskPercent: Math.round(((stopLoss - entry) / entry) * 10000) / 100,
-      rewardPercent: Math.round(((entry - finalTarget) / entry) * 10000) / 100,
+      entry: roundedEntry,
+      stopLoss: roundedSL,
+      target: roundedTarget,
+      riskRewardRatio: roundedRisk > 0 ? Math.round((roundedReward / roundedRisk) * 100) / 100 : 0,
+      riskPercent: Math.round(((roundedSL - roundedEntry) / roundedEntry) * 10000) / 100,
+      rewardPercent: Math.round(((roundedEntry - roundedTarget) / roundedEntry) * 10000) / 100,
     };
   }
 }
