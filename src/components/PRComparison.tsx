@@ -4,7 +4,9 @@ import { TradeSetup } from '@/lib/types';
 import HelpTip from './HelpTip';
 
 function fmt(n: number): string {
-  return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  // 価格帯に応じて小数桁数を調整
+  const decimals = n >= 1000 ? 0 : n >= 1 ? 2 : 4;
+  return n.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 }
 
 function SetupCard({ setup }: { setup: TradeSetup }) {

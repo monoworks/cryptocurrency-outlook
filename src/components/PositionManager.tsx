@@ -5,8 +5,9 @@ import { SavedPosition, CloseReason } from '@/lib/types';
 import { useLivePrices } from '@/hooks/useLivePrice';
 import HelpTip from './HelpTip';
 
-function fmt(n: number, d = 2): string {
-  return n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+function fmt(n: number, d?: number): string {
+  const decimals = d ?? (n >= 1000 ? 0 : n >= 1 ? 2 : 4);
+  return n.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 }
 
 function fmtDate(ts: number): string {

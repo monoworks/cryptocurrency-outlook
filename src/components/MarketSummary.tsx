@@ -7,8 +7,9 @@ const TF_LABELS: Record<string, string> = {
   '5m': '5分足', '15m': '15分足', '1h': '1時間足', '4h': '4時間足', '1d': '日足',
 };
 
-function fmt(n: number, d = 2): string {
-  return n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+function fmt(n: number, d?: number): string {
+  const decimals = d ?? (n >= 1000 ? 0 : n >= 1 ? 2 : 4);
+  return n.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 }
 
 export default function MarketSummary({ data }: { data: AnalysisResult['marketSummary'] }) {

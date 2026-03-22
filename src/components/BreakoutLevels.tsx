@@ -4,7 +4,8 @@ import { BreakoutLevel } from '@/lib/types';
 import HelpTip from './HelpTip';
 
 function fmt(n: number): string {
-  return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const decimals = n >= 1000 ? 0 : n >= 1 ? 2 : 4;
+  return n.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 }
 
 export default function BreakoutLevels({ levels }: { levels: BreakoutLevel[] }) {
