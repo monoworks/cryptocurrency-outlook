@@ -11,6 +11,26 @@ export interface OHLCV {
 
 export type Timeframe = '5m' | '15m' | '1h' | '4h' | '1d';
 
+export type TradingStyle = 'scalping' | 'day_trade' | 'swing';
+
+export interface TradingStyleConfig {
+  style: TradingStyle;
+  label: string;
+  /** このスタイルで使用するタイムフレーム（低い順） */
+  timeframes: Timeframe[];
+  /** 各タイムフレームの重み付け */
+  weights: Record<Timeframe, number>;
+  /** 各タイムフレームの役割 */
+  roles: {
+    environment: Timeframe;   // 環境認識（最上位）
+    setup: Timeframe;         // セットアップゾーン
+    trigger: Timeframe;       // エントリートリガー
+    execution: Timeframe;     // 執行タイミング
+  };
+  /** 最大保有時間（ミリ秒） */
+  maxHoldingMs: number;
+}
+
 export interface TickerData {
   symbol: string;
   lastPrice: number;
@@ -84,6 +104,7 @@ export interface SignalConfidence {
   score: number; // 0-100
   label: string;
   factors: { name: string; contribution: number; positive: boolean }[];
+  missingData?: string[];
 }
 
 // ===== Top Trader Ratio =====
@@ -288,6 +309,20 @@ export interface FundingTrend {
   isOverheated: boolean;
 }
 
+export interface OiResidualAnalysis {
+  /** 直近の大きな価格変動（%） */
+  recentPriceMove: number;
+  /** その間の OI 変化率（%） */
+  oiChangeRate: number;
+  /** OI 残存率: |oiChangeRate / recentPriceMove| */
+  residualRatio: number;
+  /** 判定 */
+  status: 'positions_cleared' | 'positions_remaining' | 'positions_building' | 'neutral';
+  /** ボラティリティ予測への影響 */
+  volatilityBias: 'high' | 'normal' | 'low';
+  description: string;
+}
+
 export interface DerivativesAnalysis {
   oiPriceSignal: OIPriceSignal;
   oiPriceDescription: string;
@@ -298,6 +333,7 @@ export interface DerivativesAnalysis {
   oiChange?: OIChange;
   fundingTrend?: FundingTrend;
   markOracleDivergence?: number;
+  oiResidual?: OiResidualAnalysis;
 }
 
 // ===== Trading Signal =====
@@ -350,6 +386,8 @@ export interface HierarchicalAnalysis {
   h1Strategy: string;
   entryTimeframe: string;
   description: string;
+  /** 環境認識足のラベル（トレードスタイルにより変動） */
+  environmentLabel?: string;
 }
 
 // ===== Per-Timeframe Analysis =====
@@ -376,6 +414,8 @@ export interface TimeframeAnalysis {
 // ===== Full Analysis Result =====
 
 export interface AnalysisResult {
+  // Trading style used for this analysis
+  tradingStyle?: TradingStyle;
   // ① Market Data Summary
   marketSummary: {
     symbol: string;

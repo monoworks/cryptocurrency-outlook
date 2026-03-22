@@ -177,6 +177,18 @@ export default function Conclusion({ conclusion, reason, newsAdjustedConclusion,
               </span>
             ))}
           </div>
+          {confidence.missingData && confidence.missingData.length > 0 && (
+            <div className="mt-2 border-t border-gray-700 pt-2">
+              <h5 className="text-xs text-gray-500 font-semibold mb-1">分析の限界（不足データ）</h5>
+              <div className="flex flex-wrap gap-1">
+                {confidence.missingData.map((item, i) => (
+                  <span key={i} className="text-xs px-2 py-0.5 rounded bg-gray-700/50 text-gray-400">
+                    {item}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -323,6 +335,30 @@ export default function Conclusion({ conclusion, reason, newsAdjustedConclusion,
         </div>
       )}
 
+      {/* OI Residual / Volatility Prediction */}
+      {derivatives.oiResidual && derivatives.oiResidual.status !== 'neutral' && (
+        <div className={`mt-3 border rounded-lg p-3 ${
+          derivatives.oiResidual.volatilityBias === 'high' ? 'border-orange-500/30 bg-orange-900/10'
+            : derivatives.oiResidual.volatilityBias === 'low' ? 'border-blue-500/30 bg-blue-900/10'
+            : 'border-gray-600'
+        }`}>
+          <h4 className={`font-semibold text-sm mb-1 ${
+            derivatives.oiResidual.volatilityBias === 'high' ? 'text-orange-400'
+              : derivatives.oiResidual.volatilityBias === 'low' ? 'text-blue-400'
+              : 'text-gray-400'
+          }`}>
+            {derivatives.oiResidual.volatilityBias === 'high' ? '⚡' : '💤'} ボラティリティ予測（OI残存率）
+            <HelpTip text="価格変動に対してOIがどれだけ残っているかを分析。OIが残っているほど再度の急変動リスクが高い" />
+          </h4>
+          <div className="text-xs text-gray-300">{derivatives.oiResidual.description}</div>
+          <div className="flex gap-3 mt-1 text-xs text-gray-500">
+            <span>価格変動: {derivatives.oiResidual.recentPriceMove.toFixed(1)}%</span>
+            <span>OI変化: {derivatives.oiResidual.oiChangeRate.toFixed(1)}%</span>
+            <span>残存率: {derivatives.oiResidual.residualRatio.toFixed(2)}</span>
+          </div>
+        </div>
+      )}
+
       {/* Liquidation Levels */}
       {liquidation && liquidation.levels.length > 0 && (
         <div className="mt-3 border border-amber-500/30 rounded-lg p-3 bg-amber-900/10">
@@ -343,9 +379,9 @@ export default function Conclusion({ conclusion, reason, newsAdjustedConclusion,
       {/* Hierarchical analysis */}
       {hierarchical && (
         <div className="mt-3 border border-blue-500/30 rounded-lg p-3 bg-blue-900/10">
-          <h4 className="text-blue-400 font-semibold text-sm mb-2">階層的分析 (日足→4h→1h→15m)<HelpTip text="上位足から順に方向性を確認し、下位足で具体的なエントリー位置を決める分析手法です" /></h4>
+          <h4 className="text-blue-400 font-semibold text-sm mb-2">階層的分析<HelpTip text="上位足から順に方向性を確認し、下位足で具体的なエントリー位置を決める分析手法です" /></h4>
           <div className="text-sm text-gray-300 space-y-1">
-            <div>日足バイアス: <span className={
+            <div>{hierarchical.environmentLabel ?? '日足'}バイアス: <span className={
               hierarchical.dailyBias.includes('bullish') ? 'text-green-400' :
               hierarchical.dailyBias.includes('bearish') ? 'text-red-400' : 'text-gray-400'
             }>
@@ -354,8 +390,8 @@ export default function Conclusion({ conclusion, reason, newsAdjustedConclusion,
                hierarchical.dailyBias === 'strongly_bearish' ? '強い弱気' :
                hierarchical.dailyBias === 'bearish' ? '弱気' : '中立'}
             </span></div>
-            <div>4h波動: <span className="text-gray-200">{hierarchical.h4WavePosition}</span></div>
-            <div>1h戦略: <span className="text-yellow-300">{hierarchical.h1Strategy}</span></div>
+            <div>セットアップ: <span className="text-gray-200">{hierarchical.h4WavePosition}</span></div>
+            <div>トリガー戦略: <span className="text-yellow-300">{hierarchical.h1Strategy}</span></div>
             <div>エントリー: <span className="text-gray-200">{hierarchical.entryTimeframe}</span></div>
           </div>
         </div>

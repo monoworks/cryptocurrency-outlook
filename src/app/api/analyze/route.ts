@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getKlinesWithTakerVolume, getTicker, getOpenInterest, getFundingRate, getPremiumIndex, getOIHistory, getFundingHistory, getTopTraderRatio, getAggTrades, getOrderBookDepth } from '@/lib/hyperliquid';
 import { analyzeWhaleActivity } from '@/lib/whale-detection';
 import { generateSignal } from '@/lib/signal';
-import { Timeframe } from '@/lib/types';
+import { Timeframe, TradingStyle } from '@/lib/types';
+import { TRADING_STYLE_CONFIGS } from '@/lib/trading-style';
 import { fetchFearGreedIndex } from '@/lib/sentiment';
 import { fetchEconomicCalendar } from '@/lib/economic-calendar';
 import { fetchNews } from '@/lib/news';
@@ -12,21 +13,35 @@ import { getNewsCache, getFearGreedCache, getEconomicCalendarCache, isFresh } fr
 export const preferredRegion = 'hnd1';
 
 const VALID_TIMEFRAMES: Timeframe[] = ['5m', '15m', '1h', '4h', '1d'];
+const VALID_STYLES: TradingStyle[] = ['scalping', 'day_trade', 'swing'];
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
   const symbol = searchParams.get('symbol');
   const timeframesParam = searchParams.get('timeframes');
+  const tradingStyleParam = searchParams.get('tradingStyle') as TradingStyle | null;
   const notify = searchParams.get('notify') !== 'false';
 
   if (!symbol) {
     return NextResponse.json({ error: 'symbol パラメータが必要です' }, { status: 400 });
   }
-  if (!timeframesParam) {
+
+  // Resolve trading style
+  const tradingStyle: TradingStyle = (tradingStyleParam && VALID_STYLES.includes(tradingStyleParam))
+    ? tradingStyleParam
+    : 'swing';
+  const styleConfig = TRADING_STYLE_CONFIGS[tradingStyle];
+
+  // If tradingStyle is specified, use its timeframes; otherwise use explicit timeframes param
+  let timeframes: Timeframe[];
+  if (tradingStyleParam && VALID_STYLES.includes(tradingStyleParam)) {
+    timeframes = styleConfig.timeframes;
+  } else if (timeframesParam) {
+    timeframes = timeframesParam.split(',') as Timeframe[];
+  } else {
     return NextResponse.json({ error: 'timeframes パラメータが必要です (例: 1h,4h,1d)' }, { status: 400 });
   }
 
-  const timeframes = timeframesParam.split(',') as Timeframe[];
   const invalid = timeframes.filter((tf) => !VALID_TIMEFRAMES.includes(tf));
   if (invalid.length > 0) {
     return NextResponse.json(
@@ -92,6 +107,7 @@ export async function GET(req: NextRequest) {
       economicEvents: economicEvents ?? undefined,
       newsArticles,
       whaleActivity,
+      tradingStyle,
     });
 
     // Send Telegram notification for actionable signals (skip when notify=false)

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { AnalysisResult, EconomicCalendarAnalysis, NewsArticle, Timeframe } from '@/lib/types';
+import { AnalysisResult, EconomicCalendarAnalysis, NewsArticle, Timeframe, TradingStyle } from '@/lib/types';
 import { buildAnalysisPrompt } from '@/lib/prompt-builder';
 import { useSavedPositions } from '@/hooks/useSavedPositions';
 import { useLivePrice } from '@/hooks/useLivePrice';
@@ -126,7 +126,7 @@ export default function Home() {
   //   localStorage.removeItem(AI_SETTINGS_KEY);
   // }, []);
 
-  const handleAnalyze = async (symbol: string, timeframes: Timeframe[]) => {
+  const handleAnalyze = async (symbol: string, timeframes: Timeframe[], tradingStyle?: TradingStyle) => {
     setLoading(true);
     setError(null);
     setResult(null);
@@ -134,7 +134,8 @@ export default function Home() {
 
     try {
       const tfParam = timeframes.join(',');
-      const res = await fetch(`/api/analyze?symbol=${encodeURIComponent(symbol)}&timeframes=${encodeURIComponent(tfParam)}&notify=false&full=true`);
+      const styleParam = tradingStyle ? `&tradingStyle=${tradingStyle}` : '';
+      const res = await fetch(`/api/analyze?symbol=${encodeURIComponent(symbol)}&timeframes=${encodeURIComponent(tfParam)}${styleParam}&notify=false&full=true`);
       const data = await res.json();
 
       if (!res.ok) {

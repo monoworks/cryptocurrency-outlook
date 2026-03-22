@@ -23,6 +23,8 @@ import {
   NewsArticle,
   NewsAnalysis,
   WhaleActivity,
+  TradingStyle,
+  TradingStyleConfig,
 } from './types';
 import { calcIndicators } from './indicators';
 import { detectPatterns, detectFalseBreakouts, detectWickRejections, detectVolumeSpikes } from './patterns';
@@ -38,24 +40,10 @@ import { analyzeSentiment } from './sentiment';
 import { analyzeEconomicCalendar } from './economic-calendar';
 import { analyzeNews } from './news';
 import { analyzeCrowdPsychology, CrowdPsychologySignal } from './crowd-psychology';
+import { TRADING_STYLE_CONFIGS } from './trading-style';
 
-// Weight for each timeframe (higher = more influence on combined result)
-const TIMEFRAME_WEIGHT: Record<Timeframe, number> = {
-  '5m': 1,
-  '15m': 1.5,
-  '1h': 2,
-  '4h': 3,
-  '1d': 4,
-};
-
-// Suggested max holding time per timeframe (in milliseconds)
-const TIMEFRAME_MAX_HOLDING_MS: Record<Timeframe, number> = {
-  '5m':  2 * 60 * 60 * 1000,        // 2 hours
-  '15m': 4 * 60 * 60 * 1000,        // 4 hours
-  '1h':  8 * 60 * 60 * 1000,        // 8 hours
-  '4h':  24 * 60 * 60 * 1000,        // 1 day
-  '1d':  5 * 24 * 60 * 60 * 1000,   // 5 days
-};
+// Default weights (swing style) — used as fallback when no style config is passed
+const DEFAULT_WEIGHTS: Record<Timeframe, number> = TRADING_STYLE_CONFIGS.swing.weights;
 
 function findNearestSupport(levels: PriceLevel[], currentPrice: number): number {
   const supports = levels
@@ -275,7 +263,7 @@ function analyzeTimeframe(
   };
 }
 
-function combineTrends(details: TimeframeAnalysis[]): TrendAnalysis {
+function combineTrends(details: TimeframeAnalysis[], weights: Record<Timeframe, number> = DEFAULT_WEIGHTS): TrendAnalysis {
   let uptrendWeight = 0;
   let downtrendWeight = 0;
   let totalWeight = 0;
@@ -283,7 +271,8 @@ function combineTrends(details: TimeframeAnalysis[]): TrendAnalysis {
   let adxWeightSum = 0;
 
   for (const d of details) {
-    const w = TIMEFRAME_WEIGHT[d.timeframe];
+    const w = weights[d.timeframe] || 0;
+    if (w === 0) continue;
     totalWeight += w;
     if (d.trend.direction === 'uptrend') uptrendWeight += w;
     if (d.trend.direction === 'downtrend') downtrendWeight += w;
@@ -322,11 +311,11 @@ function combineTrends(details: TimeframeAnalysis[]): TrendAnalysis {
   };
 }
 
-function mergeLevels(details: TimeframeAnalysis[], currentPrice: number): PriceLevel[] {
+function mergeLevels(details: TimeframeAnalysis[], currentPrice: number, weights: Record<Timeframe, number> = DEFAULT_WEIGHTS): PriceLevel[] {
   const allLevels: PriceLevel[] = [];
 
   for (const d of details) {
-    const tfWeight = TIMEFRAME_WEIGHT[d.timeframe];
+    const tfWeight = weights[d.timeframe] || 1;
     for (const level of d.levels) {
       allLevels.push({
         ...level,
@@ -381,58 +370,85 @@ function mergeLevels(details: TimeframeAnalysis[], currentPrice: number): PriceL
     }
   }
 
+  // === 心理的節目ボーナス ===
+  // 千ドル単位の丸い数字に近いレベルの強度をブースト
+  const psychLevels = [1000, 5000, 10000]; // $1K, $5K, $10K 単位
+  for (const level of clustered) {
+    for (const unit of psychLevels) {
+      const distToRound = Math.abs(level.price % unit);
+      const proximity = Math.min(distToRound, unit - distToRound);
+      // 丸い数字から 0.3% 以内なら強度ボーナス
+      if (proximity < level.price * 0.003) {
+        const bonus = unit >= 10000 ? 2 : unit >= 5000 ? 1.5 : 1;
+        level.strength = Math.min(5, level.strength + bonus);
+        break; // 最大の単位でマッチしたらそれ以上チェックしない
+      }
+    }
+  }
+
   return clustered.sort((a, b) => b.strength - a.strength).slice(0, 15);
 }
 
 /**
- * Hierarchical analysis: Daily → 4H → 1H → 15m
+ * Hierarchical analysis: Environment → Setup → Trigger → Execution
  * Determines market bias from top-down perspective.
+ * Uses role-based timeframe mapping from TradingStyleConfig.
  */
-function buildHierarchicalAnalysis(details: TimeframeAnalysis[]): HierarchicalAnalysis | undefined {
+function buildHierarchicalAnalysis(
+  details: TimeframeAnalysis[],
+  roles?: TradingStyleConfig['roles'],
+): HierarchicalAnalysis | undefined {
   const byTf = new Map(details.map((d) => [d.timeframe, d]));
-  const daily = byTf.get('1d');
-  const h4 = byTf.get('4h');
-  const h1 = byTf.get('1h');
-  const m15 = byTf.get('15m');
 
-  if (!daily) return undefined;
+  // Use role-based mapping if provided, otherwise fall back to swing defaults
+  const envTfKey = roles?.environment ?? '1d';
+  const setupTfKey = roles?.setup ?? '4h';
+  const triggerTfKey = roles?.trigger ?? '1h';
+  const execTfKey = roles?.execution ?? '15m';
 
-  // Step 1: Daily bias
+  const envTf = byTf.get(envTfKey);
+  const setupTf = byTf.get(setupTfKey);
+  const triggerTf = byTf.get(triggerTfKey);
+  const execTf = byTf.get(execTfKey);
+
+  if (!envTf) return undefined; // 環境認識足がなければ階層分析不可
+
+  // Step 1: Environment timeframe bias
   let dailyBias: MarketBias = 'neutral';
-  const dTrend = daily.trend;
-  if (dTrend.direction === 'uptrend' && dTrend.strength === 'strong') dailyBias = 'strongly_bullish';
-  else if (dTrend.direction === 'uptrend') dailyBias = 'bullish';
-  else if (dTrend.direction === 'downtrend' && dTrend.strength === 'strong') dailyBias = 'strongly_bearish';
-  else if (dTrend.direction === 'downtrend') dailyBias = 'bearish';
+  const eTrend = envTf.trend;
+  if (eTrend.direction === 'uptrend' && eTrend.strength === 'strong') dailyBias = 'strongly_bullish';
+  else if (eTrend.direction === 'uptrend') dailyBias = 'bullish';
+  else if (eTrend.direction === 'downtrend' && eTrend.strength === 'strong') dailyBias = 'strongly_bearish';
+  else if (eTrend.direction === 'downtrend') dailyBias = 'bearish';
 
-  // Step 2: 4H wave position
+  // Step 2: Setup timeframe wave position
   let h4WavePosition = '不明';
-  if (h4) {
-    const h4Trend = h4.trend;
-    if (h4Trend.higherHighs && h4Trend.higherLows) {
+  if (setupTf) {
+    const sTrend = setupTf.trend;
+    if (sTrend.higherHighs && sTrend.higherLows) {
       h4WavePosition = '高値安値切り上げ中（上昇波継続）';
-    } else if (!h4Trend.higherHighs && !h4Trend.higherLows) {
+    } else if (!sTrend.higherHighs && !sTrend.higherLows) {
       h4WavePosition = '高値安値切り下げ中（下落波継続）';
-    } else if (h4.pullback) {
-      h4WavePosition = `${h4.pullback.description}`;
+    } else if (setupTf.pullback) {
+      h4WavePosition = `${setupTf.pullback.description}`;
     } else {
-      h4WavePosition = h4Trend.direction === 'range' ? 'レンジ内推移' : '方向転換の可能性';
+      h4WavePosition = sTrend.direction === 'range' ? 'レンジ内推移' : '方向転換の可能性';
     }
   }
 
-  // Step 3: 1H strategy
+  // Step 3: Trigger timeframe strategy
   let h1Strategy = '様子見';
-  if (h1) {
+  if (triggerTf) {
     const bullish = dailyBias === 'bullish' || dailyBias === 'strongly_bullish';
     const bearish = dailyBias === 'bearish' || dailyBias === 'strongly_bearish';
 
-    if (bullish && h1.pullback && h1.pullback.depth !== 'deep') {
+    if (bullish && triggerTf.pullback && triggerTf.pullback.depth !== 'deep') {
       h1Strategy = '押し目買い待ち';
-    } else if (bullish && h1.trend.direction === 'uptrend') {
+    } else if (bullish && triggerTf.trend.direction === 'uptrend') {
       h1Strategy = '上昇トレンド継続 — ブレイクアウト or 押し目買い';
-    } else if (bearish && h1.pullback && h1.pullback.depth !== 'deep') {
+    } else if (bearish && triggerTf.pullback && triggerTf.pullback.depth !== 'deep') {
       h1Strategy = '戻り売り待ち';
-    } else if (bearish && h1.trend.direction === 'downtrend') {
+    } else if (bearish && triggerTf.trend.direction === 'downtrend') {
       h1Strategy = '下落トレンド継続 — 戻り売り';
     } else if (dailyBias === 'neutral') {
       h1Strategy = 'レンジ戦略 — 上限売り/下限買い';
@@ -441,10 +457,10 @@ function buildHierarchicalAnalysis(details: TimeframeAnalysis[]): HierarchicalAn
     }
   }
 
-  // Step 4: Entry timeframe summary
-  let entryTimeframe = '15分足で指値位置を確定';
-  if (m15 && m15.pullback?.retestDetected) {
-    entryTimeframe = `15分足リテスト確認済み — $${m15.pullback.retestLevel?.toLocaleString()} 付近`;
+  // Step 4: Execution timeframe entry summary
+  let entryTimeframe = `${execTfKey}足で指値位置を確定`;
+  if (execTf && execTf.pullback?.retestDetected) {
+    entryTimeframe = `${execTfKey}足リテスト確認済み — $${execTf.pullback.retestLevel?.toLocaleString()} 付近`;
   }
 
   // Build description
@@ -457,13 +473,13 @@ function buildHierarchicalAnalysis(details: TimeframeAnalysis[]): HierarchicalAn
   };
 
   const description = [
-    `日足: ${biasLabels[dailyBias]}`,
-    `4h: ${h4WavePosition}`,
-    `1h戦略: ${h1Strategy}`,
+    `${envTfKey}: ${biasLabels[dailyBias]}`,
+    `${setupTfKey}: ${h4WavePosition}`,
+    `${triggerTfKey}戦略: ${h1Strategy}`,
     entryTimeframe,
   ].join(' → ');
 
-  return { dailyBias, h4WavePosition, h1Strategy, entryTimeframe, description };
+  return { dailyBias, h4WavePosition, h1Strategy, entryTimeframe, description, environmentLabel: envTfKey };
 }
 
 function determineConclusion(
@@ -480,6 +496,7 @@ function determineConclusion(
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _newsAnalysis?: NewsAnalysis,
   crowdPsychology?: CrowdPsychologySignal,
+  weights: Record<Timeframe, number> = DEFAULT_WEIGHTS,
 ): { conclusion: SignalConclusion; reason: string } {
   let bullishScore = 0;
   let bearishScore = 0;
@@ -487,7 +504,8 @@ function determineConclusion(
 
   // Per-timeframe weighted scoring
   for (const d of details) {
-    const w = TIMEFRAME_WEIGHT[d.timeframe];
+    const w = weights[d.timeframe] || 0;
+    if (w === 0) continue;
     totalWeight += w;
 
     // Trend per TF
@@ -679,23 +697,24 @@ function determineConclusion(
   // === 階層フィルター: 上位足バイアスに逆行するエントリーを抑止 ===
   if (hierarchical) {
     const { dailyBias } = hierarchical;
+    const envLabel = hierarchical.environmentLabel ?? '日足';
 
-    // 日足が強い弱気なのにロングシグナル → wait に降格
+    // 環境認識足が弱気なのにロングシグナル → wait に降格
     if (
       (dailyBias === 'strongly_bearish' || dailyBias === 'bearish') &&
       conclusion === 'enter_long'
     ) {
       conclusion = 'wait';
-      reason += ' [階層フィルター] 日足バイアスが弱気のためロング見送り。押し目の深さを再評価してからエントリーを検討。';
+      reason += ` [階層フィルター] ${envLabel}バイアスが弱気のためロング見送り。押し目の深さを再評価してからエントリーを検討。`;
     }
 
-    // 日足が強い強気なのにショートシグナル → wait に降格
+    // 環境認識足が強気なのにショートシグナル → wait に降格
     if (
       (dailyBias === 'strongly_bullish' || dailyBias === 'bullish') &&
       conclusion === 'enter_short'
     ) {
       conclusion = 'wait';
-      reason += ' [階層フィルター] 日足バイアスが強気のためショート見送り。戻り高値を再評価してからエントリーを検討。';
+      reason += ` [階層フィルター] ${envLabel}バイアスが強気のためショート見送り。戻り高値を再評価してからエントリーを検討。`;
     }
   }
 
@@ -837,6 +856,9 @@ function calcConfidence(
   economicConfidenceImpact?: number,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _newsAnalysis?: NewsAnalysis,
+  orderFlowData?: { imbalance: number },
+  whaleActivity?: WhaleActivity,
+  expectedTimeframes?: Timeframe[],
 ): SignalConfidence {
   const factors: SignalConfidence['factors'] = [];
   let score = 50; // base
@@ -957,20 +979,48 @@ function calcConfidence(
   else if (score >= 20) label = '低い';
   else label = '非常に低い';
 
-  return { score, label, factors };
+  // === 不足データの明示 ===
+  const missingData: string[] = [];
+
+  // チェック: 全タイムフレームが揃っているか
+  if (expectedTimeframes && expectedTimeframes.length > 0) {
+    const actualTfs = details.map(d => d.timeframe);
+    const missingTfs = expectedTimeframes.filter(tf => !actualTfs.includes(tf));
+    if (missingTfs.length > 0) {
+      missingData.push(`${missingTfs.join('/')}足のデータ未取得`);
+    }
+  }
+
+  // チェック: デリバティブ履歴
+  if (!derivatives.oiChange) {
+    missingData.push('OI履歴データなし（変化方向の判定が不完全）');
+  }
+
+  // チェック: オーダーフロー（Taker買い出来高）
+  if (!orderFlowData || orderFlowData.imbalance === 0) {
+    missingData.push('Taker売買比率データなし');
+  }
+
+  // チェック: ホエール検出
+  if (!whaleActivity || whaleActivity.largeTradeCount === 0) {
+    missingData.push('大口取引データなし');
+  }
+
+  return { score, label, factors, missingData: missingData.length > 0 ? missingData : undefined };
 }
 
 /**
  * Aggregate divergences from all timeframes with weighting.
  */
-function aggregateDivergences(details: TimeframeAnalysis[]): DivergenceAggregation {
+function aggregateDivergences(details: TimeframeAnalysis[], weights: Record<Timeframe, number> = DEFAULT_WEIGHTS): DivergenceAggregation {
   let bullishCount = 0;
   let bearishCount = 0;
   let weightedBullish = 0;
   let weightedBearish = 0;
 
   for (const d of details) {
-    const w = TIMEFRAME_WEIGHT[d.timeframe];
+    const w = weights[d.timeframe] || 0;
+    if (w === 0) continue;
     if (!d.divergences) continue;
     for (const div of d.divergences) {
       if (div.type === 'bullish' || div.type === 'hidden_bullish') {
@@ -1016,15 +1066,20 @@ export interface MultiTimeframeInput {
   economicEvents?: EconomicEvent[];
   newsArticles?: NewsArticle[] | null;
   whaleActivity?: WhaleActivity;
+  tradingStyle?: TradingStyle;
 }
 
 export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
   const { ticker, candlesByTimeframe } = input;
   const currentPrice = ticker.lastPrice;
 
+  // Resolve trading style config
+  const styleConfig = TRADING_STYLE_CONFIGS[input.tradingStyle ?? 'swing'];
+  const weights = styleConfig.weights;
+
   // Sort timeframes by weight (lowest first, so primary = last = highest)
   const sortedTf = [...candlesByTimeframe].sort(
-    (a, b) => TIMEFRAME_WEIGHT[a.timeframe] - TIMEFRAME_WEIGHT[b.timeframe]
+    (a, b) => (weights[a.timeframe] || 0) - (weights[b.timeframe] || 0)
   );
 
   // Analyze each timeframe
@@ -1033,10 +1088,10 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
   );
 
   // Combine trend across timeframes
-  const trend = combineTrends(details);
+  const trend = combineTrends(details, weights);
 
   // Merge S/R levels from all timeframes
-  const levels = mergeLevels(details, currentPrice);
+  const levels = mergeLevels(details, currentPrice, weights);
 
   // Derivatives (same across all timeframes)
   const derivativesData: MarketData = {
@@ -1050,8 +1105,8 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
   };
   const derivatives = analyzeDerivatives(derivativesData, input.derivativesHistory);
 
-  // Hierarchical analysis (daily → 4h → 1h → 15m)
-  const hierarchical = buildHierarchicalAnalysis(details);
+  // Hierarchical analysis using role-based timeframes
+  const hierarchical = buildHierarchicalAnalysis(details, styleConfig.roles);
 
   // Crowd psychology analysis
   const crowdPsychology = analyzeCrowdPsychology(
@@ -1067,8 +1122,9 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
     let atrWeightSum = 0;
     for (const d of details) {
       if (d.indicators.atr != null) {
+        const tfWeight = weights[d.timeframe] || 1;
         // Invert weight: shorter TFs get more influence on SL (they define tighter levels)
-        const w = 1 / TIMEFRAME_WEIGHT[d.timeframe];
+        const w = 1 / tfWeight;
         atrSum += d.indicators.atr * w;
         atrWeightSum += w;
       }
@@ -1085,13 +1141,32 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
   const longSetup = buildTradeSetup('long', currentPrice, longEntry, longTarget, blendedAtr, levels);
   const shortSetup = buildTradeSetup('short', currentPrice, shortEntry, shortTarget, blendedAtr, levels);
 
-  // Use the median timeframe's holding time (avoids upper timeframes dominating)
+  // Use the trading style's max holding time
   {
-    const tfList = sortedTf.map((tf) => tf.timeframe);
-    const medianTf = tfList[Math.floor(tfList.length / 2)];
-    const suggestedMs = TIMEFRAME_MAX_HOLDING_MS[medianTf];
-    longSetup.suggestedMaxHoldingMs = suggestedMs;
-    shortSetup.suggestedMaxHoldingMs = suggestedMs;
+    longSetup.suggestedMaxHoldingMs = styleConfig.maxHoldingMs;
+    shortSetup.suggestedMaxHoldingMs = styleConfig.maxHoldingMs;
+  }
+
+  // OI残存率によるSL調整: ボラティリティ予測が高い場合はSLを広げる
+  if (derivatives.oiResidual?.volatilityBias === 'high' && blendedAtr) {
+    const slMultiplier = 1.2; // SLをATRの1.2倍に拡大
+    const longSlDistance = longSetup.entry - longSetup.stopLoss;
+    const minSlDistance = blendedAtr * 0.5 * slMultiplier;
+    if (longSlDistance < minSlDistance) {
+      longSetup.stopLoss = Math.round((longSetup.entry - minSlDistance) * 100) / 100;
+      longSetup.riskPercent = Math.round(((longSetup.entry - longSetup.stopLoss) / longSetup.entry) * 10000) / 100;
+      const risk = longSetup.entry - longSetup.stopLoss;
+      const reward = longSetup.target - longSetup.entry;
+      longSetup.riskRewardRatio = risk > 0 ? Math.round((reward / risk) * 100) / 100 : 0;
+    }
+    const shortSlDistance = shortSetup.stopLoss - shortSetup.entry;
+    if (shortSlDistance < minSlDistance) {
+      shortSetup.stopLoss = Math.round((shortSetup.entry + minSlDistance) * 100) / 100;
+      shortSetup.riskPercent = Math.round(((shortSetup.stopLoss - shortSetup.entry) / shortSetup.entry) * 10000) / 100;
+      const risk = shortSetup.stopLoss - shortSetup.entry;
+      const reward = shortSetup.entry - shortSetup.target;
+      shortSetup.riskRewardRatio = risk > 0 ? Math.round((reward / risk) * 100) / 100 : 0;
+    }
   }
 
   // Breakout levels (enhanced with volume breakout info)
@@ -1147,6 +1222,7 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
     economicCalendar.description,
     newsAnalysisResult,
     crowdPsychology,
+    weights,
   );
 
   // News-adjusted conclusion (experimental)
@@ -1166,7 +1242,7 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
   const prevDayLow = dailyAnalysis?.prevDayLow;
 
   // Confidence scoring
-  const confidence = calcConfidence(trend, details, derivatives, longSetup, shortSetup, hierarchical, input.topTraderRatio, economicCalendar.confidenceImpact, newsAnalysisResult);
+  const confidence = calcConfidence(trend, details, derivatives, longSetup, shortSetup, hierarchical, input.topTraderRatio, economicCalendar.confidenceImpact, newsAnalysisResult, { imbalance: orderFlowEarly.imbalance }, input.whaleActivity, styleConfig.timeframes);
 
   // Use primary (highest weight) timeframe for top-level indicators/patterns
   const primary = details[details.length - 1];
@@ -1198,12 +1274,13 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
   const orderFlow = orderFlowEarly;
 
   // Divergence aggregation across all timeframes
-  const divergenceAggregation = aggregateDivergences(details);
+  const divergenceAggregation = aggregateDivergences(details, weights);
 
   // Reuse sentiment computed earlier
   const sentiment = sentimentEarly;
 
   return {
+    tradingStyle: input.tradingStyle ?? 'swing',
     marketSummary: {
       symbol: input.symbol,
       timeframes: sortedTf.map((t) => t.timeframe),
