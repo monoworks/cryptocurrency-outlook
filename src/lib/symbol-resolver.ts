@@ -2,9 +2,6 @@ import { AssetCategory, SymbolInfo } from './types';
 
 const INFO_URL = 'https://api.hyperliquid.xyz/info';
 
-// ── Builder DEX configuration ────────────────────────────────────────
-const BUILDER_DEXES = ['xyz'] as const;
-
 // ── Category classification patterns ─────────────────────────────────
 const COMMODITY_NAMES = new Set([
   'GOLD', 'SILVER', 'CL', 'BRENTOIL', 'COPPER', 'NG', 'PLATINUM',
@@ -58,11 +55,18 @@ interface MetaAndCtxsRaw {
   ctxs: AssetCtxRaw[];
 }
 
+interface PerpDexInfo {
+  name: string;
+  fullName?: string;
+}
+
 interface ResolvedUniverse {
   /** displayName (uppercase) → full API coin name */
   coinMap: Map<string, string>;
   /** category → symbol info array */
   categories: Record<AssetCategory, SymbolInfo[]>;
+  /** discovered builder dex names */
+  dexNames: string[];
   ts: number;
 }
 
@@ -73,10 +77,7 @@ const UNIVERSE_CACHE_TTL = 60_000; // 60 seconds
 
 // ── Internal helpers ─────────────────────────────────────────────────
 
-async function fetchMetaAndCtxs(dex?: string): Promise<MetaAndCtxsRaw> {
-  const body: Record<string, unknown> = { type: 'metaAndAssetCtxs' };
-  if (dex) body.dex = dex;
-
+async function postInfo<T>(body: Record<string, unknown>): Promise<T> {
   const res = await fetch(INFO_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -88,8 +89,32 @@ async function fetchMetaAndCtxs(dex?: string): Promise<MetaAndCtxsRaw> {
     throw new Error(`Hyperliquid API error ${res.status}: ${text}`);
   }
 
-  const raw = (await res.json()) as [MetaAndCtxsRaw['meta'], AssetCtxRaw[]];
+  return res.json() as Promise<T>;
+}
+
+async function fetchMetaAndCtxs(dex?: string): Promise<MetaAndCtxsRaw> {
+  const body: Record<string, unknown> = { type: 'metaAndAssetCtxs' };
+  if (dex !== undefined) body.dex = dex;
+
+  const raw = await postInfo<[MetaAndCtxsRaw['meta'], AssetCtxRaw[]]>(body);
   return { meta: raw[0], ctxs: raw[1] };
+}
+
+/**
+ * Discover available builder perp dexes via the perpDexs endpoint.
+ * Returns an array of dex names (e.g., ["xyz", "cash", "hyna"]).
+ */
+async function fetchPerpDexNames(): Promise<string[]> {
+  try {
+    // perpDexs returns an array where index 0 is null (main dex), rest are builder dexes
+    const raw = await postInfo<Array<PerpDexInfo | null>>({ type: 'perpDexs' });
+    return raw
+      .filter((d): d is PerpDexInfo => d !== null && typeof d?.name === 'string')
+      .map((d) => d.name);
+  } catch (err) {
+    console.error('[symbol-resolver] Failed to fetch perpDexs:', err);
+    return [];
+  }
 }
 
 export function classifyBuilderAsset(name: string): AssetCategory {
@@ -109,6 +134,7 @@ async function buildUniverse(): Promise<ResolvedUniverse> {
     fx: [],
     index: [],
   };
+  let dexNames: string[] = [];
 
   // Fetch main perps universe
   try {
@@ -126,8 +152,11 @@ async function buildUniverse(): Promise<ResolvedUniverse> {
     console.error('[symbol-resolver] Failed to fetch main universe:', err);
   }
 
+  // Discover builder dex names dynamically
+  dexNames = await fetchPerpDexNames();
+
   // Fetch builder perps universes
-  for (const dex of BUILDER_DEXES) {
+  for (const dex of dexNames) {
     try {
       const builderData = await fetchMetaAndCtxs(dex);
       for (const asset of builderData.meta.universe) {
@@ -151,7 +180,7 @@ async function buildUniverse(): Promise<ResolvedUniverse> {
     }
   }
 
-  return { coinMap, categories, ts: Date.now() };
+  return { coinMap, categories, dexNames, ts: Date.now() };
 }
 
 async function getUniverse(): Promise<ResolvedUniverse> {

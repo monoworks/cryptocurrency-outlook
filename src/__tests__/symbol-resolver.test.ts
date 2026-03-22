@@ -24,17 +24,45 @@ function mockMetaResponse(assets: { name: string }[]) {
 
 function setupMockResponses(
   mainAssets: { name: string }[],
-  builderAssets: { name: string }[] = [],
+  builderDexes: { name: string; assets: { name: string }[] }[] = [],
 ) {
   mockFetch.mockImplementation((_url: string, opts: { body: string }) => {
     const body = JSON.parse(opts.body);
-    if (body.type === 'metaAndAssetCtxs') {
-      const assets = body.dex ? builderAssets : mainAssets;
+
+    // perpDexs endpoint — return discovered dex names
+    if (body.type === 'perpDexs') {
+      const result = [null, ...builderDexes.map((d) => ({ name: d.name, fullName: `${d.name} dex` }))];
       return Promise.resolve({
         ok: true,
-        json: () => Promise.resolve(mockMetaResponse(assets)),
+        json: () => Promise.resolve(result),
       });
     }
+
+    // metaAndAssetCtxs endpoint
+    if (body.type === 'metaAndAssetCtxs') {
+      if (body.dex) {
+        // Builder dex universe
+        const dex = builderDexes.find((d) => d.name === body.dex);
+        if (dex) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve(mockMetaResponse(dex.assets)),
+          });
+        }
+        // Unknown dex
+        return Promise.resolve({
+          ok: false,
+          status: 500,
+          text: () => Promise.resolve('null'),
+        });
+      }
+      // Main universe
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(mockMetaResponse(mainAssets)),
+      });
+    }
+
     return Promise.reject(new Error('Unknown request'));
   });
 }
@@ -105,7 +133,7 @@ describe('resolveCoin', () => {
   it('resolves crypto symbols from main universe', async () => {
     setupMockResponses(
       [{ name: 'BTC' }, { name: 'ETH' }, { name: 'SOL' }],
-      [{ name: 'TSLA' }],
+      [{ name: 'xyz', assets: [{ name: 'TSLA' }] }],
     );
     expect(await resolveCoin('BTC')).toBe('BTC');
     expect(await resolveCoin('ETH')).toBe('ETH');
@@ -114,7 +142,7 @@ describe('resolveCoin', () => {
   it('resolves stock symbols from builder universe', async () => {
     setupMockResponses(
       [{ name: 'BTC' }, { name: 'ETH' }],
-      [{ name: 'TSLA' }, { name: 'NVDA' }, { name: 'GOLD' }],
+      [{ name: 'xyz', assets: [{ name: 'TSLA' }, { name: 'NVDA' }, { name: 'GOLD' }] }],
     );
     expect(await resolveCoin('TSLA')).toBe('xyz:TSLA');
     expect(await resolveCoin('NVDA')).toBe('xyz:NVDA');
@@ -124,7 +152,7 @@ describe('resolveCoin', () => {
   it('strips USDT suffix before resolving', async () => {
     setupMockResponses(
       [{ name: 'BTC' }],
-      [{ name: 'TSLA' }],
+      [{ name: 'xyz', assets: [{ name: 'TSLA' }] }],
     );
     expect(await resolveCoin('BTCUSDT')).toBe('BTC');
     expect(await resolveCoin('btcusdt')).toBe('BTC');
@@ -133,16 +161,15 @@ describe('resolveCoin', () => {
   it('returns cleaned symbol as fallback if not found', async () => {
     setupMockResponses(
       [{ name: 'BTC' }],
-      [{ name: 'TSLA' }],
+      [{ name: 'xyz', assets: [{ name: 'TSLA' }] }],
     );
     expect(await resolveCoin('UNKNOWN')).toBe('UNKNOWN');
   });
 
   it('prioritizes main universe over builder universe for name collisions', async () => {
-    // If "BTC" exists in both main and builder, main takes priority
     setupMockResponses(
       [{ name: 'BTC' }],
-      [{ name: 'BTC' }],
+      [{ name: 'xyz', assets: [{ name: 'BTC' }] }],
     );
     expect(await resolveCoin('BTC')).toBe('BTC'); // Not "xyz:BTC"
   });
@@ -150,10 +177,46 @@ describe('resolveCoin', () => {
   it('is case-insensitive for symbol input', async () => {
     setupMockResponses(
       [{ name: 'BTC' }],
-      [{ name: 'TSLA' }],
+      [{ name: 'xyz', assets: [{ name: 'TSLA' }] }],
     );
     expect(await resolveCoin('btc')).toBe('BTC');
     expect(await resolveCoin('tsla')).toBe('xyz:TSLA');
+  });
+
+  it('discovers dex names dynamically via perpDexs', async () => {
+    setupMockResponses(
+      [{ name: 'BTC' }],
+      [
+        { name: 'xyz', assets: [{ name: 'TSLA' }] },
+        { name: 'cash', assets: [{ name: 'AAPL' }] },
+      ],
+    );
+    expect(await resolveCoin('TSLA')).toBe('xyz:TSLA');
+    expect(await resolveCoin('AAPL')).toBe('cash:AAPL');
+  });
+
+  it('handles perpDexs failure gracefully', async () => {
+    // If perpDexs fails, only main universe should be available
+    mockFetch.mockImplementation((_url: string, opts: { body: string }) => {
+      const body = JSON.parse(opts.body);
+      if (body.type === 'perpDexs') {
+        return Promise.resolve({
+          ok: false,
+          status: 500,
+          text: () => Promise.resolve('error'),
+        });
+      }
+      if (body.type === 'metaAndAssetCtxs' && !body.dex) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(mockMetaResponse([{ name: 'BTC' }])),
+        });
+      }
+      return Promise.reject(new Error('Unknown'));
+    });
+
+    expect(await resolveCoin('BTC')).toBe('BTC');
+    expect(await resolveCoin('TSLA')).toBe('TSLA'); // Fallback
   });
 });
 
@@ -165,12 +228,11 @@ describe('getSymbolCategories', () => {
   it('categorizes symbols correctly', async () => {
     setupMockResponses(
       [{ name: 'BTC' }, { name: 'ETH' }],
-      [{ name: 'TSLA' }, { name: 'GOLD' }, { name: 'JPY' }, { name: 'SP500' }],
+      [{ name: 'xyz', assets: [{ name: 'TSLA' }, { name: 'GOLD' }, { name: 'JPY' }, { name: 'SP500' }] }],
     );
 
     const { categories } = await getSymbolCategories();
 
-    // Crypto
     expect(categories.crypto).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ displayName: 'BTC', apiCoin: 'BTC', category: 'crypto' }),
@@ -178,28 +240,24 @@ describe('getSymbolCategories', () => {
       ]),
     );
 
-    // Stock
     expect(categories.stock).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ displayName: 'TSLA', apiCoin: 'xyz:TSLA', category: 'stock' }),
       ]),
     );
 
-    // Commodity
     expect(categories.commodity).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ displayName: 'GOLD', apiCoin: 'xyz:GOLD', category: 'commodity' }),
       ]),
     );
 
-    // FX
     expect(categories.fx).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ displayName: 'JPY', apiCoin: 'xyz:JPY', category: 'fx' }),
       ]),
     );
 
-    // Index
     expect(categories.index).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ displayName: 'SP500', apiCoin: 'xyz:SP500', category: 'index' }),
@@ -209,8 +267,8 @@ describe('getSymbolCategories', () => {
 
   it('filters popular symbols to only existing ones', async () => {
     setupMockResponses(
-      [{ name: 'BTC' }, { name: 'ETH' }], // No SOL, XRP, DOGE
-      [{ name: 'TSLA' }],                  // No NVDA, AAPL etc.
+      [{ name: 'BTC' }, { name: 'ETH' }],
+      [{ name: 'xyz', assets: [{ name: 'TSLA' }] }],
     );
 
     const { popular } = await getSymbolCategories();
@@ -225,19 +283,43 @@ describe('getSymbolCategories', () => {
   it('uses cached data on subsequent calls', async () => {
     setupMockResponses(
       [{ name: 'BTC' }],
-      [{ name: 'TSLA' }],
+      [{ name: 'xyz', assets: [{ name: 'TSLA' }] }],
     );
 
     await getSymbolCategories();
     await getSymbolCategories();
 
-    // Should have made exactly 2 fetch calls (main + xyz), not 4
-    expect(mockFetch).toHaveBeenCalledTimes(2);
+    // Should have made exactly 3 fetch calls (main + perpDexs + xyz), not 6
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+  });
+
+  it('handles multiple builder dexes', async () => {
+    setupMockResponses(
+      [{ name: 'BTC' }],
+      [
+        { name: 'xyz', assets: [{ name: 'TSLA' }, { name: 'GOLD' }] },
+        { name: 'cash', assets: [{ name: 'AAPL' }, { name: 'SP500' }] },
+      ],
+    );
+
+    const { categories } = await getSymbolCategories();
+
+    expect(categories.stock).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ displayName: 'TSLA', apiCoin: 'xyz:TSLA' }),
+        expect.objectContaining({ displayName: 'AAPL', apiCoin: 'cash:AAPL' }),
+      ]),
+    );
+    expect(categories.index).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ displayName: 'SP500', apiCoin: 'cash:SP500' }),
+      ]),
+    );
   });
 });
 
 // ────────────────────────────────────────────────────────────────────
-// normalizeCoin behavior (tested via hyperliquid.ts indirectly)
+// normalizeCoin integration
 // ────────────────────────────────────────────────────────────────────
 
 describe('normalizeCoin integration', () => {
