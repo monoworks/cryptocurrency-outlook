@@ -160,9 +160,12 @@ async function buildUniverse(): Promise<ResolvedUniverse> {
     try {
       const builderData = await fetchMetaAndCtxs(dex);
       for (const asset of builderData.meta.universe) {
-        const displayName = asset.name.toUpperCase();
-        const apiCoin = `${dex}:${asset.name}`;
-        const category = classifyBuilderAsset(asset.name);
+        // Universe names may already include the dex prefix (e.g., "xyz:TSLA")
+        const apiCoin = asset.name.includes(':') ? asset.name : `${dex}:${asset.name}`;
+        // Display name strips the dex prefix for user-facing UI
+        const shortName = asset.name.includes(':') ? asset.name.split(':')[1] : asset.name;
+        const displayName = shortName.toUpperCase();
+        const category = classifyBuilderAsset(shortName);
 
         // Main universe takes priority for name collisions
         if (!coinMap.has(displayName)) {

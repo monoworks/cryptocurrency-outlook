@@ -22,6 +22,11 @@ function mockMetaResponse(assets: { name: string }[]) {
   return [{ universe }, ctxs];
 }
 
+/**
+ * Setup mock responses.
+ * Builder assets should use the REAL API format where names already include
+ * the dex prefix (e.g., { name: "xyz:TSLA" }), matching actual Hyperliquid behavior.
+ */
 function setupMockResponses(
   mainAssets: { name: string }[],
   builderDexes: { name: string; assets: { name: string }[] }[] = [],
@@ -41,7 +46,7 @@ function setupMockResponses(
     // metaAndAssetCtxs endpoint
     if (body.type === 'metaAndAssetCtxs') {
       if (body.dex) {
-        // Builder dex universe
+        // Builder dex universe — names already include dex prefix (matching real API)
         const dex = builderDexes.find((d) => d.name === body.dex);
         if (dex) {
           return Promise.resolve({
@@ -133,16 +138,17 @@ describe('resolveCoin', () => {
   it('resolves crypto symbols from main universe', async () => {
     setupMockResponses(
       [{ name: 'BTC' }, { name: 'ETH' }, { name: 'SOL' }],
-      [{ name: 'xyz', assets: [{ name: 'TSLA' }] }],
+      [{ name: 'xyz', assets: [{ name: 'xyz:TSLA' }] }],
     );
     expect(await resolveCoin('BTC')).toBe('BTC');
     expect(await resolveCoin('ETH')).toBe('ETH');
   });
 
-  it('resolves stock symbols from builder universe', async () => {
+  it('resolves stock symbols from builder universe (names include prefix)', async () => {
+    // Real API returns names with prefix: "xyz:TSLA", not "TSLA"
     setupMockResponses(
       [{ name: 'BTC' }, { name: 'ETH' }],
-      [{ name: 'xyz', assets: [{ name: 'TSLA' }, { name: 'NVDA' }, { name: 'GOLD' }] }],
+      [{ name: 'xyz', assets: [{ name: 'xyz:TSLA' }, { name: 'xyz:NVDA' }, { name: 'xyz:GOLD' }] }],
     );
     expect(await resolveCoin('TSLA')).toBe('xyz:TSLA');
     expect(await resolveCoin('NVDA')).toBe('xyz:NVDA');
@@ -152,7 +158,7 @@ describe('resolveCoin', () => {
   it('strips USDT suffix before resolving', async () => {
     setupMockResponses(
       [{ name: 'BTC' }],
-      [{ name: 'xyz', assets: [{ name: 'TSLA' }] }],
+      [{ name: 'xyz', assets: [{ name: 'xyz:TSLA' }] }],
     );
     expect(await resolveCoin('BTCUSDT')).toBe('BTC');
     expect(await resolveCoin('btcusdt')).toBe('BTC');
@@ -161,7 +167,7 @@ describe('resolveCoin', () => {
   it('returns cleaned symbol as fallback if not found', async () => {
     setupMockResponses(
       [{ name: 'BTC' }],
-      [{ name: 'xyz', assets: [{ name: 'TSLA' }] }],
+      [{ name: 'xyz', assets: [{ name: 'xyz:TSLA' }] }],
     );
     expect(await resolveCoin('UNKNOWN')).toBe('UNKNOWN');
   });
@@ -169,7 +175,7 @@ describe('resolveCoin', () => {
   it('prioritizes main universe over builder universe for name collisions', async () => {
     setupMockResponses(
       [{ name: 'BTC' }],
-      [{ name: 'xyz', assets: [{ name: 'BTC' }] }],
+      [{ name: 'xyz', assets: [{ name: 'xyz:BTC' }] }],
     );
     expect(await resolveCoin('BTC')).toBe('BTC'); // Not "xyz:BTC"
   });
@@ -177,7 +183,7 @@ describe('resolveCoin', () => {
   it('is case-insensitive for symbol input', async () => {
     setupMockResponses(
       [{ name: 'BTC' }],
-      [{ name: 'xyz', assets: [{ name: 'TSLA' }] }],
+      [{ name: 'xyz', assets: [{ name: 'xyz:TSLA' }] }],
     );
     expect(await resolveCoin('btc')).toBe('BTC');
     expect(await resolveCoin('tsla')).toBe('xyz:TSLA');
@@ -187,8 +193,8 @@ describe('resolveCoin', () => {
     setupMockResponses(
       [{ name: 'BTC' }],
       [
-        { name: 'xyz', assets: [{ name: 'TSLA' }] },
-        { name: 'cash', assets: [{ name: 'AAPL' }] },
+        { name: 'xyz', assets: [{ name: 'xyz:TSLA' }] },
+        { name: 'cash', assets: [{ name: 'cash:AAPL' }] },
       ],
     );
     expect(await resolveCoin('TSLA')).toBe('xyz:TSLA');
@@ -196,7 +202,6 @@ describe('resolveCoin', () => {
   });
 
   it('handles perpDexs failure gracefully', async () => {
-    // If perpDexs fails, only main universe should be available
     mockFetch.mockImplementation((_url: string, opts: { body: string }) => {
       const body = JSON.parse(opts.body);
       if (body.type === 'perpDexs') {
@@ -228,7 +233,7 @@ describe('getSymbolCategories', () => {
   it('categorizes symbols correctly', async () => {
     setupMockResponses(
       [{ name: 'BTC' }, { name: 'ETH' }],
-      [{ name: 'xyz', assets: [{ name: 'TSLA' }, { name: 'GOLD' }, { name: 'JPY' }, { name: 'SP500' }] }],
+      [{ name: 'xyz', assets: [{ name: 'xyz:TSLA' }, { name: 'xyz:GOLD' }, { name: 'xyz:JPY' }, { name: 'xyz:SP500' }] }],
     );
 
     const { categories } = await getSymbolCategories();
@@ -268,7 +273,7 @@ describe('getSymbolCategories', () => {
   it('filters popular symbols to only existing ones', async () => {
     setupMockResponses(
       [{ name: 'BTC' }, { name: 'ETH' }],
-      [{ name: 'xyz', assets: [{ name: 'TSLA' }] }],
+      [{ name: 'xyz', assets: [{ name: 'xyz:TSLA' }] }],
     );
 
     const { popular } = await getSymbolCategories();
@@ -283,7 +288,7 @@ describe('getSymbolCategories', () => {
   it('uses cached data on subsequent calls', async () => {
     setupMockResponses(
       [{ name: 'BTC' }],
-      [{ name: 'xyz', assets: [{ name: 'TSLA' }] }],
+      [{ name: 'xyz', assets: [{ name: 'xyz:TSLA' }] }],
     );
 
     await getSymbolCategories();
@@ -297,8 +302,8 @@ describe('getSymbolCategories', () => {
     setupMockResponses(
       [{ name: 'BTC' }],
       [
-        { name: 'xyz', assets: [{ name: 'TSLA' }, { name: 'GOLD' }] },
-        { name: 'cash', assets: [{ name: 'AAPL' }, { name: 'SP500' }] },
+        { name: 'xyz', assets: [{ name: 'xyz:TSLA' }, { name: 'xyz:GOLD' }] },
+        { name: 'cash', assets: [{ name: 'cash:AAPL' }, { name: 'cash:SP500' }] },
       ],
     );
 

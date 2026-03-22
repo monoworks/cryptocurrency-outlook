@@ -73,16 +73,20 @@ async function getMetaAndCtxs(dex?: string): Promise<MetaAndCtxs> {
 
 async function getAssetCtx(coin: string): Promise<{ ctx: AssetCtx; markPrice: number }> {
   let dex: string | undefined;
-  let lookupName = coin;
 
   if (coin.includes(':')) {
-    const parts = coin.split(':');
-    dex = parts[0];
-    lookupName = parts[1];
+    dex = coin.split(':')[0];
   }
 
   const { meta, ctxs } = await getMetaAndCtxs(dex);
-  const idx = meta.universe.findIndex((u) => u.name === lookupName);
+  // Universe names may include the dex prefix (e.g., "xyz:TSLA") or not.
+  // Try exact match first, then try with/without prefix.
+  let idx = meta.universe.findIndex((u) => u.name === coin);
+  if (idx === -1 && dex) {
+    // Try without prefix (e.g., search for "TSLA" when coin is "xyz:TSLA")
+    const shortName = coin.split(':')[1];
+    idx = meta.universe.findIndex((u) => u.name === shortName);
+  }
   if (idx === -1) throw new Error(`Coin ${coin} not found in Hyperliquid universe`);
   const ctx = ctxs[idx];
   return { ctx, markPrice: parseFloat(ctx.markPx) };

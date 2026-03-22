@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 
 const WS_URL = 'wss://api.hyperliquid.xyz/ws';
 const RECONNECT_DELAY = 3000;
+const POLL_INTERVAL = 5000; // 5 seconds polling for HIP-3 assets
 
 /** Normalize symbol for Hyperliquid WebSocket.
  *  If already qualified (contains ":"), pass through (e.g. "xyz:TSLA").
@@ -14,14 +15,21 @@ function toCoin(symbol: string): string {
   return symbol.replace(/USDT$/i, '');
 }
 
+/** Check if a coin is a HIP-3 builder perp (contains ":") */
+function isBuilderPerp(coin: string): boolean {
+  return coin.includes(':');
+}
+
 /**
  * Hyperliquid WebSocket で指定シンボルのリアルタイム mid price を取得するフック。
- * allMids subscription で全銘柄のmid priceを受信し、指定coinのみ返す。
+ * - 暗号通貨: allMids subscription で全銘柄のmid priceを受信
+ * - HIP-3 (株式等): allMidsに含まれないため、REST APIポーリングにフォールバック
  */
 export function useLivePrice(symbol: string | null): number | null {
   const [price, setPrice] = useState<number | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (!symbol) {
@@ -32,6 +40,43 @@ export function useLivePrice(symbol: string | null): number | null {
     let unmounted = false;
     const coin = toCoin(symbol);
 
+    // HIP-3 assets: use REST API polling (allMids WS doesn't include them)
+    if (isBuilderPerp(coin)) {
+      const pollPrice = async () => {
+        if (unmounted) return;
+        try {
+          const dex = coin.split(':')[0];
+          const infoRes = await fetch('https://api.hyperliquid.xyz/info', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'metaAndAssetCtxs', dex }),
+          });
+          if (!infoRes.ok) return;
+          const data = await infoRes.json();
+          const meta = data[0];
+          const ctxs = data[1];
+          const idx = meta?.universe?.findIndex((u: { name: string }) => u.name === coin);
+          if (idx !== undefined && idx >= 0 && ctxs[idx]) {
+            const midPx = parseFloat(ctxs[idx].midPx || ctxs[idx].markPx);
+            if (!unmounted && !isNaN(midPx)) {
+              setPrice(midPx);
+            }
+          }
+        } catch {
+          // ignore polling errors
+        }
+      };
+
+      pollPrice();
+      pollTimer.current = setInterval(pollPrice, POLL_INTERVAL);
+
+      return () => {
+        unmounted = true;
+        if (pollTimer.current) clearInterval(pollTimer.current);
+      };
+    }
+
+    // Regular crypto: use WebSocket
     function connect() {
       if (unmounted) return;
       const ws = new WebSocket(WS_URL);
@@ -87,6 +132,7 @@ export function useLivePrice(symbol: string | null): number | null {
  * 複数シンボルのリアルタイム価格を1つの allMids subscription で取得するフック。
  * PositionManager / AnalysisHistory 用。
  * キーは元のシンボル形式で返す（既存コンポーネント互換）。
+ * 注: HIP-3アセットはこのフックではサポートされません。
  */
 export function useLivePrices(symbols: string[]): Record<string, number> {
   const [prices, setPrices] = useState<Record<string, number>>({});
@@ -98,9 +144,13 @@ export function useLivePrices(symbols: string[]): Record<string, number> {
 
     let unmounted = false;
 
+    // Filter out builder perps — they don't appear in allMids
+    const cryptoSymbols = symbols.filter((s) => !toCoin(s).includes(':'));
+    if (cryptoSymbols.length === 0) return;
+
     // Build coin → original symbol mapping
     const coinToSymbol: Record<string, string> = {};
-    for (const sym of symbols) {
+    for (const sym of cryptoSymbols) {
       coinToSymbol[toCoin(sym)] = sym.toUpperCase();
     }
     const coins = Object.keys(coinToSymbol);
@@ -164,19 +214,3 @@ export function useLivePrices(symbols: string[]): Record<string, number> {
 
   return prices;
 }
-
-// ── Binance版（非表示・バックアップ） ──────────────────────────────────
-// 以下のコードはBinance Futures WebSocket版のバックアップです。
-// 復元が必要な場合は export を戻してください。
-
-/*
-const WS_BASE_BINANCE = 'wss://fstream.binance.com/ws/';
-
-function useLivePrice_Binance(symbol: string | null): number | null {
-  // ... Binance版の実装 (BinanceChart.tsx と同様の miniTicker stream)
-}
-
-function useLivePrices_Binance(symbols: string[]): Record<string, number> {
-  // ... Binance版の実装 (combined stream)
-}
-*/
