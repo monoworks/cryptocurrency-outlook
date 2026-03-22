@@ -45,6 +45,7 @@ import { TRADING_STYLE_CONFIGS } from './trading-style';
 // Default weights (swing style) — used as fallback when no style config is passed
 const DEFAULT_WEIGHTS: Record<Timeframe, number> = TRADING_STYLE_CONFIGS.swing.weights;
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function findNearestSupport(levels: PriceLevel[], currentPrice: number): number {
   const supports = levels
     .filter((l) => l.type === 'support' && l.price < currentPrice)
@@ -52,11 +53,88 @@ function findNearestSupport(levels: PriceLevel[], currentPrice: number): number 
   return supports.length > 0 ? supports[0].price : currentPrice * 0.97;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function findNearestResistance(levels: PriceLevel[], currentPrice: number): number {
   const resistances = levels
     .filter((l) => l.type === 'resistance' && l.price > currentPrice)
     .sort((a, b) => a.price - b.price); // lowest first (closest above)
   return resistances.length > 0 ? resistances[0].price : currentPrice * 1.03;
+}
+
+/**
+ * 指値エントリー用のサポートを探す。
+ * 現在値からの最低距離（minDistance）以上離れたサポートの中で、
+ * 最も strength が高いものを返す。
+ * なければ最も近いサポートにフォールバック。
+ */
+function findEntrySupport(
+  levels: PriceLevel[],
+  currentPrice: number,
+  atr: number | null,
+): number {
+  const minDistance = atr ? atr * 0.3 : currentPrice * 0.005; // 最低 0.3×ATR 離す
+  const maxDistance = atr ? atr * 2.0 : currentPrice * 0.03;  // 最大 2.0×ATR まで探索
+
+  // 十分に引きつけたサポートを strength 順で探す
+  const deepSupports = levels
+    .filter((l) =>
+      l.type === 'support' &&
+      l.price < currentPrice - minDistance &&
+      l.price > currentPrice - maxDistance
+    )
+    .sort((a, b) => b.strength - a.strength); // 最も強いものを優先
+
+  if (deepSupports.length > 0) return deepSupports[0].price;
+
+  // フォールバック: minDistance 以上離れた最も近いサポート
+  const anySupportBeyondMin = levels
+    .filter((l) => l.type === 'support' && l.price < currentPrice - minDistance)
+    .sort((a, b) => b.price - a.price); // closest beyond min
+
+  if (anySupportBeyondMin.length > 0) return anySupportBeyondMin[0].price;
+
+  // 最終フォールバック: 最も近いサポート（現状と同じ動作）
+  const nearest = levels
+    .filter((l) => l.type === 'support' && l.price < currentPrice)
+    .sort((a, b) => b.price - a.price);
+
+  return nearest.length > 0 ? nearest[0].price : currentPrice * 0.97;
+}
+
+/**
+ * 指値エントリー用のレジスタンスを探す。
+ * 現在値からの最低距離（minDistance）以上離れたレジスタンスの中で、
+ * 最も strength が高いものを返す。
+ */
+function findEntryResistance(
+  levels: PriceLevel[],
+  currentPrice: number,
+  atr: number | null,
+): number {
+  const minDistance = atr ? atr * 0.3 : currentPrice * 0.005;
+  const maxDistance = atr ? atr * 2.0 : currentPrice * 0.03;
+
+  const deepResistances = levels
+    .filter((l) =>
+      l.type === 'resistance' &&
+      l.price > currentPrice + minDistance &&
+      l.price < currentPrice + maxDistance
+    )
+    .sort((a, b) => b.strength - a.strength);
+
+  if (deepResistances.length > 0) return deepResistances[0].price;
+
+  const anyResistanceBeyondMin = levels
+    .filter((l) => l.type === 'resistance' && l.price > currentPrice + minDistance)
+    .sort((a, b) => a.price - b.price);
+
+  if (anyResistanceBeyondMin.length > 0) return anyResistanceBeyondMin[0].price;
+
+  const nearest = levels
+    .filter((l) => l.type === 'resistance' && l.price > currentPrice)
+    .sort((a, b) => a.price - b.price);
+
+  return nearest.length > 0 ? nearest[0].price : currentPrice * 1.03;
 }
 
 /**
@@ -101,8 +179,10 @@ function findStructureSL(
   levels: PriceLevel[],
 ): number {
   const buffer = entry * 0.001; // 0.1% buffer beyond the level
-  const atrMin = atr ? atr * 0.3 : entry * 0.005;
-  const atrMax = atr ? atr * 1.5 : entry * 0.03;
+  // 最低幅を ATR×0.5 に引き上げ、さらに絶対最低幅を設定
+  const absoluteMinSl = entry * 0.007; // 0.7%（BTC $69,000 なら約 $483）
+  const atrMin = atr ? Math.max(atr * 0.5, absoluteMinSl) : absoluteMinSl;
+  const atrMax = atr ? Math.max(atr * 2.0, entry * 0.03) : entry * 0.03;
 
   if (direction === 'long') {
     // Look for support levels below entry (sorted by proximity, then strength)
@@ -212,7 +292,7 @@ function analyzeTimeframe(
 ): TimeframeAnalysis {
   const indicators = calcIndicators(candles);
   const patterns = detectPatterns(candles);
-  const trend = analyzeTrend(candles, indicators);
+  const trend = analyzeTrend(candles, indicators, timeframe);
   const levels = detectSupportResistance(candles, currentPrice);
   const recent20 = candles.slice(-20);
   const recentHigh = Math.max(...recent20.map((c) => c.high));
@@ -1114,29 +1194,34 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
     input.fearGreed?.value,
   );
 
-  // Weighted-average ATR across all timeframes (lower TFs get more weight for SL sizing)
-  // This prevents daily ATR from dominating when S/R levels are from shorter timeframes
+  // blendedAtr: セットアップ足のATRを基準に、トリガー足で補正
+  // セットアップ足（エントリー判断の時間足）のボラティリティがSLの基準になるべき
   let blendedAtr: number | null = null;
   {
-    let atrSum = 0;
-    let atrWeightSum = 0;
-    for (const d of details) {
-      if (d.indicators.atr != null) {
-        const tfWeight = weights[d.timeframe] || 1;
-        // Invert weight: shorter TFs get more influence on SL (they define tighter levels)
-        const w = 1 / tfWeight;
-        atrSum += d.indicators.atr * w;
-        atrWeightSum += w;
-      }
+    const setupTf = styleConfig.roles.setup;
+    const triggerTf = styleConfig.roles.trigger;
+
+    const setupDetail = details.find(d => d.timeframe === setupTf);
+    const triggerDetail = details.find(d => d.timeframe === triggerTf);
+
+    const setupAtr = setupDetail?.indicators.atr ?? null;
+    const triggerAtr = triggerDetail?.indicators.atr ?? null;
+
+    if (setupAtr != null && triggerAtr != null) {
+      // セットアップ足 70%、トリガー足 30% のブレンド
+      blendedAtr = setupAtr * 0.7 + triggerAtr * 0.3;
+    } else if (setupAtr != null) {
+      blendedAtr = setupAtr;
+    } else if (triggerAtr != null) {
+      blendedAtr = triggerAtr;
     }
-    if (atrWeightSum > 0) blendedAtr = atrSum / atrWeightSum;
   }
 
   // Trade setups from merged levels
   const minTargetDistance = blendedAtr ? blendedAtr * 0.5 : currentPrice * 0.005;
-  const longEntry = findNearestSupport(levels, currentPrice);
+  const longEntry = findEntrySupport(levels, currentPrice, blendedAtr);
   const longTarget = findTarget(levels, longEntry, 'long', minTargetDistance);
-  const shortEntry = findNearestResistance(levels, currentPrice);
+  const shortEntry = findEntryResistance(levels, currentPrice, blendedAtr);
   const shortTarget = findTarget(levels, shortEntry, 'short', minTargetDistance);
   const longSetup = buildTradeSetup('long', currentPrice, longEntry, longTarget, blendedAtr, levels);
   const shortSetup = buildTradeSetup('short', currentPrice, shortEntry, shortTarget, blendedAtr, levels);

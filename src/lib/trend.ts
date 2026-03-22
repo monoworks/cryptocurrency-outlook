@@ -1,4 +1,13 @@
-import { OHLCV, IndicatorValues, TrendAnalysis, TrendDirection, TrendStrength, PullbackAnalysis, PriceLevel } from './types';
+import { OHLCV, IndicatorValues, TrendAnalysis, TrendDirection, TrendStrength, PullbackAnalysis, PriceLevel, Timeframe } from './types';
+
+// タイムフレームごとのスイングハイ/ロー検出パラメータ
+const SWING_LOOKBACK: Record<Timeframe, number> = {
+  '5m': 5,    // 5本 = 25分
+  '15m': 5,   // 5本 = 75分
+  '1h': 8,    // 8本 = 8時間
+  '4h': 10,   // 10本 = 40時間（約2日）
+  '1d': 10,   // 10本 = 10日
+};
 
 function detectSwings(candles: OHLCV[], lookback: number = 5): { highs: number[]; lows: number[] } {
   const swingHighs: number[] = [];
@@ -18,7 +27,11 @@ function detectSwings(candles: OHLCV[], lookback: number = 5): { highs: number[]
   return { highs: swingHighs, lows: swingLows };
 }
 
-export function analyzeTrend(candles: OHLCV[], indicators: IndicatorValues): TrendAnalysis {
+export function analyzeTrend(
+  candles: OHLCV[],
+  indicators: IndicatorValues,
+  timeframe?: Timeframe,
+): TrendAnalysis {
   const { ema20, ema50, sma200, adx } = indicators;
 
   // MA alignment
@@ -43,8 +56,9 @@ export function analyzeTrend(candles: OHLCV[], indicators: IndicatorValues): Tre
     }
   }
 
-  // Swing high/low analysis
-  const swings = detectSwings(candles);
+  // Swing high/low analysis (lookback adjusted by timeframe)
+  const swingLookback = timeframe ? SWING_LOOKBACK[timeframe] : 5;
+  const swings = detectSwings(candles, swingLookback);
   const recentHighs = swings.highs.slice(-3);
   const recentLows = swings.lows.slice(-3);
 
@@ -60,7 +74,7 @@ export function analyzeTrend(candles: OHLCV[], indicators: IndicatorValues): Tre
   const lowerHighs = recentHighs.length >= 2 && recentHighs[recentHighs.length - 1] < recentHighs[recentHighs.length - 2];
   const lowerLows = recentLows.length >= 2 && recentLows[recentLows.length - 1] < recentLows[recentLows.length - 2];
 
-  // Direction
+  // Direction from HH/HL and MA
   let direction: TrendDirection = 'range';
   if ((higherHighs && higherLows) || maScore >= 2) {
     direction = 'uptrend';
@@ -70,6 +84,29 @@ export function analyzeTrend(candles: OHLCV[], indicators: IndicatorValues): Tre
     direction = 'uptrend';
   } else if (maScore < 0 && (lowerHighs || lowerLows)) {
     direction = 'downtrend';
+  }
+
+  // レンジ幅によるトレンド補助判定
+  // HH/HL検出が曖昧でも、価格がレンジの端にいれば方向性を判定
+  const rangeLookbackCount = (timeframe ? SWING_LOOKBACK[timeframe] : 5) * 3;
+  const lookbackCandles = candles.slice(-rangeLookbackCount);
+  if (lookbackCandles.length >= 5) {
+    const rangeHigh = Math.max(...lookbackCandles.map(c => c.high));
+    const rangeLow = Math.min(...lookbackCandles.map(c => c.low));
+    const rangePercent = (rangeHigh - rangeLow) / rangeHigh * 100;
+    const currentPrice = candles[candles.length - 1].close;
+    const pricePositionInRange = (currentPrice - rangeLow) / (rangeHigh - rangeLow);
+
+    let rangeBasedBias: 'uptrend' | 'downtrend' | 'neutral' = 'neutral';
+    if (rangePercent >= 5) {
+      if (pricePositionInRange < 0.25) rangeBasedBias = 'downtrend';
+      else if (pricePositionInRange > 0.75) rangeBasedBias = 'uptrend';
+    }
+
+    // HH/HL検出が range で rangeBasedBias が明確 → オーバーライド
+    if (direction === 'range' && rangeBasedBias !== 'neutral') {
+      direction = rangeBasedBias;
+    }
   }
 
   // Strength from ADX
