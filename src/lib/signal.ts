@@ -37,6 +37,7 @@ import { analyzeOrderFlow } from './order-flow';
 import { analyzeSentiment } from './sentiment';
 import { analyzeEconomicCalendar } from './economic-calendar';
 import { analyzeNews } from './news';
+import { analyzeCrowdPsychology, CrowdPsychologySignal } from './crowd-psychology';
 
 // Weight for each timeframe (higher = more influence on combined result)
 const TIMEFRAME_WEIGHT: Record<Timeframe, number> = {
@@ -478,6 +479,7 @@ function determineConclusion(
   economicDescription?: string,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _newsAnalysis?: NewsAnalysis,
+  crowdPsychology?: CrowdPsychologySignal,
 ): { conclusion: SignalConclusion; reason: string } {
   let bullishScore = 0;
   let bearishScore = 0;
@@ -621,6 +623,12 @@ function determineConclusion(
   if (sentimentSignal === 'contrarian_bullish') bullishScore += 0.3;
   else if (sentimentSignal === 'contrarian_bearish') bearishScore += 0.3;
 
+  // 群集心理の調整（逆張りシグナル）
+  if (crowdPsychology) {
+    bullishScore += Math.max(0, crowdPsychology.biasAdjustment);
+    bearishScore += Math.max(0, -crowdPsychology.biasAdjustment);
+  }
+
   const diff = bullishScore - bearishScore;
   const bestRR = Math.max(longSetup.riskRewardRatio, shortSetup.riskRewardRatio);
 
@@ -666,6 +674,29 @@ function determineConclusion(
     reason += ` ⚠ ${economicDescription ?? '重要経済指標発表間近'} — イベント通過まで様子見推奨。`;
   } else if (economicWarning === 'caution' && economicDescription) {
     reason += ` [${economicDescription}]`;
+  }
+
+  // === 階層フィルター: 上位足バイアスに逆行するエントリーを抑止 ===
+  if (hierarchical) {
+    const { dailyBias } = hierarchical;
+
+    // 日足が強い弱気なのにロングシグナル → wait に降格
+    if (
+      (dailyBias === 'strongly_bearish' || dailyBias === 'bearish') &&
+      conclusion === 'enter_long'
+    ) {
+      conclusion = 'wait';
+      reason += ' [階層フィルター] 日足バイアスが弱気のためロング見送り。押し目の深さを再評価してからエントリーを検討。';
+    }
+
+    // 日足が強い強気なのにショートシグナル → wait に降格
+    if (
+      (dailyBias === 'strongly_bullish' || dailyBias === 'bullish') &&
+      conclusion === 'enter_short'
+    ) {
+      conclusion = 'wait';
+      reason += ' [階層フィルター] 日足バイアスが強気のためショート見送り。戻り高値を再評価してからエントリーを検討。';
+    }
   }
 
   return { conclusion, reason };
@@ -1022,6 +1053,12 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
   // Hierarchical analysis (daily → 4h → 1h → 15m)
   const hierarchical = buildHierarchicalAnalysis(details);
 
+  // Crowd psychology analysis
+  const crowdPsychology = analyzeCrowdPsychology(
+    derivatives,
+    input.fearGreed?.value,
+  );
+
   // Weighted-average ATR across all timeframes (lower TFs get more weight for SL sizing)
   // This prevents daily ATR from dominating when S/R levels are from shorter timeframes
   let blendedAtr: number | null = null;
@@ -1109,6 +1146,7 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
     economicCalendar.warningLevel,
     economicCalendar.description,
     newsAnalysisResult,
+    crowdPsychology,
   );
 
   // News-adjusted conclusion (experimental)
@@ -1206,5 +1244,6 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
     economicCalendar,
     newsAnalysis: newsAnalysisResult,
     whaleActivity: input.whaleActivity,
+    crowdPsychology,
   };
 }

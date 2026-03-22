@@ -1,6 +1,7 @@
 'use client';
 
 import { SignalConclusion, CandlePattern, DerivativesAnalysis, IndicatorValues, HierarchicalAnalysis, FalseBreakout, WickRejectionZone, VolumeSpike, SignalConfidence, Divergence, TopTraderRatio, MarketRegimeAnalysis, VolumeProfileAnalysis, LiquidationAnalysis, OrderFlowAnalysis, DivergenceAggregation, SentimentAnalysis, EconomicCalendarAnalysis, WhaleActivity, Timeframe } from '@/lib/types';
+import { CrowdPsychologySignal } from '@/lib/crowd-psychology';
 import HelpTip from './HelpTip';
 
 const CONCLUSION_CONFIG: Record<SignalConclusion, { label: string; color: string; bg: string }> = {
@@ -42,9 +43,10 @@ interface Props {
   sentiment?: SentimentAnalysis;
   economicCalendar?: EconomicCalendarAnalysis;
   whaleActivity?: WhaleActivity;
+  crowdPsychology?: CrowdPsychologySignal;
 }
 
-export default function Conclusion({ conclusion, reason, newsAdjustedConclusion, newsAdjustedReason, patterns, derivatives, indicators, hierarchical, falseBreakouts, wickRejections, volumeSpikes, confidence, divergences, topTraderRatio, marketRegime, volumeProfile, timeframeVolumeProfiles, liquidation, orderFlow, divergenceAggregation, sentiment, economicCalendar, whaleActivity }: Props) {
+export default function Conclusion({ conclusion, reason, newsAdjustedConclusion, newsAdjustedReason, patterns, derivatives, indicators, hierarchical, falseBreakouts, wickRejections, volumeSpikes, confidence, divergences, topTraderRatio, marketRegime, volumeProfile, timeframeVolumeProfiles, liquidation, orderFlow, divergenceAggregation, sentiment, economicCalendar, whaleActivity, crowdPsychology }: Props) {
   const config = CONCLUSION_CONFIG[conclusion];
   const newsConfig = newsAdjustedConclusion ? CONCLUSION_CONFIG[newsAdjustedConclusion] : null;
 
@@ -294,6 +296,30 @@ export default function Conclusion({ conclusion, reason, newsAdjustedConclusion,
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Crowd Psychology */}
+      {crowdPsychology && crowdPsychology.pattern !== 'neutral' && (
+        <div className={`mt-3 border rounded-lg p-3 ${
+          crowdPsychology.biasAdjustment > 0 ? 'border-green-500/30 bg-green-900/10'
+            : crowdPsychology.biasAdjustment < 0 ? 'border-red-500/30 bg-red-900/10'
+            : 'border-gray-600'
+        }`}>
+          <h4 className={`font-semibold text-sm mb-2 ${
+            crowdPsychology.biasAdjustment > 0 ? 'text-green-400'
+              : crowdPsychology.biasAdjustment < 0 ? 'text-red-400'
+              : 'text-gray-400'
+          }`}>
+            {crowdPsychology.pattern === 'short_squeeze_risk' ? '🔥' : crowdPsychology.pattern === 'long_squeeze_risk' ? '💧' : crowdPsychology.pattern === 'fomo_buying' ? '🚀' : '😱'} 群集心理シグナル
+            <span className={`ml-2 text-xs px-1.5 py-0.5 rounded ${
+              crowdPsychology.intensity === 'high' ? 'bg-red-500/30 text-red-300'
+                : crowdPsychology.intensity === 'medium' ? 'bg-yellow-500/30 text-yellow-300'
+                : 'bg-gray-500/30 text-gray-300'
+            }`}>{crowdPsychology.intensity}</span>
+            <HelpTip text="Funding・Premium・OI・Fear&Greedの複合条件から群集心理の偏りを検出。スクイーズリスクやFOMO/パニックパターンを識別" />
+          </h4>
+          <div className="text-xs text-gray-300">{crowdPsychology.description}</div>
         </div>
       )}
 

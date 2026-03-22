@@ -469,6 +469,7 @@ export default function Home() {
                   sentiment={result.sentiment}
                   economicCalendar={result.economicCalendar}
                   whaleActivity={result.whaleActivity}
+                  crowdPsychology={result.crowdPsychology}
                 />
 
                 {/* AI Analysis - 将来用に非表示 */}

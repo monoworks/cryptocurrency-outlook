@@ -438,6 +438,8 @@ export interface AnalysisResult {
   newsAnalysis?: NewsAnalysis;
   // Whale activity detection
   whaleActivity?: WhaleActivity;
+  // Crowd psychology signal
+  crowdPsychology?: import('./crowd-psychology').CrowdPsychologySignal;
 }
 
 // ===== Economic Calendar =====
