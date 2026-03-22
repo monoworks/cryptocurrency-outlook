@@ -26,7 +26,7 @@ import NewsSection from '@/components/NewsSection';
 import DashboardView from '@/components/DashboardView';
 
 const HISTORY_KEY = 'crypto-outlook-history';
-const MAX_HISTORY = 100;
+const MAX_HISTORY = 20;
 
 // 将来用に残す
 // const AI_SETTINGS_KEY = 'crypto-signal-ai-settings';
@@ -72,11 +72,19 @@ export default function Home() {
   const [, setHistory] = useState<HistoryEntry[]>([]);
   const [inputCollapsed, setInputCollapsed] = useState(false);
 
-  // Load history from localStorage
+  // Load history from localStorage (trim to MAX_HISTORY to prevent quota issues)
   useEffect(() => {
     try {
       const stored = localStorage.getItem(HISTORY_KEY);
-      if (stored) setHistory(JSON.parse(stored));
+      if (stored) {
+        const parsed = JSON.parse(stored) as HistoryEntry[];
+        const trimmed = parsed.slice(0, MAX_HISTORY);
+        setHistory(trimmed);
+        // Re-save trimmed version if it was larger
+        if (parsed.length > MAX_HISTORY) {
+          try { localStorage.setItem(HISTORY_KEY, JSON.stringify(trimmed)); } catch { /* ignore */ }
+        }
+      }
     } catch { /* ignore */ }
   }, []);
 
@@ -92,7 +100,18 @@ export default function Home() {
     };
     setHistory((prev) => {
       const next = [entry, ...prev].slice(0, MAX_HISTORY);
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
+      try {
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
+      } catch {
+        // QuotaExceededError — reduce stored entries and retry
+        try {
+          const reduced = next.slice(0, 5);
+          localStorage.setItem(HISTORY_KEY, JSON.stringify(reduced));
+        } catch {
+          // Still failing — clear history to recover
+          localStorage.removeItem(HISTORY_KEY);
+        }
+      }
       return next;
     });
   }, []);
