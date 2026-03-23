@@ -12,7 +12,7 @@ export const TRADING_STYLE_CONFIGS: Record<TradingStyle, TradingStyleConfig> = {
       trigger: '5m',
       execution: '5m',
     },
-    maxHoldingMs: 2 * 60 * 60 * 1000, // 2時間
+    maxHoldingMs: 1 * 60 * 60 * 1000, // 1時間
   },
   day_trade: {
     style: 'day_trade',
@@ -25,7 +25,7 @@ export const TRADING_STYLE_CONFIGS: Record<TradingStyle, TradingStyleConfig> = {
       trigger: '15m',
       execution: '5m',
     },
-    maxHoldingMs: 12 * 60 * 60 * 1000, // 12時間
+    maxHoldingMs: 8 * 60 * 60 * 1000, // 8時間
   },
   swing: {
     style: 'swing',
@@ -38,6 +38,6 @@ export const TRADING_STYLE_CONFIGS: Record<TradingStyle, TradingStyleConfig> = {
       trigger: '1h',
       execution: '15m',
     },
-    maxHoldingMs: 5 * 24 * 60 * 60 * 1000, // 5日
+    maxHoldingMs: 3 * 24 * 60 * 60 * 1000, // 3日
   },
 };

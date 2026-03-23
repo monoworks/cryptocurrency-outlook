@@ -357,6 +357,7 @@ export interface TradeSetup {
   riskPercent: number;
   rewardPercent: number;
   suggestedMaxHoldingMs?: number;  // タイムフレーム重みから算出した推奨最大保有時間（ミリ秒）
+  tradingStyle?: TradingStyle;     // トレードスタイル
 }
 
 export type SignalConclusion = 'enter_long' | 'enter_short' | 'wait' | 'skip';
@@ -603,4 +604,5 @@ export interface SavedPosition {
   closedPnl?: number;
   closeReason?: CloseReason;
   maxHoldingMs?: number;       // 推奨最大保有時間（ミリ秒）
+  tradingStyle?: TradingStyle; // トレードスタイル（スキャルピング/デイトレード/スイング）
 }

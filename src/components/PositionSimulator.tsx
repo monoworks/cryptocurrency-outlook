@@ -98,6 +98,7 @@ export default function PositionSimulator({ longSetup, shortSetup, symbol, onSav
       amount: investAmount,
       leverage,
       ...(setup.suggestedMaxHoldingMs ? { maxHoldingMs: setup.suggestedMaxHoldingMs } : {}),
+      ...(setup.tradingStyle ? { tradingStyle: setup.tradingStyle } : {}),
     });
     if (ok) {
       setSaved(true);
