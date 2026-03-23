@@ -26,13 +26,22 @@ function closeReasonLabel(reason?: CloseReason): string {
   }
 }
 
-function tradingStyleBadge(style?: TradingStyle): { label: string; color: string } | null {
-  if (!style) return null;
-  switch (style) {
+function tradingStyleBadge(style?: TradingStyle, maxHoldingMs?: number): { label: string; color: string } | null {
+  const resolved = style ?? inferStyleFromHolding(maxHoldingMs);
+  if (!resolved) return null;
+  switch (resolved) {
     case 'scalping': return { label: 'スキャ', color: 'text-purple-400 bg-purple-900/40' };
     case 'day_trade': return { label: 'デイトレ', color: 'text-blue-400 bg-blue-900/40' };
     case 'swing': return { label: 'スイング', color: 'text-emerald-400 bg-emerald-900/40' };
   }
+}
+
+function inferStyleFromHolding(ms?: number): TradingStyle | undefined {
+  if (!ms) return undefined;
+  const hours = ms / (60 * 60 * 1000);
+  if (hours <= 2) return 'scalping';
+  if (hours <= 12) return 'day_trade';
+  return 'swing';
 }
 
 function fmtDuration(ms: number): string {
@@ -286,7 +295,7 @@ function PendingPositionRow({ position: pos, livePrice, onRemove }: {
     distanceLabel = `現在 $${fmt(livePrice)} (${dist >= 0 ? '+' : ''}${fmt(dist)}%)`;
   }
 
-  const styleBadge = tradingStyleBadge(pos.tradingStyle);
+  const styleBadge = tradingStyleBadge(pos.tradingStyle, pos.maxHoldingMs);
 
   return (
     <div className="flex items-center gap-2 bg-gray-750 rounded-lg p-2 border border-yellow-700/30 text-sm">
@@ -346,7 +355,7 @@ function OpenPositionRow({ position: pos, livePrice, now, onRemove, onClose }: {
 
   const dirLabel = isLong ? 'L' : 'S';
   const dirColor = isLong ? 'text-green-400 bg-green-900/40' : 'text-red-400 bg-red-900/40';
-  const styleBadge = tradingStyleBadge(pos.tradingStyle);
+  const styleBadge = tradingStyleBadge(pos.tradingStyle, pos.maxHoldingMs);
 
   return (
     <div className="flex items-center gap-2 bg-gray-750 rounded-lg p-2 border border-gray-700 text-sm">
@@ -431,7 +440,7 @@ function ClosedPositionRow({ position: pos, onRemove }: {
   const pnl = pos.closedPnl ?? 0;
   const pnlPercent = pos.amount > 0 ? (pnl / pos.amount) * 100 : 0;
   const reason = closeReasonLabel(pos.closeReason);
-  const styleBadge = tradingStyleBadge(pos.tradingStyle);
+  const styleBadge = tradingStyleBadge(pos.tradingStyle, pos.maxHoldingMs);
 
   return (
     <div className="flex items-center gap-2 bg-gray-750 rounded-lg p-2 border border-gray-700/50 text-sm opacity-70">
