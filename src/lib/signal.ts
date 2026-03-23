@@ -1266,6 +1266,8 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
   {
     longSetup.suggestedMaxHoldingMs = styleConfig.maxHoldingMs;
     shortSetup.suggestedMaxHoldingMs = styleConfig.maxHoldingMs;
+    longSetup.tradingStyle = styleConfig.style;
+    shortSetup.tradingStyle = styleConfig.style;
   }
 
   // OI残存率によるSL調整: ボラティリティ予測が高い場合はSLを広げる

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { SavedPosition, CloseReason } from '@/lib/types';
+import { SavedPosition, CloseReason, TradingStyle } from '@/lib/types';
 import { useLivePrices } from '@/hooks/useLivePrice';
 import HelpTip from './HelpTip';
 
@@ -23,6 +23,15 @@ function closeReasonLabel(reason?: CloseReason): string {
     case 'take_profit': return '利確';
     case 'manual': return '手動決済';
     case 'timeout': return '時間決済';
+  }
+}
+
+function tradingStyleBadge(style?: TradingStyle): { label: string; color: string } | null {
+  if (!style) return null;
+  switch (style) {
+    case 'scalping': return { label: 'スキャ', color: 'text-purple-400 bg-purple-900/40' };
+    case 'day_trade': return { label: 'デイトレ', color: 'text-blue-400 bg-blue-900/40' };
+    case 'swing': return { label: 'スイング', color: 'text-emerald-400 bg-emerald-900/40' };
   }
 }
 
@@ -277,6 +286,8 @@ function PendingPositionRow({ position: pos, livePrice, onRemove }: {
     distanceLabel = `現在 $${fmt(livePrice)} (${dist >= 0 ? '+' : ''}${fmt(dist)}%)`;
   }
 
+  const styleBadge = tradingStyleBadge(pos.tradingStyle);
+
   return (
     <div className="flex items-center gap-2 bg-gray-750 rounded-lg p-2 border border-yellow-700/30 text-sm">
       <span className={`${dirColor} px-1.5 py-0.5 rounded text-xs font-bold shrink-0`}>{dirLabel}</span>
@@ -284,6 +295,7 @@ function PendingPositionRow({ position: pos, livePrice, onRemove }: {
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="text-white font-medium text-xs">{pos.symbol}</span>
+          {styleBadge && <span className={`${styleBadge.color} text-xs px-1.5 py-0.5 rounded font-medium`}>{styleBadge.label}</span>}
           <span className="text-gray-500 text-xs">{pos.leverage}x</span>
           <span className="text-gray-500 text-xs">${fmt(pos.amount, 0)}</span>
           <span className="text-yellow-500/80 text-xs px-1.5 py-0.5 bg-yellow-900/30 rounded">指値待ち</span>
@@ -334,6 +346,7 @@ function OpenPositionRow({ position: pos, livePrice, now, onRemove, onClose }: {
 
   const dirLabel = isLong ? 'L' : 'S';
   const dirColor = isLong ? 'text-green-400 bg-green-900/40' : 'text-red-400 bg-red-900/40';
+  const styleBadge = tradingStyleBadge(pos.tradingStyle);
 
   return (
     <div className="flex items-center gap-2 bg-gray-750 rounded-lg p-2 border border-gray-700 text-sm">
@@ -342,6 +355,7 @@ function OpenPositionRow({ position: pos, livePrice, now, onRemove, onClose }: {
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="text-white font-medium text-xs">{pos.symbol}</span>
+          {styleBadge && <span className={`${styleBadge.color} text-xs px-1.5 py-0.5 rounded font-medium`}>{styleBadge.label}</span>}
           <span className="text-gray-500 text-xs">{pos.leverage}x</span>
           <span className="text-gray-500 text-xs">${fmt(pos.amount, 0)}</span>
           {pos.filledAt && <span className="text-gray-600 text-xs">約定 {fmtDate(pos.filledAt)}</span>}
@@ -417,6 +431,7 @@ function ClosedPositionRow({ position: pos, onRemove }: {
   const pnl = pos.closedPnl ?? 0;
   const pnlPercent = pos.amount > 0 ? (pnl / pos.amount) * 100 : 0;
   const reason = closeReasonLabel(pos.closeReason);
+  const styleBadge = tradingStyleBadge(pos.tradingStyle);
 
   return (
     <div className="flex items-center gap-2 bg-gray-750 rounded-lg p-2 border border-gray-700/50 text-sm opacity-70">
@@ -425,6 +440,7 @@ function ClosedPositionRow({ position: pos, onRemove }: {
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="text-gray-300 font-medium text-xs">{pos.symbol}</span>
+          {styleBadge && <span className={`${styleBadge.color} text-xs px-1.5 py-0.5 rounded font-medium opacity-70`}>{styleBadge.label}</span>}
           <span className="text-gray-500 text-xs">{pos.leverage}x</span>
           <span className="text-gray-500 text-xs">${fmt(pos.amount, 0)}</span>
           {reason && (
