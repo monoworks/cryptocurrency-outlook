@@ -30,6 +30,24 @@ const MIN_SWING_AMPLITUDE: Record<Timeframe, number> = {
   '1d': 0.03,    // 3.0%
 };
 
+/**
+ * レンジ幅に応じたダイナミック閾値を算出。
+ * レンジ幅が大きいほど、中間寄りでもトレンド方向にいると判断する。
+ *   rangePercent=5%  → 0.35（狭いレンジ: 端にいる時のみ）
+ *   rangePercent=10% → 0.40
+ *   rangePercent=15% → 0.45（広いレンジ: 中間寄りでも方向性あり）
+ *   rangePercent≥20% → 0.45（上限キャップ）
+ * 返り値は下側閾値。上側は (1 - threshold) で対称に使う。
+ */
+function calcDynamicThreshold(rangePercent: number): number {
+  const minThreshold = 0.35;  // rangePercent=5%時
+  const maxThreshold = 0.45;  // rangePercent=15%+時
+  const minRange = 5;
+  const maxRange = 15;
+  const clamped = Math.min(Math.max(rangePercent, minRange), maxRange);
+  return minThreshold + (maxThreshold - minThreshold) * ((clamped - minRange) / (maxRange - minRange));
+}
+
 function detectSwings(candles: OHLCV[], lookback: number = 5, timeframe?: Timeframe): { highs: number[]; lows: number[] } {
   const minAmplitude = timeframe ? (MIN_SWING_AMPLITUDE[timeframe] ?? 0.01) : 0;
   const rawHighs: number[] = [];
@@ -143,8 +161,12 @@ export function analyzeTrend(
     pricePositionInRange = (currentPrice - rangeLow) / (rangeHigh - rangeLow);
 
     if (rangePercent >= 5) {
-      if (pricePositionInRange < 0.40) rangeBasedBias = 'downtrend';
-      else if (pricePositionInRange > 0.60) rangeBasedBias = 'uptrend';
+      // ダイナミック閾値: レンジ幅が大きいほど閾値を緩める
+      // 狭いレンジ(5%): 端にいる時のみ判定 → 閾値0.35
+      // 広いレンジ(15%+): 中間寄りでも方向性あり → 閾値0.45
+      const dynamicThreshold = calcDynamicThreshold(rangePercent);
+      if (pricePositionInRange < dynamicThreshold) rangeBasedBias = 'downtrend';
+      else if (pricePositionInRange > (1 - dynamicThreshold)) rangeBasedBias = 'uptrend';
     }
 
     // rangeBasedBias が HH/HL判定と矛盾する場合も考慮
@@ -186,6 +208,7 @@ export function analyzeTrend(
     hhhlDirection,
     maScore,
     rangeBasedBias,
+    dynamicThreshold: rangePercent != null && rangePercent >= 5 ? Math.round(calcDynamicThreshold(rangePercent) * 1000) / 1000 : null,
     rangeLookbackCount,
     ema20: ema20 ?? null,
     ema50: ema50 ?? null,
