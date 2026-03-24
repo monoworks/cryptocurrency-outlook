@@ -256,7 +256,14 @@ export default function DashboardView({
               return (
                 <>
                   <div className={`border rounded-lg p-3 ${c.bg}`}>
-                    <div className={`text-lg font-bold ${c.color} mb-1`}>{c.label}</div>
+                    <div className={`text-lg font-bold ${c.color} mb-1`}>
+                      {result.counterTrendWarning && <span className="text-orange-400 mr-1">&#9888;&#65039;</span>}
+                      {c.label}
+                      {result.counterTrendWarning && <span className="text-xs font-normal text-orange-300 ml-2">&#65288;&#12459;&#12454;&#12531;&#12479;&#12540;&#12488;&#12524;&#12531;&#12489;&#65289;</span>}
+                    </div>
+                    {result.counterTrendWarning && (
+                      <p className="text-orange-300 text-xs mb-1">{result.counterTrendWarning}&#12290;PR {result.counterTrendMinPR}&#20197;&#19978;&#12434;&#30906;&#20445;&#12377;&#12427;&#12371;&#12392;&#12290;</p>
+                    )}
                     <p className="text-gray-300 text-sm">{result.conclusionReason}</p>
                   </div>
                   {nc && newsAdjusted && (

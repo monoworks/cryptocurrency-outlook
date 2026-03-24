@@ -613,7 +613,7 @@ function determineConclusion(
   _newsAnalysis?: NewsAnalysis,
   crowdPsychology?: CrowdPsychologySignal,
   weights: Record<Timeframe, number> = DEFAULT_WEIGHTS,
-): { conclusion: SignalConclusion; reason: string } {
+): { conclusion: SignalConclusion; reason: string; counterTrendWarning?: string; counterTrendMinPR?: number } {
   let bullishScore = 0;
   let bearishScore = 0;
   let totalWeight = 0;
@@ -715,6 +715,22 @@ function determineConclusion(
   bullishScore /= totalWeight;
   bearishScore /= totalWeight;
 
+  // === 環境認識バイアスによるスコア調整 ===
+  // 環境認識足のトレンド方向と一致するシグナルをブースト、逆行をペナルティ
+  if (hierarchical) {
+    const { dailyBias } = hierarchical;
+    const isBearishEnv = dailyBias === 'strongly_bearish' || dailyBias === 'bearish';
+    const isBullishEnv = dailyBias === 'strongly_bullish' || dailyBias === 'bullish';
+
+    if (isBearishEnv) {
+      bullishScore *= 0.5;   // 弱気環境下の強気シグナルを減衰
+      bearishScore *= 1.3;   // 弱気環境下の弱気シグナルをブースト
+    } else if (isBullishEnv) {
+      bearishScore *= 0.5;   // 強気環境下の弱気シグナルを減衰
+      bullishScore *= 1.3;   // 強気環境下の強気シグナルをブースト
+    }
+  }
+
   // Derivatives (not per-TF, add directly)
   if (derivatives.oiPriceSignal === 'new_longs') bullishScore += 1;
   if (derivatives.oiPriceSignal === 'new_shorts') bearishScore += 1;
@@ -739,13 +755,7 @@ function determineConclusion(
     else bullishScore += 0.5; // too many shorts = bullish signal
   }
 
-  // Hierarchical bias bonus
-  if (hierarchical) {
-    if (hierarchical.dailyBias === 'strongly_bullish') bullishScore += 1;
-    else if (hierarchical.dailyBias === 'bullish') bullishScore += 0.5;
-    else if (hierarchical.dailyBias === 'strongly_bearish') bearishScore += 1;
-    else if (hierarchical.dailyBias === 'bearish') bearishScore += 0.5;
-  }
+  // Hierarchical bias bonus (改修13で環境認識バイアス乗数に統合済み — 二重カウント防止のため削除)
 
   // Order flow imbalance
   if (orderFlowData) {
@@ -810,31 +820,54 @@ function determineConclusion(
     reason += ` [${economicDescription}]`;
   }
 
-  // === 階層フィルター: 上位足バイアスに逆行するエントリーを抑止 ===
+  // === 階層フィルター: 上位足バイアスに逆行するエントリーを段階的に抑制 ===
+  let counterTrendWarning: string | undefined;
+  let counterTrendMinPR: number | undefined;
+
   if (hierarchical) {
     const { dailyBias } = hierarchical;
     const envLabel = hierarchical.environmentLabel ?? '日足';
 
-    // 環境認識足が弱気なのにロングシグナル → wait に降格
-    if (
-      (dailyBias === 'strongly_bearish' || dailyBias === 'bearish') &&
-      conclusion === 'enter_long'
-    ) {
-      conclusion = 'wait';
-      reason += ` [階層フィルター] ${envLabel}バイアスが弱気のためロング見送り。押し目の深さを再評価してからエントリーを検討。`;
-    }
+    // カウンタートレンド判定: 環境認識足に逆行するエントリー
+    const isBearishEnv = dailyBias === 'strongly_bearish' || dailyBias === 'bearish';
+    const isBullishEnv = dailyBias === 'strongly_bullish' || dailyBias === 'bullish';
+    const isCounterTrendLong = isBearishEnv && conclusion === 'enter_long';
+    const isCounterTrendShort = isBullishEnv && conclusion === 'enter_short';
 
-    // 環境認識足が強気なのにショートシグナル → wait に降格
-    if (
-      (dailyBias === 'strongly_bullish' || dailyBias === 'bullish') &&
-      conclusion === 'enter_short'
-    ) {
-      conclusion = 'wait';
-      reason += ` [階層フィルター] ${envLabel}バイアスが強気のためショート見送り。戻り高値を再評価してからエントリーを検討。`;
+    if (isCounterTrendLong || isCounterTrendShort) {
+      // スコア差に基づく疑似信頼度を算出（0〜100スケール）
+      const rawConfidence = 50 + Math.abs(diff) * 5;
+      // 60%減衰
+      const adjustedConfidence = rawConfidence * 0.4;
+
+      if (adjustedConfidence < 30) {
+        // 信頼度不足 → wait に降格
+        conclusion = 'wait';
+        const dirLabel = isCounterTrendLong ? 'ロング' : 'ショート';
+        const adviceLabel = isCounterTrendLong
+          ? '押し目の深さを再評価してからエントリーを検討'
+          : '戻り高値を再評価してからエントリーを検討';
+        reason += ` [階層フィルター] ${envLabel}バイアスが${isBearishEnv ? '弱気' : '強気'}のため${dirLabel}見送り（信頼度不足）。${adviceLabel}。`;
+      } else {
+        // 信頼度が閾値以上 → 通すが警告付き
+        counterTrendWarning = `${envLabel}${isBearishEnv ? '下降' : '上昇'}トレンドに逆行するエントリー（カウンタートレンド）`;
+        counterTrendMinPR = 2.5;
+
+        // PR要件チェック: カウンタートレンドはPR 2.5以上を要求
+        const relevantSetup = isCounterTrendLong ? longSetup : shortSetup;
+        if (relevantSetup.riskRewardRatio < 2.5) {
+          conclusion = 'wait';
+          reason += ` [階層フィルター] ${envLabel}に逆行するカウンタートレンド。PR比${relevantSetup.riskRewardRatio}が最低要件2.5未満のため見送り。`;
+          counterTrendWarning = undefined;
+          counterTrendMinPR = undefined;
+        } else {
+          reason += ` [階層フィルター] ⚠️ カウンタートレンド（${envLabel}に逆行）。PR${counterTrendMinPR}以上を確保。`;
+        }
+      }
     }
   }
 
-  return { conclusion, reason };
+  return { conclusion, reason, counterTrendWarning, counterTrendMinPR };
 }
 
 /**
@@ -1332,7 +1365,7 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
   const newsAnalysisResult = analyzeNews(input.newsArticles ?? null);
 
   // Conclusion
-  const { conclusion, reason } = determineConclusion(
+  const { conclusion, reason, counterTrendWarning, counterTrendMinPR } = determineConclusion(
     trend,
     derivatives,
     details,
@@ -1426,6 +1459,8 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
     breakoutLevels,
     conclusion,
     conclusionReason: reason,
+    counterTrendWarning,
+    counterTrendMinPR,
     newsAdjustedConclusion: newsAdjusted?.conclusion,
     newsAdjustedReason: newsAdjusted?.reason,
     indicators: primary.indicators,
