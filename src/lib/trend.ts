@@ -143,8 +143,8 @@ export function analyzeTrend(
     pricePositionInRange = (currentPrice - rangeLow) / (rangeHigh - rangeLow);
 
     if (rangePercent >= 5) {
-      if (pricePositionInRange < 0.35) rangeBasedBias = 'downtrend';
-      else if (pricePositionInRange > 0.65) rangeBasedBias = 'uptrend';
+      if (pricePositionInRange < 0.40) rangeBasedBias = 'downtrend';
+      else if (pricePositionInRange > 0.60) rangeBasedBias = 'uptrend';
     }
 
     // rangeBasedBias が HH/HL判定と矛盾する場合も考慮

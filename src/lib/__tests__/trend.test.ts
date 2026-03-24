@@ -39,13 +39,13 @@ describe('analyzeTrend - 下降トレンド内の戻り', () => {
     const indicators = calcIndicators(candles);
     const result = analyzeTrend(candles, indicators, '4h');
 
-    // 閾値ちょうど（0.35）→ downtrend にはならない（neutral以上）→ uptrendではないはず
+    // pricePosition = (71370-67800)/(78000-67800) = 0.35 < 0.40閾値 → downtrend
     expect(result.direction).not.toBe('uptrend');
   });
 
   it('4H: 72,000まで戻した場合はdowntrendではない', () => {
     // pricePositionInRange = (72000-67800)/(78000-67800) = 0.41
-    // 0.35 < 0.41 < 0.65 → neutral → HH/HL判定次第
+    // 0.40 < 0.41 < 0.60 → neutral → HH/HL判定次第
     const candles = generateDowntrendWithBounce({
       high: 78000,
       low: 67800,
