@@ -9,6 +9,17 @@ const SWING_LOOKBACK: Record<Timeframe, number> = {
   '1d': 10,   // 10本 = 10日
 };
 
+// レンジ幅ベースのトレンド補助判定で使うルックバック本数
+// SWING_LOOKBACK * 3 では不十分な場合があるため、独立した設定を使う
+// 4H足では少なくとも10日分（60本）を見て大局的なレンジを捕捉する
+const RANGE_LOOKBACK: Record<Timeframe, number> = {
+  '5m': 48,   // 48本 = 4時間
+  '15m': 32,  // 32本 = 8時間
+  '1h': 48,   // 48本 = 2日
+  '4h': 60,   // 60本 = 10日 ← 78K→67.8Kなど1週間超の下降トレンドを捕捉
+  '1d': 30,   // 30本 = 1ヶ月
+};
+
 // スイングハイ/ローの最小振幅フィルタ（タイムフレーム別）
 // この閾値未満の値動きはスイングと見なさない
 const MIN_SWING_AMPLITUDE: Record<Timeframe, number> = {
@@ -113,7 +124,7 @@ export function analyzeTrend(
 
   // レンジ幅によるトレンド補助判定
   // HH/HL検出が曖昧でも、価格がレンジの端にいれば方向性を判定
-  const rangeLookbackCount = (timeframe ? SWING_LOOKBACK[timeframe] : 5) * 3;
+  const rangeLookbackCount = timeframe ? RANGE_LOOKBACK[timeframe] : 30;
   const lookbackCandles = candles.slice(-rangeLookbackCount);
   if (lookbackCandles.length >= 5) {
     const rangeHigh = Math.max(...lookbackCandles.map(c => c.high));
