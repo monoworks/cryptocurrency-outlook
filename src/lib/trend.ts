@@ -9,9 +9,20 @@ const SWING_LOOKBACK: Record<Timeframe, number> = {
   '1d': 10,   // 10本 = 10日
 };
 
-function detectSwings(candles: OHLCV[], lookback: number = 5): { highs: number[]; lows: number[] } {
-  const swingHighs: number[] = [];
-  const swingLows: number[] = [];
+// スイングハイ/ローの最小振幅フィルタ（タイムフレーム別）
+// この閾値未満の値動きはスイングと見なさない
+const MIN_SWING_AMPLITUDE: Record<Timeframe, number> = {
+  '5m': 0.003,   // 0.3%
+  '15m': 0.005,  // 0.5%
+  '1h': 0.01,    // 1.0%
+  '4h': 0.02,    // 2.0% ← 4Hでは2%未満の動きはスイングと見なさない
+  '1d': 0.03,    // 3.0%
+};
+
+function detectSwings(candles: OHLCV[], lookback: number = 5, timeframe?: Timeframe): { highs: number[]; lows: number[] } {
+  const minAmplitude = timeframe ? (MIN_SWING_AMPLITUDE[timeframe] ?? 0.01) : 0;
+  const rawHighs: number[] = [];
+  const rawLows: number[] = [];
 
   for (let i = lookback; i < candles.length - lookback; i++) {
     let isHigh = true;
@@ -20,8 +31,22 @@ function detectSwings(candles: OHLCV[], lookback: number = 5): { highs: number[]
       if (candles[i].high <= candles[i - j].high || candles[i].high <= candles[i + j].high) isHigh = false;
       if (candles[i].low >= candles[i - j].low || candles[i].low >= candles[i + j].low) isLow = false;
     }
-    if (isHigh) swingHighs.push(candles[i].high);
-    if (isLow) swingLows.push(candles[i].low);
+    if (isHigh) rawHighs.push(candles[i].high);
+    if (isLow) rawLows.push(candles[i].low);
+  }
+
+  // 振幅フィルタ: 前回のスイングからの振幅が閾値未満ならスキップ
+  const swingHighs: number[] = [];
+  for (const h of rawHighs) {
+    if (swingHighs.length === 0 || Math.abs(h - swingHighs[swingHighs.length - 1]) / swingHighs[swingHighs.length - 1] >= minAmplitude) {
+      swingHighs.push(h);
+    }
+  }
+  const swingLows: number[] = [];
+  for (const l of rawLows) {
+    if (swingLows.length === 0 || Math.abs(l - swingLows[swingLows.length - 1]) / swingLows[swingLows.length - 1] >= minAmplitude) {
+      swingLows.push(l);
+    }
   }
 
   return { highs: swingHighs, lows: swingLows };
@@ -58,7 +83,7 @@ export function analyzeTrend(
 
   // Swing high/low analysis (lookback adjusted by timeframe)
   const swingLookback = timeframe ? SWING_LOOKBACK[timeframe] : 5;
-  const swings = detectSwings(candles, swingLookback);
+  const swings = detectSwings(candles, swingLookback, timeframe);
   const recentHighs = swings.highs.slice(-3);
   const recentLows = swings.lows.slice(-3);
 
@@ -99,13 +124,21 @@ export function analyzeTrend(
 
     let rangeBasedBias: 'uptrend' | 'downtrend' | 'neutral' = 'neutral';
     if (rangePercent >= 5) {
-      if (pricePositionInRange < 0.25) rangeBasedBias = 'downtrend';
-      else if (pricePositionInRange > 0.75) rangeBasedBias = 'uptrend';
+      if (pricePositionInRange < 0.35) rangeBasedBias = 'downtrend';
+      else if (pricePositionInRange > 0.65) rangeBasedBias = 'uptrend';
     }
 
-    // HH/HL検出が range で rangeBasedBias が明確 → オーバーライド
-    if (direction === 'range' && rangeBasedBias !== 'neutral') {
-      direction = rangeBasedBias;
+    // rangeBasedBias が HH/HL判定と矛盾する場合も考慮
+    if (rangeBasedBias !== 'neutral') {
+      if (direction === 'range') {
+        // HH/HL不明確 → rangeBasedBias を採用
+        direction = rangeBasedBias;
+      } else if (direction !== rangeBasedBias && rangePercent >= 8) {
+        // HH/HLとrangeBasedBiasが矛盾 + レンジ幅が十分に大きい(8%以上)
+        // → rangeBasedBias を優先（大きなレンジ幅は直近の小動きより信頼性が高い）
+        direction = rangeBasedBias;
+      }
+      // それ以外: HH/HL判定を維持
     }
   }
 

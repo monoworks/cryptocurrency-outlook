@@ -456,6 +456,10 @@ export interface AnalysisResult {
   // ⑥ Conclusion (technical only)
   conclusion: SignalConclusion;
   conclusionReason: string;
+  /** カウンタートレンド警告（環境認識足に逆行するエントリー時） */
+  counterTrendWarning?: string;
+  /** カウンタートレンドの最低PR要件 */
+  counterTrendMinPR?: number;
   // ⑥-b Conclusion (news-adjusted, experimental)
   newsAdjustedConclusion?: SignalConclusion;
   newsAdjustedReason?: string;
