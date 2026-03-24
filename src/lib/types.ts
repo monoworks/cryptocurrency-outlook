@@ -290,6 +290,7 @@ export interface TrendDebugInfo {
   hhhlDirection: string;
   maScore: number;
   rangeBasedBias: string;
+  dynamicThreshold: number | null;
   rangeLookbackCount: number;
   ema20: number | null;
   ema50: number | null;
