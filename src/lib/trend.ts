@@ -1,4 +1,4 @@
-import { OHLCV, IndicatorValues, TrendAnalysis, TrendDirection, TrendStrength, PullbackAnalysis, PriceLevel, Timeframe } from './types';
+import { OHLCV, IndicatorValues, TrendAnalysis, TrendDirection, TrendStrength, TrendDebugInfo, PullbackAnalysis, PriceLevel, Timeframe } from './types';
 
 // タイムフレームごとのスイングハイ/ロー検出パラメータ
 const SWING_LOOKBACK: Record<Timeframe, number> = {
@@ -122,18 +122,26 @@ export function analyzeTrend(
     direction = 'downtrend';
   }
 
+  // HH/HL + MA による方向判定（rangeBasedBias適用前）
+  const hhhlDirection = direction;
+
   // レンジ幅によるトレンド補助判定
   // HH/HL検出が曖昧でも、価格がレンジの端にいれば方向性を判定
   const rangeLookbackCount = timeframe ? RANGE_LOOKBACK[timeframe] : 30;
   const lookbackCandles = candles.slice(-rangeLookbackCount);
-  if (lookbackCandles.length >= 5) {
-    const rangeHigh = Math.max(...lookbackCandles.map(c => c.high));
-    const rangeLow = Math.min(...lookbackCandles.map(c => c.low));
-    const rangePercent = (rangeHigh - rangeLow) / rangeHigh * 100;
-    const currentPrice = candles[candles.length - 1].close;
-    const pricePositionInRange = (currentPrice - rangeLow) / (rangeHigh - rangeLow);
+  let rangeHigh: number | null = null;
+  let rangeLow: number | null = null;
+  let rangePercent: number | null = null;
+  let pricePositionInRange: number | null = null;
+  let rangeBasedBias: 'uptrend' | 'downtrend' | 'neutral' = 'neutral';
 
-    let rangeBasedBias: 'uptrend' | 'downtrend' | 'neutral' = 'neutral';
+  if (lookbackCandles.length >= 5) {
+    rangeHigh = Math.max(...lookbackCandles.map(c => c.high));
+    rangeLow = Math.min(...lookbackCandles.map(c => c.low));
+    rangePercent = (rangeHigh - rangeLow) / rangeHigh * 100;
+    const currentPrice = candles[candles.length - 1].close;
+    pricePositionInRange = (currentPrice - rangeLow) / (rangeHigh - rangeLow);
+
     if (rangePercent >= 5) {
       if (pricePositionInRange < 0.35) rangeBasedBias = 'downtrend';
       else if (pricePositionInRange > 0.65) rangeBasedBias = 'uptrend';
@@ -161,7 +169,31 @@ export function analyzeTrend(
     else strength = 'weak';
   }
 
-  return { direction, strength, maAlignment, higherHighs, higherLows };
+  // デバッグ情報（APIレスポンスに含めて本番診断用）
+  const _debug: TrendDebugInfo | undefined = timeframe ? {
+    candleCount: candles.length,
+    firstCandleTime: candles[0]?.time ? new Date(candles[0].time).toISOString() : null,
+    lastCandleTime: candles[candles.length - 1]?.time ? new Date(candles[candles.length - 1].time).toISOString() : null,
+    rangeHigh,
+    rangeLow,
+    rangePercent: rangePercent != null ? Math.round(rangePercent * 100) / 100 : null,
+    currentPrice: candles[candles.length - 1].close,
+    pricePositionInRange: pricePositionInRange != null ? Math.round(pricePositionInRange * 1000) / 1000 : null,
+    swingHighs: recentHighs,
+    swingLows: recentLows,
+    lowerHighs,
+    lowerLows,
+    hhhlDirection,
+    maScore,
+    rangeBasedBias,
+    rangeLookbackCount,
+    ema20: ema20 ?? null,
+    ema50: ema50 ?? null,
+    sma200: sma200 ?? null,
+    adx: adx ?? null,
+  } : undefined;
+
+  return { direction, strength, maAlignment, higherHighs, higherLows, _debug };
 }
 
 const FIB_LEVELS = [0.236, 0.382, 0.5, 0.618, 0.786] as const;

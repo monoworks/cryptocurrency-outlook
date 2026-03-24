@@ -274,12 +274,36 @@ export interface CandlePattern {
 export type TrendDirection = 'uptrend' | 'downtrend' | 'range';
 export type TrendStrength = 'strong' | 'moderate' | 'weak';
 
+export interface TrendDebugInfo {
+  candleCount: number;
+  firstCandleTime: string | null;
+  lastCandleTime: string | null;
+  rangeHigh: number | null;
+  rangeLow: number | null;
+  rangePercent: number | null;
+  currentPrice: number;
+  pricePositionInRange: number | null;
+  swingHighs: number[];
+  swingLows: number[];
+  lowerHighs: boolean;
+  lowerLows: boolean;
+  hhhlDirection: string;
+  maScore: number;
+  rangeBasedBias: string;
+  rangeLookbackCount: number;
+  ema20: number | null;
+  ema50: number | null;
+  sma200: number | null;
+  adx: number | null;
+}
+
 export interface TrendAnalysis {
   direction: TrendDirection;
   strength: TrendStrength;
   maAlignment: string;
   higherHighs: boolean;
   higherLows: boolean;
+  _debug?: TrendDebugInfo;
 }
 
 // ===== Support / Resistance =====
