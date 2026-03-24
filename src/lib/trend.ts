@@ -16,7 +16,7 @@ const RANGE_LOOKBACK: Record<Timeframe, number> = {
   '5m': 48,   // 48本 = 4時間
   '15m': 32,  // 32本 = 8時間
   '1h': 48,   // 48本 = 2日
-  '4h': 60,   // 60本 = 10日 ← 78K→67.8Kなど1週間超の下降トレンドを捕捉
+  '4h': 80,   // 80本 = 約13日 ← 1〜2週間の下降トレンドを確実に捕捉
   '1d': 30,   // 30本 = 1ヶ月
 };
 
@@ -112,7 +112,11 @@ export function analyzeTrend(
 
   // Swing high/low analysis (lookback adjusted by timeframe)
   const swingLookback = timeframe ? SWING_LOOKBACK[timeframe] : 5;
-  const swings = detectSwings(candles, swingLookback, timeframe);
+  // RANGE_LOOKBACK分に切り出してスイング検出（直近の構造のみ反映）
+  const swingCandles = timeframe
+    ? candles.slice(-RANGE_LOOKBACK[timeframe])
+    : candles;
+  const swings = detectSwings(swingCandles, swingLookback, timeframe);
   const recentHighs = swings.highs.slice(-3);
   const recentLows = swings.lows.slice(-3);
 
