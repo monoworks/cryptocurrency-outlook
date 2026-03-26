@@ -243,3 +243,25 @@ async function _notifyNewsInner(articles: NewsArticle[]): Promise<number> {
   const sent = await sendMessage(lines.join('\n'));
   return sent ? fresh.length : 0;
 }
+
+/**
+ * Send a price alert notification to Telegram.
+ * Triggered when price change exceeds per-symbol thresholds.
+ */
+export async function notifyPriceAlert(
+  alerts: Array<{ symbol: string; prevPrice: number; currentPrice: number; changePercent: number }>
+): Promise<boolean> {
+  if (alerts.length === 0) return false;
+
+  const lines: string[] = ['🚨 <b>価格アラート</b>', ''];
+
+  for (const a of alerts) {
+    const arrow = a.changePercent > 0 ? '⬆️' : '⬇️';
+    const sign = a.changePercent > 0 ? '+' : '';
+    lines.push(
+      `<b>${a.symbol}</b>: $${fmt(a.prevPrice, 2)} → $${fmt(a.currentPrice, 2)} (${sign}${a.changePercent.toFixed(2)}%) ${arrow}`
+    );
+  }
+
+  return sendMessage(lines.join('\n'));
+}

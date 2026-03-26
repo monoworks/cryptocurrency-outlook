@@ -206,6 +206,7 @@ PR比は丸め後の値で再計算。
 | `/api/economic-calendar` | 経済イベント |
 | `/api/market-data` | 統合マーケットデータ |
 | `/api/refresh-external` | キャッシュ更新 (cron, 30分間隔) |
+| `/api/price-alert` | 価格急変アラート (cron, 3分間隔、閾値超過でTelegram通知) |
 
 ## 設計原則
 
@@ -265,3 +266,6 @@ TELEGRAM_CHAT_ID=       # 通知先チャット
 ### v5 (改修19)
 * 改修19A: RANGE_LOOKBACK 4H足を60→80本（約13日分）に拡大。78Kの高値がウィンドウ境界で外れる問題を修正
 * 改修19B: detectSwingsのスコープをRANGE_LOOKBACK本数に制限。全量キャンドルから古い上昇構造を拾いhhhlDirection=uptrendになる問題を修正
+
+### v5.1 (改修20)
+* 改修20: 価格急変アラートAPI (`/api/price-alert`) 新設。軽量エンドポイントで3分間隔Cron対応、シンボルごとの変動閾値（BTC=2%, ETH=3%, その他=5%）超過時にTelegram通知
