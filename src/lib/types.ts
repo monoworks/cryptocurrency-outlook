@@ -358,6 +358,16 @@ export interface OiResidualAnalysis {
   description: string;
 }
 
+export interface PredictedFundingInfo {
+  hlRate: number | null;
+  binRate: number | null;
+  bybitRate: number | null;
+  nextFundingTime: number;
+  /** 予測が現在値より大幅に偏っている場合のシグナル */
+  signal: 'squeeze_risk_long' | 'squeeze_risk_short' | 'neutral';
+  description?: string;
+}
+
 export interface DerivativesAnalysis {
   oiPriceSignal: OIPriceSignal;
   oiPriceDescription: string;
@@ -369,6 +379,7 @@ export interface DerivativesAnalysis {
   fundingTrend?: FundingTrend;
   markOracleDivergence?: number;
   oiResidual?: OiResidualAnalysis;
+  predictedFunding?: PredictedFundingInfo;
 }
 
 // ===== Trading Signal =====

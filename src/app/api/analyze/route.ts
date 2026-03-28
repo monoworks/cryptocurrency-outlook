@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getKlinesWithTakerVolume, getTicker, getOpenInterest, getFundingRate, getPremiumIndex, getOIHistory, getFundingHistory, getTopTraderRatio, getAggTrades, getOrderBookDepth } from '@/lib/hyperliquid';
+import { getKlinesWithTakerVolume, getTicker, getOpenInterest, getFundingRate, getPremiumIndex, getOIHistory, getFundingHistory, getTopTraderRatio, getAggTrades, getOrderBookDepth, getPredictedFundingForSymbol } from '@/lib/hyperliquid';
 import { resolveCoin } from '@/lib/symbol-resolver';
 import { analyzeWhaleActivity } from '@/lib/whale-detection';
 import { generateSignal } from '@/lib/signal';
@@ -65,7 +65,7 @@ export async function GET(req: NextRequest) {
     const cachedEconomic = getEconomicCalendarCache();
 
     // Fetch Binance data + fallback external data in parallel
-    const [candlesResults, ticker, openInterest, fundingRate, premiumIndex, oiHistory, fundingHistory, topTraderRatio, fearGreed, economicEvents, newsArticles, aggTrades, orderBook] = await Promise.all([
+    const [candlesResults, ticker, openInterest, fundingRate, premiumIndex, oiHistory, fundingHistory, topTraderRatio, fearGreed, economicEvents, newsArticles, aggTrades, orderBook, predictedFunding] = await Promise.all([
       Promise.all(timeframes.map((tf) =>
         getKlinesWithTakerVolume(resolvedCoin, tf).then((r) => ({ timeframe: tf, candles: r.candles, takerBuyVolumes: r.takerBuyVolumes }))
       )),
@@ -87,6 +87,7 @@ export async function GET(req: NextRequest) {
         : fetchNews().catch(() => null),
       getAggTrades(resolvedCoin, 1000).catch(() => []),
       getOrderBookDepth(resolvedCoin, 20).catch(() => ({ bids: [] as [number, number][], asks: [] as [number, number][] })),
+      getPredictedFundingForSymbol(resolvedCoin).catch(() => null),
     ]);
 
     // Whale activity detection
@@ -112,6 +113,7 @@ export async function GET(req: NextRequest) {
       newsArticles,
       whaleActivity,
       tradingStyle,
+      predictedFunding: predictedFunding ?? undefined,
     });
 
     // Send Telegram notification for actionable signals (skip when notify=false)

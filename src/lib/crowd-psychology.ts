@@ -21,35 +21,53 @@ export function analyzeCrowdPsychology(
     oiPriceSignal,
     fundingTrend,
     oiChange,
+    predictedFunding,
   } = derivatives;
+
+  // 予測Fundingによる早期スクイーズ検出
+  // 確定値ではまだ中立でも、予測が偏っていればリスクを先行検出
+  const predictedSqueezeShort = predictedFunding?.signal === 'squeeze_risk_short';
+  const predictedSqueezeLong = predictedFunding?.signal === 'squeeze_risk_long';
 
   // === パターン1: ショートスクイーズリスク ===
   // 条件: Funding負（ショート支払い）+ Premium負 + OI高止まりor増加
+  // 拡張: 予測Fundingが負方向に大きく偏っている場合も検出
   const fundingNegative = fundingBias === 'short_heavy';
   const premiumNegative = premium < -0.0003;
   const oiNotDecreasing = !oiChange || oiChange.direction !== 'decreasing';
 
-  if (fundingNegative && premiumNegative && oiNotDecreasing) {
+  if ((fundingNegative && premiumNegative && oiNotDecreasing) || (predictedSqueezeShort && premiumNegative && oiNotDecreasing)) {
     const isOverheated = fundingTrend?.isOverheated ?? false;
+    const isPredicted = !fundingNegative && predictedSqueezeShort;
+    const intensityBase = isOverheated ? 'high' : 'medium';
+    const desc = isPredicted
+      ? `ショートスクイーズリスク（予測先行）: 次回Funding負方向 + Premium負(${(premium * 100).toFixed(3)}%) + OI維持。${predictedFunding?.description ?? ''}`
+      : `ショートスクイーズリスク: Funding負(${fundingBias}) + Premium負(${(premium * 100).toFixed(3)}%) + OI維持。ショートポジションが溜まっており、急激な買い戻しが発生する可能性。`;
     return {
       pattern: 'short_squeeze_risk',
-      intensity: isOverheated ? 'high' : 'medium',
-      description: `ショートスクイーズリスク: Funding負(${fundingBias}) + Premium負(${(premium * 100).toFixed(3)}%) + OI維持。ショートポジションが溜まっており、急激な買い戻しが発生する可能性。`,
+      intensity: intensityBase,
+      description: desc,
       biasAdjustment: isOverheated ? 1.0 : 0.5,
     };
   }
 
   // === パターン2: ロングスクイーズリスク ===
   // 条件: Funding正（ロング支払い）+ Premium正 + OI高止まりor増加
+  // 拡張: 予測Fundingが正方向に大きく偏っている場合も検出
   const fundingPositive = fundingBias === 'long_heavy';
   const premiumPositive = premium > 0.0003;
 
-  if (fundingPositive && premiumPositive && oiNotDecreasing) {
+  if ((fundingPositive && premiumPositive && oiNotDecreasing) || (predictedSqueezeLong && premiumPositive && oiNotDecreasing)) {
     const isOverheated = fundingTrend?.isOverheated ?? false;
+    const isPredicted = !fundingPositive && predictedSqueezeLong;
+    const intensityBase = isOverheated ? 'high' : 'medium';
+    const desc = isPredicted
+      ? `ロングスクイーズリスク（予測先行）: 次回Funding正方向 + Premium正(${(premium * 100).toFixed(3)}%) + OI維持。${predictedFunding?.description ?? ''}`
+      : `ロングスクイーズリスク: Funding正(${fundingBias}) + Premium正(${(premium * 100).toFixed(3)}%) + OI維持。ロングポジションが溜まっており、急落リスクあり。`;
     return {
       pattern: 'long_squeeze_risk',
-      intensity: isOverheated ? 'high' : 'medium',
-      description: `ロングスクイーズリスク: Funding正(${fundingBias}) + Premium正(${(premium * 100).toFixed(3)}%) + OI維持。ロングポジションが溜まっており、急落リスクあり。`,
+      intensity: intensityBase,
+      description: desc,
       biasAdjustment: isOverheated ? -1.0 : -0.5,
     };
   }

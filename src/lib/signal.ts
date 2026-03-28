@@ -1216,6 +1216,7 @@ export interface MultiTimeframeInput {
   newsArticles?: NewsArticle[] | null;
   whaleActivity?: WhaleActivity;
   tradingStyle?: TradingStyle;
+  predictedFunding?: { hlRate: number | null; binRate: number | null; bybitRate: number | null; nextFundingTime: number };
 }
 
 export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
@@ -1252,7 +1253,7 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
     fundingRate: input.fundingRate,
     premiumIndex: input.premiumIndex,
   };
-  const derivatives = analyzeDerivatives(derivativesData, input.derivativesHistory);
+  const derivatives = analyzeDerivatives(derivativesData, input.derivativesHistory, input.predictedFunding);
 
   // Hierarchical analysis using role-based timeframes
   const hierarchical = buildHierarchicalAnalysis(details, styleConfig.roles);

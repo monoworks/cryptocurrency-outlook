@@ -1,4 +1,4 @@
-import { MarketData, DerivativesAnalysis, OIPriceSignal, DerivativesHistory, OIChange, FundingTrend, OiResidualAnalysis } from './types';
+import { MarketData, DerivativesAnalysis, OIPriceSignal, DerivativesHistory, OIChange, FundingTrend, OiResidualAnalysis, PredictedFundingInfo } from './types';
 
 function analyzeOIChange(history: { time: number; oi: number }[]): OIChange | undefined {
   if (history.length < 2) return undefined;
@@ -79,7 +79,7 @@ export function analyzeOiResidual(
   return { recentPriceMove: priceMove, oiChangeRate: oiChange, residualRatio, status, volatilityBias, description };
 }
 
-export function analyzeDerivatives(data: MarketData, history?: DerivativesHistory): DerivativesAnalysis {
+export function analyzeDerivatives(data: MarketData, history?: DerivativesHistory, predictedFunding?: { hlRate: number | null; binRate: number | null; bybitRate: number | null; nextFundingTime: number }): DerivativesAnalysis {
   const { ticker, fundingRate, premiumIndex } = data;
   const priceChange = ticker.priceChangePercent;
   const funding = fundingRate.fundingRate;
@@ -166,6 +166,40 @@ export function analyzeDerivatives(data: MarketData, history?: DerivativesHistor
     premiumSignal = 'bearish';
   }
 
+  // Predicted funding analysis
+  let predictedFundingInfo: PredictedFundingInfo | undefined;
+  if (predictedFunding && predictedFunding.hlRate !== null) {
+    const predicted = predictedFunding.hlRate;
+    let signal: PredictedFundingInfo['signal'] = 'neutral';
+    let description: string | undefined;
+
+    // 予測Fundingが過熱閾値を超えている場合、スクイーズリスクを検出
+    // 正のFunding = ロングがショートに支払い → ロング過多 → ロングスクイーズリスク
+    // 負のFunding = ショートがロングに支払い → ショート過多 → ショートスクイーズリスク
+    if (predicted > 0.0001) {
+      signal = 'squeeze_risk_long';
+      description = `次回予測Funding: +${(predicted * 100).toFixed(4)}%（ロング過多）。ロングスクイーズリスクに注意。`;
+    } else if (predicted < -0.0001) {
+      signal = 'squeeze_risk_short';
+      description = `次回予測Funding: ${(predicted * 100).toFixed(4)}%（ショート過多）。ショートスクイーズリスクに注意。`;
+    }
+
+    // 現在と予測の乖離が大きい場合、さらに警告を強化
+    const currentToPredict = Math.abs(predicted - funding);
+    if (currentToPredict > 0.0002 && description) {
+      description += ` 現在値(${(funding * 100).toFixed(4)}%)から急変動の兆候。`;
+    }
+
+    predictedFundingInfo = {
+      hlRate: predictedFunding.hlRate,
+      binRate: predictedFunding.binRate,
+      bybitRate: predictedFunding.bybitRate,
+      nextFundingTime: predictedFunding.nextFundingTime,
+      signal,
+      description,
+    };
+  }
+
   return {
     oiPriceSignal,
     oiPriceDescription,
@@ -177,5 +211,6 @@ export function analyzeDerivatives(data: MarketData, history?: DerivativesHistor
     fundingTrend,
     markOracleDivergence: Math.round(markOracleDivergence * 10000) / 10000,
     oiResidual,
+    predictedFunding: predictedFundingInfo,
   };
 }
