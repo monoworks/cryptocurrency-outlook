@@ -47,7 +47,7 @@ src/
 
 | ソース | 認証 | 用途 |
 | --- | --- | --- |
-| Hyperliquid API | 不要 | ローソク足、OI、資金調達率、板情報、約定履歴 |
+| Hyperliquid API | 不要 | ローソク足、OI、資金調達率、予測Funding Rate、板情報、約定履歴 |
 | Binance Futures API | 不要 | ローソク足(Taker買い出来高付き)、OI履歴、Top Trader比率 |
 | Alternative.me | 不要 | Fear & Greed Index |
 | Forex Factory | 不要 | 経済カレンダー |
@@ -64,7 +64,7 @@ RSI(14), MACD(12/26/9), SMA(20/50/200), EMA(20/50), VWAP, ボリンジャーバ�
 | トレンド分析 | `trend.ts` | HH/HL検出、MA配列、トレンド強度、レンジ幅ベースのトレンド補助判定 |
 | パターン検出 | `patterns.ts` | ローソク足パターン、チャートフォーメーション、偽ブレイクアウト、ウィック拒否 |
 | サポレジ | `support-resistance.ts` | ピボットベース検出、クラスタリング、強度ランク、心理的節目ボーナス |
-| デリバティブ | `derivatives.ts` | OI×価格シグナル、資金調達率過熱、プレミアム指数、OI残存率分析 |
+| デリバティブ | `derivatives.ts` | OI×価格シグナル、資金調達率過熱、予測Funding Rate、プレミアム指数、OI残存率分析 |
 | ボリュームプロファイル | `volume-profile.ts` | 30ビンVRVP、POC/VAH/VAL、買い/売りデルタ推定 |
 | 清算レベル | `liquidation.ts` | 5x〜100xレバレッジの清算ゾーン、マグネット検出 |
 | オーダーフロー | `order-flow.ts` | Taker買い/売り比率、インバランススコア |
@@ -138,9 +138,9 @@ UIのスタイル選択タブで切り替え可能。デフォルトは「スイ
 
 ### 群集心理分析 (`crowd-psychology.ts`)
 
-Funding / Premium / OI / Fear&Greed の複合条件で以下のパターンを検出:
-* **ショートスクイーズリスク**: Funding負 + Premium負 + OI維持/増加
-* **ロングスクイーズリスク**: Funding正 + Premium正 + OI維持/増加
+Funding / Premium / OI / Fear&Greed / 予測Funding Rate の複合条件で以下のパターンを検出:
+* **ショートスクイーズリスク**: Funding負（または予測Funding負） + Premium負 + OI維持/増加
+* **ロングスクイーズリスク**: Funding正（または予測Funding正） + Premium正 + OI維持/増加
 * **FOMO買い**: Fear&Greed 75+ + OI急増 + 新規ロング
 * **パニック売り**: Fear&Greed 25- + OI急増 + 新規ショート
 
@@ -267,5 +267,6 @@ TELEGRAM_CHAT_ID=       # 通知先チャット
 * 改修19A: RANGE_LOOKBACK 4H足を60→80本（約13日分）に拡大。78Kの高値がウィンドウ境界で外れる問題を修正
 * 改修19B: detectSwingsのスコープをRANGE_LOOKBACK本数に制限。全量キャンドルから古い上昇構造を拾いhhhlDirection=uptrendになる問題を修正
 
-### v5.1 (改修20)
+### v5.1 (改修20〜21)
 * 改修20: 価格急変アラートAPI (`/api/price-alert`) 新設。軽量エンドポイントで3分間隔Cron対応、シンボルごとの変動閾値（BTC=2%, ETH=3%, その他=5%）超過時にTelegram通知
+* 改修21: 予測Funding Rate（`predictedFundings`）をHyperliquid APIから取得し、デリバティブ分析・群集心理分析に統合。確定Fundingが中立でも予測が偏っていればスクイーズリスクを先行検出

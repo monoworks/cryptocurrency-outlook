@@ -212,6 +212,63 @@ export async function getPremiumIndex(symbol: string): Promise<PremiumIndexData>
   };
 }
 
+// ── Predicted Fundings ──────────────────────────────────────────────
+
+export interface PredictedFunding {
+  coin: string;
+  venues: Array<{
+    venue: string;       // "HlPerp", "BinPerp", "BybitPerp"
+    fundingRate: number;
+    nextFundingTime: number;
+  }>;
+}
+
+let predictedFundingsCache: { data: PredictedFunding[]; ts: number } | null = null;
+const PREDICTED_FUNDINGS_CACHE_TTL = 30_000; // 30 seconds
+
+export async function getPredictedFundings(): Promise<PredictedFunding[]> {
+  if (predictedFundingsCache && Date.now() - predictedFundingsCache.ts < PREDICTED_FUNDINGS_CACHE_TTL) {
+    return predictedFundingsCache.data;
+  }
+
+  const raw = await postInfo<Array<[string, Array<[string, { fundingRate: string; nextFundingTime: number }]>]>>({
+    type: 'predictedFundings',
+  });
+
+  const result: PredictedFunding[] = raw.map(([coin, venues]) => ({
+    coin,
+    venues: venues.map(([venue, data]) => ({
+      venue,
+      fundingRate: parseFloat(data.fundingRate),
+      nextFundingTime: data.nextFundingTime,
+    })),
+  }));
+
+  predictedFundingsCache = { data: result, ts: Date.now() };
+  return result;
+}
+
+export async function getPredictedFundingForSymbol(symbol: string): Promise<{ hlRate: number | null; binRate: number | null; bybitRate: number | null; nextFundingTime: number }> {
+  const coin = normalizeCoin(symbol);
+  const all = await getPredictedFundings();
+  const entry = all.find((p) => p.coin === coin || p.coin === coin.split(':').pop());
+
+  let hlRate: number | null = null;
+  let binRate: number | null = null;
+  let bybitRate: number | null = null;
+  let nextFundingTime = 0;
+
+  if (entry) {
+    for (const v of entry.venues) {
+      if (v.venue === 'HlPerp') { hlRate = v.fundingRate; nextFundingTime = v.nextFundingTime; }
+      else if (v.venue === 'BinPerp') binRate = v.fundingRate;
+      else if (v.venue === 'BybitPerp') bybitRate = v.fundingRate;
+    }
+  }
+
+  return { hlRate, binRate, bybitRate, nextFundingTime };
+}
+
 // ── OI History (not available on Hyperliquid) ────────────────────────
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
