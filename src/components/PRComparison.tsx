@@ -46,7 +46,8 @@ function Row({ label, help, value, valueColor = 'text-gray-200', sub, subColor }
 }
 
 export default function PRComparison({ longSetup, shortSetup, symbol, livePrice, vertical }: { longSetup: TradeSetup; shortSetup: TradeSetup; symbol?: string; livePrice?: number | null; vertical?: boolean }) {
-  const better = longSetup.riskRewardRatio >= shortSetup.riskRewardRatio ? 'long' : 'short';
+  const isEqual = longSetup.riskRewardRatio === shortSetup.riskRewardRatio;
+  const better = longSetup.riskRewardRatio > shortSetup.riskRewardRatio ? 'long' : 'short';
 
   return (
     <div className="bg-gray-800 rounded-lg p-4">
@@ -64,9 +65,13 @@ export default function PRComparison({ longSetup, shortSetup, symbol, livePrice,
         <SetupCard setup={shortSetup} />
       </div>
       <div className="mt-3 text-center text-sm text-gray-400">
-        PR比が高い方: <span className={better === 'long' ? 'text-green-400' : 'text-red-400'}>
-          {better === 'long' ? 'ロング' : 'ショート'}
-        </span>
+        {isEqual ? (
+          <>PR比: <span className="text-yellow-400">同値</span></>
+        ) : (
+          <>PR比が高い方: <span className={better === 'long' ? 'text-green-400' : 'text-red-400'}>
+            {better === 'long' ? 'ロング' : 'ショート'}
+          </span></>
+        )}
       </div>
     </div>
   );
