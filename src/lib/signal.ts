@@ -26,7 +26,7 @@ import {
   TradingStyle,
   TradingStyleConfig,
 } from './types';
-import { calcIndicators } from './indicators';
+import { calcIndicators, analyzeAnchoredVwap } from './indicators';
 import { detectPatterns, detectFalseBreakouts, detectWickRejections, detectVolumeSpikes } from './patterns';
 import { analyzeTrend, analyzePullback, detectRetest } from './trend';
 import { detectSupportResistance, detectVolumeBreakouts } from './support-resistance';
@@ -1436,6 +1436,39 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
   // Reuse sentiment computed earlier
   const sentiment = sentimentEarly;
 
+  // Anchored VWAP analysis (using setup timeframe candles for structure)
+  const setupTfKey = styleConfig.roles.setup;
+  const setupTfData = sortedTf.find(t => t.timeframe === setupTfKey);
+  let vwapConclusion: SignalConclusion | undefined;
+  let vwapReason: string | undefined;
+
+  if (setupTfData && setupTfData.candles.length >= 20) {
+    const vwapResult = analyzeAnchoredVwap(setupTfData.candles, 50);
+    if (vwapResult) {
+      if (vwapResult.signal === 'bullish') {
+        // テクニカル結論との整合チェック
+        if (conclusion === 'enter_long' || conclusion === 'wait') {
+          vwapConclusion = 'enter_long';
+          vwapReason = `VWAP分析がロング方向を支持。${vwapResult.description}`;
+        } else {
+          vwapConclusion = 'wait';
+          vwapReason = `VWAP分析は強気だがテクニカル結論と不一致。${vwapResult.description}`;
+        }
+      } else if (vwapResult.signal === 'bearish') {
+        if (conclusion === 'enter_short' || conclusion === 'wait') {
+          vwapConclusion = 'enter_short';
+          vwapReason = `VWAP分析がショート方向を支持。${vwapResult.description}`;
+        } else {
+          vwapConclusion = 'wait';
+          vwapReason = `VWAP分析は弱気だがテクニカル結論と不一致。${vwapResult.description}`;
+        }
+      } else {
+        vwapConclusion = 'skip';
+        vwapReason = `VWAP分析: 方向性なし。${vwapResult.description}`;
+      }
+    }
+  }
+
   return {
     tradingStyle: input.tradingStyle ?? 'swing',
     marketSummary: {
@@ -1464,6 +1497,8 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
     counterTrendMinPR,
     newsAdjustedConclusion: newsAdjusted?.conclusion,
     newsAdjustedReason: newsAdjusted?.reason,
+    vwapConclusion,
+    vwapReason,
     indicators: primary.indicators,
     patterns: primary.patterns,
     derivatives,

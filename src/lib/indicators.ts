@@ -121,3 +121,124 @@ export function calcVwapSeries(
 
   return result;
 }
+
+/**
+ * Anchored VWAP: 指定されたインデックスからの累積VWAPを算出。
+ * アンカーポイント（スイングハイ/ロー）から現在までの出来高加重平均価格を返す。
+ */
+export function calcAnchoredVwap(
+  candles: { high: number; low: number; close: number; volume: number }[],
+  anchorIndex: number,
+): number | null {
+  if (anchorIndex < 0 || anchorIndex >= candles.length) return null;
+
+  let cumVol = 0;
+  let cumTP = 0;
+
+  for (let i = anchorIndex; i < candles.length; i++) {
+    const c = candles[i];
+    const tp = (c.high + c.low + c.close) / 3;
+    cumVol += c.volume;
+    cumTP += tp * c.volume;
+  }
+
+  return cumVol > 0 ? cumTP / cumVol : null;
+}
+
+export interface AnchoredVwapResult {
+  /** 直近スイングハイからのVWAP（売り手の平均コスト） */
+  fromSwingHigh: number | null;
+  swingHighPrice: number | null;
+  swingHighIndex: number;
+  /** 直近スイングローからのVWAP（買い手の平均コスト） */
+  fromSwingLow: number | null;
+  swingLowPrice: number | null;
+  swingLowIndex: number;
+  /** 現在価格 */
+  currentPrice: number;
+  /** VWAP分析シグナル */
+  signal: 'bullish' | 'bearish' | 'neutral';
+  /** 説明文 */
+  description: string;
+}
+
+/**
+ * Anchored VWAP分析:
+ * 直近のスイングハイ/ローからVWAPを算出し、現在価格との位置関係で判断。
+ *
+ * - 価格 > 高値VWAP → 強い強気（高値で売った人も含み損）
+ * - 価格 > 安値VWAP かつ 価格 < 高値VWAP → やや強気（安値で買った人が含み益）
+ * - 価格 < 安値VWAP → 強い弱気（安値で買った人も含み損）
+ * - 価格 < 高値VWAP かつ 価格 > 安値VWAP → やや弱気（高値で売った人が含み益）
+ */
+export function analyzeAnchoredVwap(
+  candles: { high: number; low: number; close: number; volume: number }[],
+  lookback: number = 50,
+): AnchoredVwapResult | null {
+  if (candles.length < 10) return null;
+
+  const scope = candles.slice(-lookback);
+  const offset = candles.length - scope.length;
+
+  // スイングハイ/ロー検出（簡易版: 期間内の最高値/最安値のインデックス）
+  let swingHighIdx = 0;
+  let swingLowIdx = 0;
+  let maxHigh = -Infinity;
+  let minLow = Infinity;
+
+  for (let i = 0; i < scope.length; i++) {
+    if (scope[i].high > maxHigh) { maxHigh = scope[i].high; swingHighIdx = i; }
+    if (scope[i].low < minLow) { minLow = scope[i].low; swingLowIdx = i; }
+  }
+
+  const globalHighIdx = offset + swingHighIdx;
+  const globalLowIdx = offset + swingLowIdx;
+
+  const fromSwingHigh = calcAnchoredVwap(candles, globalHighIdx);
+  const fromSwingLow = calcAnchoredVwap(candles, globalLowIdx);
+  const currentPrice = candles[candles.length - 1].close;
+
+  let signal: 'bullish' | 'bearish' | 'neutral' = 'neutral';
+  let description = '';
+
+  if (fromSwingHigh != null && fromSwingLow != null) {
+    const aboveHighVwap = currentPrice > fromSwingHigh;
+    const aboveLowVwap = currentPrice > fromSwingLow;
+
+    if (aboveHighVwap && aboveLowVwap) {
+      signal = 'bullish';
+      description = `現在値$${currentPrice.toLocaleString()}は高値VWAP($${Math.round(fromSwingHigh).toLocaleString()})を上回る。高値圏の売り手も含み損 → 買い圧力優勢。`;
+    } else if (!aboveHighVwap && aboveLowVwap) {
+      // 高値VWAPと安値VWAPの間 → アンカーの時系列で判断
+      if (swingHighIdx > swingLowIdx) {
+        // 安値→高値→現在（高値から下落中）→ やや弱気
+        signal = 'bearish';
+        description = `現在値は高値VWAP($${Math.round(fromSwingHigh).toLocaleString()})を下回るが安値VWAP($${Math.round(fromSwingLow).toLocaleString()})は上回る。直近高値からの下落局面 → 戻り売り圧力あり。`;
+      } else {
+        // 高値→安値→現在（安値から反発中）→ やや強気
+        signal = 'bullish';
+        description = `現在値は安値VWAP($${Math.round(fromSwingLow).toLocaleString()})を上回り反発中。底値で買った参加者が含み益 → 押し目買い意欲あり。`;
+      }
+    } else if (!aboveHighVwap && !aboveLowVwap) {
+      signal = 'bearish';
+      description = `現在値$${currentPrice.toLocaleString()}は安値VWAP($${Math.round(fromSwingLow).toLocaleString()})も下回る。底値で買った参加者も含み損 → 投げ売り圧力リスク。`;
+    } else {
+      signal = 'neutral';
+      description = `VWAP間で方向性が不明確。`;
+    }
+  } else {
+    description = 'Anchored VWAP算出不可（データ不足）。';
+  }
+
+  return {
+    fromSwingHigh,
+    swingHighPrice: maxHigh !== -Infinity ? maxHigh : null,
+    swingHighIndex: globalHighIdx,
+    fromSwingLow,
+    swingLowPrice: minLow !== Infinity ? minLow : null,
+    swingLowIndex: globalLowIdx,
+    currentPrice,
+    signal,
+    description,
+  };
+}
