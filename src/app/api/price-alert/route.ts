@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTicker } from '@/lib/hyperliquid';
+import { getKlinesWithTakerVolume } from '@/lib/hyperliquid';
 import { resolveCoin } from '@/lib/symbol-resolver';
 import { notifyPriceAlert } from '@/lib/telegram';
-import { getLastPrice, setLastPrice } from '@/lib/price-alert-cache';
 
 export const dynamic = 'force-dynamic';
 export const preferredRegion = 'hnd1';
@@ -40,17 +39,24 @@ export async function GET(req: NextRequest) {
     return thresholdOverrides[symbol] ?? DEFAULT_THRESHOLDS[symbol] ?? FALLBACK_THRESHOLD;
   }
 
-  // Resolve coins and fetch prices in parallel
+  // Resolve coins and fetch 5m candles (2 latest) in parallel
+  // No in-memory state needed — compare the last two 5m candle closes
   const resolved = await Promise.allSettled(
     symbols.map(async (sym) => {
       const coin = await resolveCoin(sym);
-      const ticker = await getTicker(coin);
-      return { symbol: sym, price: ticker.lastPrice };
+      const { candles } = await getKlinesWithTakerVolume(coin, '5m', 3);
+      if (candles.length < 2) throw new Error('Insufficient candle data');
+      const prevCandle = candles[candles.length - 2];
+      const currentCandle = candles[candles.length - 1];
+      return {
+        symbol: sym,
+        prevPrice: prevCandle.close,
+        currentPrice: currentCandle.close,
+      };
     })
   );
 
   const alerts: Array<{ symbol: string; prevPrice: number; currentPrice: number; changePercent: number; threshold: number }> = [];
-  const skipped: Array<{ symbol: string; reason: string; price?: number }> = [];
   const errors: Array<{ symbol: string; error: string }> = [];
 
   for (let i = 0; i < symbols.length; i++) {
@@ -60,20 +66,12 @@ export async function GET(req: NextRequest) {
       continue;
     }
 
-    const { symbol, price } = settled.value;
-    const prev = getLastPrice(symbol);
-    setLastPrice(symbol, price);
-
-    if (!prev) {
-      skipped.push({ symbol, reason: 'first_run', price });
-      continue;
-    }
-
-    const changePercent = ((price - prev.price) / prev.price) * 100;
+    const { symbol, prevPrice, currentPrice } = settled.value;
+    const changePercent = ((currentPrice - prevPrice) / prevPrice) * 100;
     const threshold = getThreshold(symbol);
 
     if (Math.abs(changePercent) >= threshold) {
-      alerts.push({ symbol, prevPrice: prev.price, currentPrice: price, changePercent, threshold });
+      alerts.push({ symbol, prevPrice, currentPrice, changePercent, threshold });
     }
   }
 
@@ -97,7 +95,6 @@ export async function GET(req: NextRequest) {
       change: `${a.changePercent > 0 ? '+' : ''}${a.changePercent.toFixed(2)}%`,
       threshold: a.threshold,
     })),
-    skipped,
     errors,
     _telegram: { notified },
   });
