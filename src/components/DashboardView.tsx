@@ -266,6 +266,18 @@ export default function DashboardView({
                     )}
                     <p className="text-gray-300 text-sm">{result.conclusionReason}</p>
                   </div>
+                  {result.vwapConclusion && result.vwapReason && (() => {
+                    const vc = cfg[result.vwapConclusion] ?? cfg.skip;
+                    return (
+                      <div className="mt-3">
+                        <h2 className="text-base font-bold text-white mb-2">結論（VWAP分析）</h2>
+                        <div className={`border rounded-lg p-3 ${vc.bg}`}>
+                          <div className={`text-lg font-bold ${vc.color} mb-1`}>{vc.label}</div>
+                          <p className="text-gray-300 text-sm">{result.vwapReason}</p>
+                        </div>
+                      </div>
+                    );
+                  })()}
                   {nc && newsAdjusted && (
                     <div className="mt-3">
                       <h2 className="text-base font-bold text-white mb-2">結論（ニュース要素加味 <span className="text-xs font-normal text-gray-400">※試行中</span>）</h2>

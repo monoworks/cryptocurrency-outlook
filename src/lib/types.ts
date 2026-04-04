@@ -499,6 +499,9 @@ export interface AnalysisResult {
   // ⑥-b Conclusion (news-adjusted, experimental)
   newsAdjustedConclusion?: SignalConclusion;
   newsAdjustedReason?: string;
+  // ⑥-c Conclusion (VWAP analysis)
+  vwapConclusion?: SignalConclusion;
+  vwapReason?: string;
   // Extra (from primary timeframe)
   indicators: IndicatorValues;
   patterns: CandlePattern[];
