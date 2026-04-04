@@ -179,7 +179,7 @@ export default function HyperliquidChart({ symbol, levels, volumeProfile }: Prop
 
     // VWAP line series
     const vwapSeries = chart.addSeries(LineSeries, {
-      color: 'rgba(255, 193, 7, 0.85)',
+      color: 'rgba(156, 163, 175, 0.8)',
       lineWidth: 2,
       priceScaleId: 'right',
       lastValueVisible: true,
@@ -270,7 +270,7 @@ export default function HyperliquidChart({ symbol, levels, volumeProfile }: Prop
 
     if (overlays.has('vwap') && allCandlesRef.current.length > 0) {
       const vwapData = calcVwapSeries(allCandlesRef.current);
-      vs.setData(vwapData.map(d => ({ time: toJST(d.time), value: d.value })));
+      vs.setData(vwapData.map(d => ({ time: toJST(d.time), value: d.value, color: d.color })));
       vs.applyOptions({ visible: true });
     } else {
       vs.applyOptions({ visible: false });

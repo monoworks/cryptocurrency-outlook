@@ -90,17 +90,22 @@ export function calcIndicators(candles: OHLCV[]): IndicatorValues {
  * Calculate VWAP as a time series (one value per candle).
  * Returns an array of { time, value } suitable for chart LineSeries.
  */
-export function calcVwapSeries(candles: { time: number; high: number; low: number; close: number; volume: number }[]): { time: number; value: number }[] {
-  const result: { time: number; value: number }[] = [];
+export function calcVwapSeries(candles: { time: number; high: number; low: number; close: number; volume: number }[]): { time: number; value: number; color: string }[] {
+  const result: { time: number; value: number; color: string }[] = [];
   let cumVol = 0;
   let cumTP = 0;
+  let prevValue = 0;
 
   for (const c of candles) {
     const tp = (c.high + c.low + c.close) / 3;
     cumVol += c.volume;
     cumTP += tp * c.volume;
     if (cumVol > 0) {
-      result.push({ time: c.time, value: cumTP / cumVol });
+      const value = cumTP / cumVol;
+      // 上昇=青、下降=赤
+      const color = value >= prevValue ? 'rgba(59, 130, 246, 0.9)' : 'rgba(239, 68, 68, 0.9)';
+      result.push({ time: c.time, value, color });
+      prevValue = value;
     }
   }
 
