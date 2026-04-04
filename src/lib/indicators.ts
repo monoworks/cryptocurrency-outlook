@@ -87,24 +87,34 @@ export function calcIndicators(candles: OHLCV[]): IndicatorValues {
 }
 
 /**
- * Calculate VWAP as a time series (one value per candle).
- * Returns an array of { time, value } suitable for chart LineSeries.
+ * Calculate Rolling VWAP as a time series.
+ * Uses a sliding window of `period` candles instead of cumulative.
+ * Returns an array of { time, value, color } suitable for chart LineSeries.
  */
-export function calcVwapSeries(candles: { time: number; high: number; low: number; close: number; volume: number }[]): { time: number; value: number; color: string }[] {
+export function calcVwapSeries(
+  candles: { time: number; high: number; low: number; close: number; volume: number }[],
+  period = 20,
+): { time: number; value: number; color: string }[] {
   const result: { time: number; value: number; color: string }[] = [];
-  let cumVol = 0;
-  let cumTP = 0;
   let prevValue = 0;
 
-  for (const c of candles) {
-    const tp = (c.high + c.low + c.close) / 3;
-    cumVol += c.volume;
-    cumTP += tp * c.volume;
-    if (cumVol > 0) {
-      const value = cumTP / cumVol;
-      // 上昇=青、下降=赤
+  for (let i = 0; i < candles.length; i++) {
+    // ウィンドウ: 直近 period 本（データが足りなければ先頭から）
+    const start = Math.max(0, i - period + 1);
+    let windowVol = 0;
+    let windowTP = 0;
+
+    for (let j = start; j <= i; j++) {
+      const c = candles[j];
+      const tp = (c.high + c.low + c.close) / 3;
+      windowVol += c.volume;
+      windowTP += tp * c.volume;
+    }
+
+    if (windowVol > 0) {
+      const value = windowTP / windowVol;
       const color = value >= prevValue ? 'rgba(59, 130, 246, 0.9)' : 'rgba(239, 68, 68, 0.9)';
-      result.push({ time: c.time, value, color });
+      result.push({ time: candles[i].time, value, color });
       prevValue = value;
     }
   }
