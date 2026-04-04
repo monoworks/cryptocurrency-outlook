@@ -310,7 +310,7 @@ export default function HyperliquidChart({ symbol, levels, volumeProfile }: Prop
       // Refresh VWAP with full dataset
       if (vwapSeriesRef.current && overlays.has('vwap')) {
         const vwapData = calcVwapSeries(allCandlesRef.current);
-        vwapSeriesRef.current.setData(vwapData.map(d => ({ time: toJST(d.time), value: d.value })));
+        vwapSeriesRef.current.setData(vwapData.map(d => ({ time: toJST(d.time), value: d.value, color: d.color })));
       }
     } catch {
       // silently fail
@@ -360,7 +360,7 @@ export default function HyperliquidChart({ symbol, levels, volumeProfile }: Prop
       // Update VWAP if enabled
       if (vwapSeriesRef.current && overlays.has('vwap')) {
         const vwapData = calcVwapSeries(data);
-        vwapSeriesRef.current.setData(vwapData.map(d => ({ time: toJST(d.time), value: d.value })));
+        vwapSeriesRef.current.setData(vwapData.map(d => ({ time: toJST(d.time), value: d.value, color: d.color })));
         vwapSeriesRef.current.applyOptions({ visible: true });
       }
       chart.timeScale().fitContent();
