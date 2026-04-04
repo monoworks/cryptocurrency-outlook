@@ -11,9 +11,11 @@ import {
   ISeriesApi,
   CandlestickSeries,
   HistogramSeries,
+  LineSeries,
 } from 'lightweight-charts';
 import { PriceLevel, VolumeProfileAnalysis } from '@/lib/types';
 import { VrvpPrimitive } from './VrvpPrimitive';
+import { calcVwapSeries } from '@/lib/indicators';
 
 type Interval = '1m' | '5m' | '15m' | '1h' | '4h' | '1d';
 
@@ -90,7 +92,7 @@ function toCoin(symbol: string): string {
   return symbol.replace(/USDT$/i, '');
 }
 
-type OverlayToggle = 'sr' | 'vrvp';
+type OverlayToggle = 'sr' | 'vrvp' | 'vwap';
 
 export default function HyperliquidChart({ symbol, levels, volumeProfile }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -105,6 +107,7 @@ export default function HyperliquidChart({ symbol, levels, volumeProfile }: Prop
   const [overlays, setOverlays] = useState<Set<OverlayToggle>>(new Set());
 
   const vrvpPrimitiveRef = useRef<VrvpPrimitive | null>(null);
+  const vwapSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
 
   const allCandlesRef = useRef<KlineData[]>([]);
   const loadingMoreRef = useRef(false);
@@ -174,6 +177,19 @@ export default function HyperliquidChart({ symbol, levels, volumeProfile }: Prop
       scaleMargins: { top: 0.8, bottom: 0 },
     });
 
+    // VWAP line series
+    const vwapSeries = chart.addSeries(LineSeries, {
+      color: 'rgba(255, 193, 7, 0.85)',
+      lineWidth: 2,
+      priceScaleId: 'right',
+      lastValueVisible: true,
+      priceLineVisible: false,
+      title: 'VWAP',
+    });
+    vwapSeriesRef.current = vwapSeries;
+    // Initially hidden
+    vwapSeries.applyOptions({ visible: false });
+
     // Attach VRVP primitive to candle series
     const vrvpPrimitive = new VrvpPrimitive();
     candleSeries.attachPrimitive(vrvpPrimitive);
@@ -199,6 +215,7 @@ export default function HyperliquidChart({ symbol, levels, volumeProfile }: Prop
       chartRef.current = null;
       candleSeriesRef.current = null;
       volumeSeriesRef.current = null;
+      vwapSeriesRef.current = null;
     };
   }, []);
 
@@ -246,6 +263,24 @@ export default function HyperliquidChart({ symbol, levels, volumeProfile }: Prop
     }
   }, [overlays, volumeProfile]);
 
+  // VWAP overlay — show/hide line and update data
+  const updateVwap = useCallback(() => {
+    const vs = vwapSeriesRef.current;
+    if (!vs) return;
+
+    if (overlays.has('vwap') && allCandlesRef.current.length > 0) {
+      const vwapData = calcVwapSeries(allCandlesRef.current);
+      vs.setData(vwapData.map(d => ({ time: toJST(d.time), value: d.value })));
+      vs.applyOptions({ visible: true });
+    } else {
+      vs.applyOptions({ visible: false });
+    }
+  }, [overlays]);
+
+  useEffect(() => {
+    updateVwap();
+  }, [updateVwap]);
+
   // Load older data
   const loadOlderData = useCallback(async () => {
     if (loadingMoreRef.current || noMoreDataRef.current) return;
@@ -272,6 +307,11 @@ export default function HyperliquidChart({ symbol, levels, volumeProfile }: Prop
       allCandlesRef.current = [...data, ...allCandlesRef.current];
       cs.setData(toCandleData(allCandlesRef.current));
       vs.setData(toVolumeData(allCandlesRef.current));
+      // Refresh VWAP with full dataset
+      if (vwapSeriesRef.current && overlays.has('vwap')) {
+        const vwapData = calcVwapSeries(allCandlesRef.current);
+        vwapSeriesRef.current.setData(vwapData.map(d => ({ time: toJST(d.time), value: d.value })));
+      }
     } catch {
       // silently fail
     } finally {
@@ -317,6 +357,12 @@ export default function HyperliquidChart({ symbol, levels, volumeProfile }: Prop
       allCandlesRef.current = data;
       candleSeries.setData(toCandleData(data));
       volumeSeries.setData(toVolumeData(data));
+      // Update VWAP if enabled
+      if (vwapSeriesRef.current && overlays.has('vwap')) {
+        const vwapData = calcVwapSeries(data);
+        vwapSeriesRef.current.setData(vwapData.map(d => ({ time: toJST(d.time), value: d.value })));
+        vwapSeriesRef.current.applyOptions({ visible: true });
+      }
       chart.timeScale().fitContent();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load chart data');
@@ -453,6 +499,16 @@ export default function HyperliquidChart({ symbol, levels, volumeProfile }: Prop
               VRVP
             </button>
           )}
+          <button
+            onClick={() => toggleOverlay('vwap')}
+            className={`px-2 py-1 text-xs rounded transition-colors ${
+              overlays.has('vwap')
+                ? 'bg-yellow-600 text-white'
+                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+            }`}
+          >
+            VWAP
+          </button>
           <span className="w-px bg-gray-600 mx-0.5" />
           {/* Interval buttons */}
           {INTERVALS.map((iv) => (

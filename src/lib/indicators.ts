@@ -85,3 +85,24 @@ export function calcIndicators(candles: OHLCV[]): IndicatorValues {
 
   return { rsi, stochRsi, macd, sma20, sma50, sma200, ema20, ema50, vwap, bollingerBands, adx, atr };
 }
+
+/**
+ * Calculate VWAP as a time series (one value per candle).
+ * Returns an array of { time, value } suitable for chart LineSeries.
+ */
+export function calcVwapSeries(candles: { time: number; high: number; low: number; close: number; volume: number }[]): { time: number; value: number }[] {
+  const result: { time: number; value: number }[] = [];
+  let cumVol = 0;
+  let cumTP = 0;
+
+  for (const c of candles) {
+    const tp = (c.high + c.low + c.close) / 3;
+    cumVol += c.volume;
+    cumTP += tp * c.volume;
+    if (cumVol > 0) {
+      result.push({ time: c.time, value: cumTP / cumVol });
+    }
+  }
+
+  return result;
+}
