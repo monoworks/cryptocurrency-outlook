@@ -145,7 +145,7 @@ export default function SymbolInput({
 
       <div className="flex flex-wrap gap-3 items-end">
         <div className="flex-1 min-w-[200px]">
-          <label className="block text-sm text-gray-400 mb-1">シンボル</label>
+          <label className="block text-sm text-gray-400 mb-1">シンボル <span className="text-gray-500 text-xs">Hyperliquid上場銘柄を直接入力して分析可能（例: BERA, AVAX, LINK）</span></label>
           <input
             type="text"
             value={symbol}
