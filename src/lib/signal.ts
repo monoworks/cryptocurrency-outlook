@@ -1436,14 +1436,18 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
   // Reuse sentiment computed earlier
   const sentiment = sentimentEarly;
 
-  // Anchored VWAP analysis (using setup timeframe candles for structure)
+  // Anchored VWAP analysis (using setup timeframe candles, fallback to highest-weight available)
   const setupTfKey = styleConfig.roles.setup;
-  const setupTfData = sortedTf.find(t => t.timeframe === setupTfKey);
+  let vwapTfData = sortedTf.find(t => t.timeframe === setupTfKey);
+  // セットアップ足がなければ、利用可能な足の中で最も高い重みの足にフォールバック
+  if (!vwapTfData && sortedTf.length > 0) {
+    vwapTfData = sortedTf[sortedTf.length - 1]; // sortedTfは重み順なので末尾が最重
+  }
   let vwapConclusion: SignalConclusion | undefined;
   let vwapReason: string | undefined;
 
-  if (setupTfData && setupTfData.candles.length >= 20) {
-    const vwapResult = analyzeAnchoredVwap(setupTfData.candles, 50);
+  if (vwapTfData && vwapTfData.candles.length >= 20) {
+    const vwapResult = analyzeAnchoredVwap(vwapTfData.candles, 50);
     if (vwapResult) {
       if (vwapResult.signal === 'bullish') {
         // テクニカル結論との整合チェック
