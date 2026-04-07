@@ -105,6 +105,8 @@ export default function HyperliquidChart({ symbol, levels, volumeProfile }: Prop
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [overlays, setOverlays] = useState<Set<OverlayToggle>>(new Set());
+  const overlaysRef = useRef(overlays);
+  useEffect(() => { overlaysRef.current = overlays; }, [overlays]);
 
   const vrvpPrimitiveRef = useRef<VrvpPrimitive | null>(null);
   const vwapSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
@@ -431,6 +433,13 @@ export default function HyperliquidChart({ symbol, levels, volumeProfile }: Prop
             all[all.length - 1] = { time: utcSec, open, high, low, close, volume };
           } else {
             all.push({ time: utcSec, open, high, low, close, volume });
+          }
+
+          // VWAP更新（有効時のみ）
+          const vwapSeries = vwapSeriesRef.current;
+          if (vwapSeries && overlaysRef.current.has('vwap')) {
+            const vwapData = calcVwapSeries(all);
+            vwapSeries.setData(vwapData.map(d => ({ time: toJST(d.time), value: d.value, color: d.color })));
           }
         } catch {
           // ignore
