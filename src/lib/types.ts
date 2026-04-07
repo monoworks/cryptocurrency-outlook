@@ -39,6 +39,12 @@ export interface TradingStyleConfig {
   };
   /** 最大保有時間（ミリ秒） */
   maxHoldingMs: number;
+  /** エントリー指値の現在価格からの最低距離（ATR倍率） */
+  entryMinAtrMul: number;
+  /** エントリー指値の現在価格からの最大距離（ATR倍率） */
+  entryMaxAtrMul: number;
+  /** SL最低幅（価格に対する%、例: 0.003 = 0.3%） */
+  slMinPercent: number;
 }
 
 export interface TickerData {

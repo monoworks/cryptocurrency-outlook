@@ -13,6 +13,9 @@ export const TRADING_STYLE_CONFIGS: Record<TradingStyle, TradingStyleConfig> = {
       execution: '5m',
     },
     maxHoldingMs: 1 * 60 * 60 * 1000, // 1時間
+    entryMinAtrMul: 0.2,  // 引きつけ最小: ATR×0.2
+    entryMaxAtrMul: 1.0,  // 引きつけ最大: ATR×1.0（短期足は近めに）
+    slMinPercent: 0.003,  // SL最低幅: 0.3%
   },
   day_trade: {
     style: 'day_trade',
@@ -26,6 +29,9 @@ export const TRADING_STYLE_CONFIGS: Record<TradingStyle, TradingStyleConfig> = {
       execution: '5m',
     },
     maxHoldingMs: 8 * 60 * 60 * 1000, // 8時間
+    entryMinAtrMul: 0.3,
+    entryMaxAtrMul: 1.5,
+    slMinPercent: 0.005,  // 0.5%
   },
   swing: {
     style: 'swing',
@@ -39,5 +45,8 @@ export const TRADING_STYLE_CONFIGS: Record<TradingStyle, TradingStyleConfig> = {
       execution: '15m',
     },
     maxHoldingMs: 3 * 24 * 60 * 60 * 1000, // 3日
+    entryMinAtrMul: 0.5,
+    entryMaxAtrMul: 3.0,
+    slMinPercent: 0.010,  // 1.0%
   },
 };

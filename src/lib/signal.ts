@@ -71,9 +71,11 @@ function findEntrySupport(
   levels: PriceLevel[],
   currentPrice: number,
   atr: number | null,
+  minAtrMul: number = 0.3,
+  maxAtrMul: number = 2.0,
 ): number {
-  const minDistance = atr ? atr * 0.3 : currentPrice * 0.005; // 最低 0.3×ATR 離す
-  const maxDistance = atr ? atr * 2.0 : currentPrice * 0.03;  // 最大 2.0×ATR まで探索
+  const minDistance = atr ? atr * minAtrMul : currentPrice * 0.005;
+  const maxDistance = atr ? atr * maxAtrMul : currentPrice * 0.03;
 
   // 十分に引きつけたサポートを strength 順で探す
   const deepSupports = levels
@@ -110,9 +112,11 @@ function findEntryResistance(
   levels: PriceLevel[],
   currentPrice: number,
   atr: number | null,
+  minAtrMul: number = 0.3,
+  maxAtrMul: number = 2.0,
 ): number {
-  const minDistance = atr ? atr * 0.3 : currentPrice * 0.005;
-  const maxDistance = atr ? atr * 2.0 : currentPrice * 0.03;
+  const minDistance = atr ? atr * minAtrMul : currentPrice * 0.005;
+  const maxDistance = atr ? atr * maxAtrMul : currentPrice * 0.03;
 
   const deepResistances = levels
     .filter((l) =>
@@ -177,10 +181,11 @@ function findStructureSL(
   entry: number,
   atr: number | null,
   levels: PriceLevel[],
+  slMinPercent: number = 0.007,
 ): number {
   const buffer = entry * 0.001; // 0.1% buffer beyond the level
-  // 最低幅を ATR×0.5 に引き上げ、さらに絶対最低幅を設定
-  const absoluteMinSl = entry * 0.007; // 0.7%（BTC $69,000 なら約 $483）
+  // 絶対最低幅（スタイル別）
+  const absoluteMinSl = entry * slMinPercent;
   const atrMin = atr ? Math.max(atr * 0.5, absoluteMinSl) : absoluteMinSl;
   const atrMax = atr ? Math.max(atr * 2.0, entry * 0.03) : entry * 0.03;
 
@@ -256,9 +261,10 @@ function buildTradeSetup(
   target: number,
   atr: number | null,
   levels: PriceLevel[],
+  slMinPercent: number = 0.007,
 ): TradeSetup {
   if (direction === 'long') {
-    const stopLoss = findStructureSL('long', entry, atr, levels);
+    const stopLoss = findStructureSL('long', entry, atr, levels, slMinPercent);
     const risk = entry - stopLoss;
 
     // Find target: prefer S/R levels that give RR >= 1.5
@@ -290,7 +296,7 @@ function buildTradeSetup(
       rewardPercent: Math.round(((roundedTarget - roundedEntry) / roundedEntry) * 10000) / 100,
     };
   } else {
-    const stopLoss = findStructureSL('short', entry, atr, levels);
+    const stopLoss = findStructureSL('short', entry, atr, levels, slMinPercent);
     const risk = stopLoss - entry;
 
     let finalTarget = target;
@@ -1287,14 +1293,14 @@ export function generateSignal(input: MultiTimeframeInput): AnalysisResult {
     }
   }
 
-  // Trade setups from merged levels
+  // Trade setups from merged levels (style-aware entry distance and SL min width)
   const minTargetDistance = blendedAtr ? blendedAtr * 0.5 : currentPrice * 0.005;
-  const longEntry = findEntrySupport(levels, currentPrice, blendedAtr);
+  const longEntry = findEntrySupport(levels, currentPrice, blendedAtr, styleConfig.entryMinAtrMul, styleConfig.entryMaxAtrMul);
   const longTarget = findTarget(levels, longEntry, 'long', minTargetDistance);
-  const shortEntry = findEntryResistance(levels, currentPrice, blendedAtr);
+  const shortEntry = findEntryResistance(levels, currentPrice, blendedAtr, styleConfig.entryMinAtrMul, styleConfig.entryMaxAtrMul);
   const shortTarget = findTarget(levels, shortEntry, 'short', minTargetDistance);
-  const longSetup = buildTradeSetup('long', currentPrice, longEntry, longTarget, blendedAtr, levels);
-  const shortSetup = buildTradeSetup('short', currentPrice, shortEntry, shortTarget, blendedAtr, levels);
+  const longSetup = buildTradeSetup('long', currentPrice, longEntry, longTarget, blendedAtr, levels, styleConfig.slMinPercent);
+  const shortSetup = buildTradeSetup('short', currentPrice, shortEntry, shortTarget, blendedAtr, levels, styleConfig.slMinPercent);
 
   // Use the trading style's max holding time
   {
